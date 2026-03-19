@@ -45,7 +45,12 @@ function extraMealCardHTML(key, dateKey) {
     <span class="mc-real-c">C ${logMacros.c.toFixed(1)}g</span>
     <span class="mc-real-sep">·</span>
     <span class="mc-real-f">G ${logMacros.f.toFixed(1)}g</span>
-    <button class="mc-log-clear" onclick="clearLogMeal('${dateKey}','${key}');event.stopPropagation()" title="Azzera alimenti">✕</button>
+  </div>
+  <div class="mc-log-clear-row">
+    <button class="mc-log-clear" onclick="clearLogMeal('${dateKey}','${key}');event.stopPropagation()" title="Azzera tutti gli alimenti del pasto" aria-label="Azzera tutti gli alimenti del pasto">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+      <span>Azzera</span>
+    </button>
   </div>` : '';
 
   const addBtn = `<button class="mc-add-btn" onclick="toggleLogSearch('${domKey}');event.stopPropagation()" title="Aggiungi alimento"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
@@ -66,7 +71,7 @@ function extraMealCardHTML(key, dateKey) {
       ${hasLog ? `<div class="mc-log-items">${logRows}</div>${logSummary}` : ''}
       <div class="mc-log-search" id="mls-${domKey}" style="display:none">
         <div class="food-search-input-row">
-          <span class="food-search-icon">🔍 </span>
+          <span class="food-search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></span>
           <input type="text" class="food-search-input" id="mlsi-${domKey}"
             placeholder="Cerca alimento..."
             oninput="onLogFoodSearch(this,'${dateKey}','${key}','${domKey}')"
@@ -192,7 +197,7 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
       <div class="items-list-editor" id="il-${domKey}">${itemsHTML}</div>
       <div class="food-search-wrap" id="fsw-${domKey}">
         <div class="food-search-input-row">
-          <span class="food-search-icon">🔍 </span>
+          <span class="food-search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></span>
           <input type="text" class="food-search-input" id="fsi-${domKey}"
             placeholder="Cerca alimento... (es. yogurt greco Fage)"
             oninput="onFoodSearch(this,'${type}',${i},'${domKey}')"
@@ -250,8 +255,17 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
           <span class="mc-real-c">C ${logMacros.c.toFixed(1)}g</span>
           <span class="mc-real-sep">·</span>
           <span class="mc-real-f">G ${logMacros.f.toFixed(1)}g</span>
-          <button class="mc-log-clear" onclick="clearLogMeal('${dateKey}',${i});event.stopPropagation()" title="Azzera alimenti">✕</button>
+        </div>
+        <div class="mc-log-clear-row">
+          <button class="mc-log-clear" onclick="clearLogMeal('${dateKey}',${i});event.stopPropagation()" title="Azzera tutti gli alimenti del pasto" aria-label="Azzera tutti gli alimenti del pasto">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+            <span>Azzera</span>
+          </button>
         </div>` : '';
+    const emptyStateHTML = hasLog ? '' : `<div class="mc-empty-state">
+      <span class="mc-empty-dot"></span>
+      <span class="mc-empty-text">Nessun alimento loggato per questo pasto</span>
+    </div>`;
 
     // Template picker: filter templates matching this meal type
     const mealType = getMealTypeFromName(base.name);
@@ -278,16 +292,20 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
       <div class="mc-tmpl-sep">— oppure cerca alimento —</div>` : '';
 
     return `<div class="mc-log-panel" id="mlp-${domKey}">
-      ${hasLog ? `<div class="mc-log-items">${logRows}</div>${logSummary}` : ''}
+      ${hasLog ? `<div class="mc-log-items">${logRows}</div>${logSummary}` : emptyStateHTML}
       <div class="mc-log-search" id="mls-${domKey}" style="display:none">
         ${tmplPickerHTML}
         <div class="food-search-input-row">
-          <span class="food-search-icon">🔍 </span>
+          <span class="food-search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></span>
           <input type="text" class="food-search-input" id="mlsi-${domKey}"
             placeholder="Cerca alimento..."
             oninput="onLogFoodSearch(this,'${dateKey}',${i},'${domKey}')"
             autocomplete="off">
-          <button class="bc-btn" onclick="openBarcode('${dateKey}',${i});event.stopPropagation()" title="Scansiona barcode">📷 </button>
+          <button class="bc-btn" onclick="openBarcode('${dateKey}',${i});event.stopPropagation()" title="Scansiona barcode" aria-label="Scansiona barcode">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 5v14"></path><path d="M7 5v14"></path><path d="M10 5v14"></path><path d="M14 5v14"></path><path d="M17 5v14"></path><path d="M21 5v14"></path>
+            </svg>
+          </button>
         </div>
         <div class="food-search-results" id="mlsr-${domKey}"></div>
       </div>
@@ -324,10 +342,11 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
               <span class="mc-name">${htmlEsc(base.name)}</span>
               ${mode === 'today' ? `<button class="mc-rename-btn" onclick="renameMeal('${type}',${i});event.stopPropagation()" title="Rinomina pasto"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>` : ''}
             </span>
-            ${currentBadge}
-            ${ai !== undefined && alts[ai] ? `<span style="font-size:9px;font-weight:700;color:var(--on);margin-left:4px;background:var(--on-l);padding:1px 7px;border-radius:10px;border:1px solid var(--on-b);white-space:nowrap">${alts[ai].label}</span>` : ''}
-            <span class="mc-time">${clockSVG}${base.time}</span>
+            <span class="mc-time-wrap">${currentBadge}<span class="mc-time">${clockSVG}${base.time}</span></span>
           </div>
+          ${mode === 'today' ? `<div class="mc-meta-row">
+            ${ai !== undefined && alts[ai] ? `<span class="mc-alt-badge">${alts[ai].label}</span>` : ''}
+          </div>` : ''}
           ${mode === 'today' ? `<div class="mc-badge-row">${targetBadge}${addBtn}</div>` : targetBadge}
           ${mode !== 'today' ? `<div class="${ingrCls}">${m.ingr}</div>` : ''}
         </div>
@@ -616,7 +635,7 @@ function renderGreeting(type, now) {
   let streakBadge = '';
   if (streak > 0) {
     const sbs = streakBadgeStyle(streak);
-    streakBadge = `<span class="tg-streak" style="${sbs.style}" onmouseenter="showTip('tip-streak',this)" onmouseleave="hideTip('tip-streak')">${sbs.emoji} ${streak}</span>`;
+    streakBadge = `<span class="tg-streak" style="${sbs.style}" onmouseenter="showTip('tip-streak',this)" onmouseleave="hideTip('tip-streak')"><span class="tg-streak-icon">${sbs.emoji}</span><span class="tg-streak-val">${streak}</span></span>`;
     setTimeout(() => {
       const tipStreak = document.getElementById('tip-streak');
       if (tipStreak) tipStreak.innerHTML = `<div class="tip-title">${sbs.emoji} Streak · ${streak} ${streak===1?'giorno':'giorni'} consecutivi</div>
@@ -639,6 +658,7 @@ function renderGreeting(type, now) {
   const dateKey = S.selDate || localDate(now);
   const quote   = getDailyQuote(dateKey);
   const quoteHTML = `<div class="tg-quote">
+    <div class="tg-quote-kicker">Frase del giorno</div>
     <div class="tg-quote-text">"${quote.text}"</div>
     ${quote.attr ? `<div class="tg-quote-attr">— ${quote.attr}</div>` : ''}
   </div>`;
@@ -660,19 +680,24 @@ function renderGreeting(type, now) {
   </div>` : '';
 
   document.getElementById('today-greeting').innerHTML = `
-    <div class="tg-row">
-      <div class="tg-left">
+    <div class="tg-hero-main">
+      <div class="tg-hero-copy">
+        <div class="tg-head-row">
+          <div class="tg-date">Oggi · ${DAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}</div>
+          <div class="tg-meta-right">
+            ${dayChip}
+            ${streakBadge}
+            ${goalBadge}
+          </div>
+        </div>
         <div class="tg-hello">${saluto}, <em>${nome}.</em></div>
-        <div class="tg-date">${DAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}</div>
-      </div>
-      <div class="tg-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-        ${dayChip}
-        ${goalBadge}
-        ${streakBadge}
+        <div class="tg-subtext">${getGreetingSubtext(h, type, streak, calcWeekScore())}</div>
       </div>
     </div>
-    ${quoteHTML}
-    ${alertsHTML}`;
+    <div class="tg-hero-body">
+      ${alertsHTML ? `<div class="tg-hero-block tg-hero-block-alerts">${alertsHTML}</div>` : ''}
+      <div class="tg-hero-block tg-hero-block-quote${alertsHTML ? ' is-secondary' : ''}">${quoteHTML}</div>
+    </div>`;
 }
 
 function renderWeekCal(now) {
@@ -872,6 +897,69 @@ function renderToday() {
   renderSuppToday();
   checkWeeklyCheckin();
 }
+
+function getCurrentMealState(meals) {
+  const isTodayView = !S.selDate || S.selDate === localDate();
+  if (!isTodayView) return { index: -1, kind: 'none' };
+
+  const nowMins = new Date().getHours()*60 + new Date().getMinutes();
+  for (let i = 0; i < meals.length; i++) {
+    const m = (meals[i].time||'').match(/(\d+):(\d+)\s*[-–]\s*(\d+):(\d+)/);
+    if (!m) continue;
+    const start = parseInt(m[1])*60+parseInt(m[2]);
+    const end   = parseInt(m[3])*60+parseInt(m[4]);
+    if (nowMins >= start - 15 && nowMins <= end + 90) return { index: i, kind: 'now' };
+  }
+
+  let nextIdx = -1;
+  let minDiff = Infinity;
+  for (let i = 0; i < meals.length; i++) {
+    const m = (meals[i].time||'').match(/(\d+):(\d+)/);
+    if (!m) continue;
+    const start = parseInt(m[1])*60+parseInt(m[2]);
+    if (start > nowMins && start - nowMins < minDiff) { minDiff = start-nowMins; nextIdx = i; }
+  }
+  return { index: nextIdx, kind: nextIdx === -1 ? 'none' : 'next' };
+}
+
+function renderCurrentMealFocus(type, meals, mealState, dateKey) {
+  const el = document.getElementById('current-meal-focus');
+  if (!el) return;
+  if (mealState.index === -1) { el.innerHTML = ''; return; }
+
+  const i = mealState.index;
+  const meal = effMeal(type, i);
+  const mealLog = S.foodLog[dateKey]?.[i] || [];
+  const hasLog = mealLog.length > 0;
+  const pillClass = mealState.kind === 'now' ? 'now' : 'next';
+  const pillText = mealState.kind === 'now' ? 'Adesso' : 'Prossimo';
+  const subText = hasLog
+    ? 'Hai gia iniziato questo pasto: puoi aggiungere altri alimenti o rifinire le grammature.'
+    : (mealState.kind === 'now'
+      ? 'Questo e il pasto su cui conviene agire adesso per tenere il tracking semplice e veloce.'
+      : 'Questo e il prossimo snodo della giornata: puoi prepararlo in anticipo o loggarlo appena inizi.');
+
+  el.innerHTML = `
+    <div class="current-meal-focus">
+      <div class="current-meal-kicker">Focus del momento</div>
+      <div class="current-meal-main">
+        <div class="current-meal-copy">
+          <div class="current-meal-title">${htmlEsc(meal.name)}</div>
+          <div class="current-meal-meta">
+            <span class="current-meal-time">${htmlEsc(meal.time || '')}</span>
+            <span class="current-meal-pill ${pillClass}">${pillText}</span>
+          </div>
+          <div class="current-meal-sub">${subText}</div>
+        </div>
+        <div class="current-meal-actions">
+          <button class="current-meal-btn" onclick="document.getElementById('mc-${type}-${i}')?.scrollIntoView({behavior:'smooth',block:'center'})">
+            ${hasLog ? 'Apri pasto' : 'Vai al pasto'}
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
 // Partial render ? only what changes when log items are added/removed
 // Skips greeting and calendar (expensive, unnecessary for log changes)
 function renderTodayLog() {
@@ -911,28 +999,8 @@ function renderTodayLog() {
 
   // Determine current meal index based on time (only for today's view)
   const isToday2 = !S.selDate || S.selDate === localDate();
-  let currentMealIdx = -1;
-  if (isToday2) {
-    const nowMins = new Date().getHours()*60 + new Date().getMinutes();
-    // First pass: meal whose window contains now (±90 min grace)
-    for (let i = 0; i < meals.length; i++) {
-      const m = (meals[i].time||'').match(/(\d+):(\d+)\s*[-–]\s*(\d+):(\d+)/);
-      if (!m) continue;
-      const start = parseInt(m[1])*60+parseInt(m[2]);
-      const end   = parseInt(m[3])*60+parseInt(m[4]);
-      if (nowMins >= start - 15 && nowMins <= end + 90) { currentMealIdx = i; break; }
-    }
-    // Second pass: next upcoming meal if none found
-    if (currentMealIdx === -1) {
-      let minDiff = Infinity;
-      for (let i = 0; i < meals.length; i++) {
-        const m = (meals[i].time||'').match(/(\d+):(\d+)/);
-        if (!m) continue;
-        const start = parseInt(m[1])*60+parseInt(m[2]);
-        if (start > nowMins && start - nowMins < minDiff) { minDiff = start-nowMins; currentMealIdx = i; }
-      }
-    }
-  }
+  const mealState = getCurrentMealState(meals);
+  const currentMealIdx = mealState.index;
 
   const _activeExtra = S.extraMealsActive?.[dateKey] || {};
   let _mealsHTML = '';
@@ -950,6 +1018,7 @@ function renderTodayLog() {
     }
   });
   document.getElementById('meals-today').innerHTML = _mealsHTML;
+  renderCurrentMealFocus(type, meals, mealState, dateKey);
 
   // Progress: count meals with at least one logged item
   const dpLabel = document.getElementById('dp-label');

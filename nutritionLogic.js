@@ -397,9 +397,231 @@ const FOOD_DB = [
 let _foodSearchTimer = null;
 let _foodSearchSelected = null;
 
+const FOOD_SEARCH_STOPWORDS = new Set([
+  'a', 'al', 'alla', 'alle', 'allo', 'ai', 'agli',
+  'con', 'da', 'dal', 'dalla', 'dalle', 'dei', 'del', 'della', 'di',
+  'e', 'ed', 'il', 'in', 'la', 'le', 'lo', 'per', 'su', 'un', 'una', 'uno',
+]);
+
+const WHOLE_FOOD_TERMS = new Set([
+  'banana', 'banane', 'mela', 'mele', 'pera', 'pere', 'arancia', 'arance',
+  'fragola', 'fragole', 'mirtilli', 'ananas', 'mango', 'kiwi', 'uva',
+  'anguria', 'pesca', 'pesche', 'avocado', 'pomodoro', 'pomodori',
+  'zucchina', 'zucchine', 'broccoli', 'spinaci', 'carota', 'carote',
+  'patata', 'patate', 'pollo', 'tacchino', 'manzo', 'salmone', 'tonno',
+  'merluzzo', 'orata', 'uovo', 'uova', 'riso', 'avena', 'quinoa',
+  'lenticchie', 'ceci', 'fagioli', 'yogurt', 'skyr', 'ricotta',
+]);
+
+const COMPOUND_FOOD_TERMS = new Set([
+  'chips', 'chip', 'crisps', 'snack', 'barretta', 'barrette', 'biscotto', 'biscotti',
+  'merendina', 'merendine', 'dessert', 'gelato', 'torta', 'tortina', 'cake', 'bread',
+  'bevanda', 'drink', 'succo', 'smoothie', 'frullato', 'crema', 'salsa', 'mousse',
+  'cereali', 'flakes', 'cracker', 'gallette', 'yogurtino', 'budino', 'wafer', 'caramelle',
+]);
+
+function normalizeFoodText(str) {
+  return String(str || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[%]/g, ' percent ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tokenizeFoodText(str) {
+  return normalizeFoodText(str).split(' ').filter(Boolean);
+}
+
+function removeWeakTokens(tokens) {
+  return tokens.filter(t => t.length >= 2 && !FOOD_SEARCH_STOPWORDS.has(t));
+}
+
+function buildFoodQueryContext(q) {
+  const normalized = normalizeFoodText(q);
+  const rawTokens = tokenizeFoodText(q);
+  const tokens = removeWeakTokens(rawTokens);
+  const strongTokens = tokens.filter(t => t.length >= 3);
+  const effectiveTokens = strongTokens.length ? strongTokens : tokens;
+  const wholeFoodTokens = effectiveTokens.filter(t => WHOLE_FOOD_TERMS.has(t));
+  return {
+    raw: String(q || '').trim(),
+    normalized,
+    key: normalized,
+    rawTokens,
+    tokens,
+    strongTokens,
+    effectiveTokens,
+    wholeFoodTokens,
+    isWholeFoodQuery: effectiveTokens.length > 0 && wholeFoodTokens.length === effectiveTokens.length,
+    joined: effectiveTokens.join(' '),
+  };
+}
+
+function buildFoodResultContext(item) {
+  const nameNorm = normalizeFoodText(item.name || '');
+  const brandNorm = normalizeFoodText(item.brand || '');
+  const combinedNorm = `${nameNorm} ${brandNorm}`.trim();
+  const nameTokens = removeWeakTokens(tokenizeFoodText(item.name || ''));
+  const brandTokens = removeWeakTokens(tokenizeFoodText(item.brand || ''));
+  const combinedTokens = Array.from(new Set([...nameTokens, ...brandTokens]));
+  return { nameNorm, brandNorm, combinedNorm, nameTokens, brandTokens, combinedTokens };
+}
+
+function hasQueryMatch(item, queryCtx) {
+  const resultCtx = buildFoodResultContext(item);
+  const tokens = queryCtx.effectiveTokens;
+  if (!queryCtx.normalized || !tokens.length) return false;
+  if (resultCtx.combinedNorm.includes(queryCtx.normalized)) return true;
+  return tokens.some(t => resultCtx.nameNorm.includes(t) || resultCtx.brandNorm.includes(t));
+}
+
+function sourceRank(src) {
+  if (src === 'local') return 4;
+  if (src === 'recent') return 3;
+  if (src === 'cache') return 2;
+  if (src === 'off') return 1;
+  return 0;
+}
+
+function foodQualityPenalty(item) {
+  const kcal = Number(item.kcal100 || 0);
+  const p = Number(item.p100 || 0);
+  const c = Number(item.c100 || 0);
+  const f = Number(item.f100 || 0);
+  let penalty = 0;
+  if (!item.name) penalty += 80;
+  if (kcal <= 0) penalty += 20;
+  if (kcal > 950) penalty += 10;
+  if (p < 0 || c < 0 || f < 0) penalty += 30;
+  if (p === 0 && c === 0 && f === 0 && kcal > 0) penalty += 12;
+  return penalty;
+}
+
+function wholeFoodQueryAdjustment(resultCtx, queryCtx) {
+  if (!queryCtx.isWholeFoodQuery || !queryCtx.wholeFoodTokens.length) return 0;
+
+  let adj = 0;
+  const matchedWholeTokens = queryCtx.wholeFoodTokens.filter(t => resultCtx.nameTokens.includes(t));
+  if (matchedWholeTokens.length === queryCtx.wholeFoodTokens.length) adj += 40;
+
+  const extraNameTokens = resultCtx.nameTokens.filter(t => !queryCtx.wholeFoodTokens.includes(t));
+  const compoundHits = extraNameTokens.filter(t => COMPOUND_FOOD_TERMS.has(t)).length;
+  const genericExtras = extraNameTokens.length - compoundHits;
+
+  if (compoundHits > 0) adj -= compoundHits * 28;
+  if (genericExtras > 0) adj -= Math.min(genericExtras * 8, 24);
+
+  if (resultCtx.nameTokens.length === queryCtx.wholeFoodTokens.length) adj += 35;
+  if (resultCtx.nameTokens.length <= queryCtx.wholeFoodTokens.length + 1) adj += 12;
+
+  return adj;
+}
+
+function scoreFoodResult(item, queryCtx) {
+  const resultCtx = buildFoodResultContext(item);
+  const tokens = queryCtx.effectiveTokens;
+  let score = 0;
+
+  if (queryCtx.normalized && resultCtx.nameNorm === queryCtx.normalized) score += 120;
+  if (queryCtx.normalized && resultCtx.combinedNorm === queryCtx.normalized) score += 130;
+  if (queryCtx.joined && resultCtx.nameNorm.includes(queryCtx.joined)) score += 48;
+  if (queryCtx.joined && resultCtx.combinedNorm.includes(queryCtx.joined)) score += 32;
+
+  let matchedName = 0;
+  let matchedBrand = 0;
+  let missingStrong = 0;
+  let exactNameTokenMatches = 0;
+  tokens.forEach(t => {
+    const nameTokenExact = resultCtx.nameTokens.includes(t);
+    const inName = resultCtx.nameNorm.includes(t);
+    const inBrand = resultCtx.brandNorm.includes(t);
+    if (inName) {
+      matchedName++;
+      if (nameTokenExact) {
+        exactNameTokenMatches++;
+        score += 18;
+      }
+      score += 14;
+      if (resultCtx.nameNorm.startsWith(t) || resultCtx.nameNorm.includes(' ' + t)) score += 8;
+    } else if (inBrand) {
+      matchedBrand++;
+      score += 6;
+    }
+    if (!inName && !inBrand && t.length >= 3) missingStrong++;
+  });
+
+  if (tokens.length) {
+    const coverage = (matchedName + matchedBrand) / tokens.length;
+    score += Math.round(coverage * 24);
+  }
+
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const bigram = `${tokens[i]} ${tokens[i + 1]}`;
+    if (resultCtx.nameNorm.includes(bigram)) score += 18;
+    else if (resultCtx.combinedNorm.includes(bigram)) score += 10;
+  }
+
+  if (matchedName > 0 && matchedBrand > 0) score += 10;
+  if (matchedBrand > 0 && matchedName === 0) score -= 12;
+  if (missingStrong > 0) score -= missingStrong * 10;
+  if ((item._offHasItLabel || item._hasItLabel) && matchedName > 0) score += 4;
+
+  if (tokens.length === 1 && exactNameTokenMatches > 0) {
+    score += 55;
+    const extraNameTokens = resultCtx.nameTokens.filter(t => t !== tokens[0]).length;
+    score -= Math.min(extraNameTokens * 7, 35);
+  }
+
+  if (tokens.length <= 2 && exactNameTokenMatches === tokens.length && resultCtx.nameTokens.length === tokens.length) {
+    score += 40;
+  }
+
+  score += wholeFoodQueryAdjustment(resultCtx, queryCtx);
+
+  score += sourceRank(item.src) * 9;
+  score -= foodQualityPenalty(item);
+  return score;
+}
+
+function getFoodDedupeKey(item) {
+  const resultCtx = buildFoodResultContext(item);
+  const brandKey = (resultCtx.brandTokens.find(t => t !== 'generico') || '').slice(0, 18);
+  const kcalKey = Math.round((Number(item.kcal100 || 0)) / 5) * 5;
+  return `${resultCtx.nameNorm}|${brandKey}|${kcalKey}`;
+}
+
+function rankFoods(items, queryCtx) {
+  return items
+    .map(item => ({ ...item, _searchScore: scoreFoodResult(item, queryCtx) }))
+    .sort((a, b) =>
+      (b._searchScore - a._searchScore) ||
+      (sourceRank(b.src) - sourceRank(a.src)) ||
+      ((a.name || '').length - (b.name || '').length)
+    );
+}
+
+function dedupeFoodResults(items, queryCtx, limit = Infinity) {
+  const ranked = rankFoods(items, queryCtx);
+  const picked = new Map();
+  for (const item of ranked) {
+    const key = getFoodDedupeKey(item);
+    const prev = picked.get(key);
+    if (!prev || item._searchScore > prev._searchScore) picked.set(key, item);
+  }
+  return Array.from(picked.values())
+    .sort((a, b) =>
+      (b._searchScore - a._searchScore) ||
+      (sourceRank(b.src) - sourceRank(a.src))
+    )
+    .slice(0, limit);
+}
+
 // Alimenti recenti: scansiona foodLog (ultimi 14 gg) per alimenti effettivamente loggati
 function getRecentFoods(q) {
-  const key = q.toLowerCase().trim();
+  const queryCtx = typeof q === 'string' ? buildFoodQueryContext(q) : q;
   const seen = new Set();
   const recents = [];
   const dateKeys = Object.keys(S.foodLog || {}).sort().reverse();
@@ -407,10 +629,9 @@ function getRecentFoods(q) {
     const dayLog = S.foodLog[dk];
     for (const mealItems of Object.values(dayLog)) {
       for (const item of (mealItems || [])) {
-        const nameKey = item.name.toLowerCase();
-        if (!seen.has(nameKey) &&
-            (nameKey.includes(key) || (item.brand||'').toLowerCase().includes(key))) {
-          seen.add(nameKey);
+        const dedupeKey = getFoodDedupeKey(item);
+        if (!seen.has(dedupeKey) && hasQueryMatch(item, queryCtx)) {
+          seen.add(dedupeKey);
           recents.push({ ...item, src: 'recent' });
           if (recents.length >= 4) return recents;
         }
@@ -418,14 +639,6 @@ function getRecentFoods(q) {
     }
   }
   return recents;
-}
-
-// Calcola punteggio rilevanza: quante parole della query (>2 char) compaiono nel nome O nel brand
-function _relevance(name, q, brand) {
-  const words = q.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-  if (!words.length) return 1;
-  const text = (name + ' ' + (brand || '')).toLowerCase();
-  return words.filter(w => text.includes(w)).length;
 }
 
 // AbortController globale per cancellare fetch OFF precedenti
@@ -438,7 +651,8 @@ let _searchVersion = 0;
 // callback(results, apiStatus) — chiamata 2 volte: locale, poi locale+OFF
 async function searchFoods(q, callback) {
   if (!q || q.length < 2) { callback([], null); return; }
-  const key = q.toLowerCase().trim();
+  const queryCtx = buildFoodQueryContext(q);
+  const key = queryCtx.key;
   const version = ++_searchVersion;
 
   // Cancella fetch OFF precedente
@@ -447,35 +661,31 @@ async function searchFoods(q, callback) {
   const signal = _offAbort.signal;
 
   // 1. Local: custom + database interno
-  const custom = (S.customFoods || []).filter(f =>
-    f.name.toLowerCase().includes(key) || (f.brand||'').toLowerCase().includes(key)
-  ).slice(0, 5).map(f => ({ ...f, src: 'local' }));
+  const custom = (S.customFoods || [])
+    .filter(f => hasQueryMatch(f, queryCtx))
+    .map(f => ({ ...f, src: 'local' }));
 
-  const local = FOOD_DB.filter(f =>
-    f.name.toLowerCase().includes(key) || f.brand.toLowerCase().includes(key)
-  ).slice(0, 6).map(f => ({ ...f, src: 'local' }));
+  const local = FOOD_DB
+    .filter(f => hasQueryMatch(f, queryCtx))
+    .map(f => ({ ...f, src: 'local' }));
 
-  const allLocal = [...custom, ...local].slice(0, 8);
+  const allLocal = dedupeFoodResults([...custom, ...local], queryCtx, 8);
 
   // 2. Recenti da log effettivo (non cache di ricerca)
-  const recents = getRecentFoods(q)
-    .filter(r => !allLocal.find(l => l.name.toLowerCase() === r.name.toLowerCase()));
-
-  const seen = new Set([...allLocal, ...recents].map(r => r.name.toLowerCase().slice(0, 25)));
+  const recents = dedupeFoodResults([...allLocal, ...getRecentFoods(queryCtx)], queryCtx, 12)
+    .filter(r => r.src === 'recent');
 
   // Callback fase 1 — locale+recenti (nessun apiStatus = "OFF in caricamento")
-  callback([...allLocal, ...recents], null);
+  const phaseOneResults = dedupeFoodResults([...allLocal, ...recents], queryCtx, 12);
+  callback(phaseOneResults, null);
 
   // 3. OFF in background
   try {
-    const offItems = await fetchOFF(q, signal);
+    const offItems = await fetchOFF(q, signal, queryCtx);
     // Scarta se nel frattempo è partita una nuova ricerca
     if (version !== _searchVersion) return;
-    const filtered = offItems.filter(r => {
-      const k = r.name.toLowerCase().slice(0, 25);
-      if (seen.has(k)) return false;
-      seen.add(k); return true;
-    }).slice(0, 20);
+    const merged = dedupeFoodResults([...phaseOneResults, ...offItems], queryCtx, 32);
+    const filtered = merged.filter(r => r.src === 'off' || r.src === 'cache');
     // Cache OFF per sessione
     if (filtered.length) {
       S.foodCache[key] = filtered.map(r => ({ ...r, src: 'cache' }));
@@ -483,11 +693,11 @@ async function searchFoods(q, callback) {
       if (ks.length > 300) ks.slice(0, 80).forEach(k => delete S.foodCache[k]);
       save();
     }
-    callback([...allLocal, ...recents, ...filtered], { off: 'ok' });
+    callback(merged, { off: 'ok' });
   } catch(e) {
     if (version !== _searchVersion) return; // ricerca annullata, ignora
     if (e.name === 'AbortError') return;    // cancellato da nuova ricerca
-    callback([...allLocal, ...recents], { off: 'err' });
+    callback(phaseOneResults, { off: 'err' });
   }
 }
 
@@ -495,10 +705,11 @@ async function searchFoods(q, callback) {
 // Open Food Facts — ricerca via v1 full-text (cgi/search.pl)
 // v2 search_terms è rotto server-side; v1 funziona per tutto:
 // categorie (pasta, yogurt), brand (milbona, activia), piatti (spiedini, tiramisù)
-async function fetchOFF(q, signal) {
+async function fetchOFF(q, signal, queryCtx) {
   const V1 = 'https://it.openfoodfacts.net/cgi/search.pl';
   const FIELDS = 'product_name,product_name_it,brands,nutriments';
   const fetchOpts = signal ? { signal } : { signal: AbortSignal.timeout(8000) };
+  const localQueryCtx = queryCtx || buildFoodQueryContext(q);
 
   // Ricerca full-text v1 — se 0 risultati, riprova con query più corta
   // (es. "fettine di pollo lidl" → 0 → riprova "fettine di pollo")
@@ -523,30 +734,7 @@ async function fetchOFF(q, signal) {
   }
 
   // Ranking a 5 fattori: nome match, posizione parola, brand, copertura query, scheda IT
-  const qWords = q.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
-  if (qWords.length > 0) {
-    products.sort((a, b) => {
-      const _score = (p) => {
-        const name = ((p.product_name_it || '') + ' ' + (p.product_name || '')).toLowerCase();
-        const brand = (p.brands || '').toLowerCase();
-        let s = 0;
-        for (const w of qWords) {
-          if (name.includes(w)) s += 3;                         // a) match nel nome
-          if (name.startsWith(w) || name.includes(' ' + w)) s += 2; // b) nome inizia con parola
-          if (brand.includes(w)) s += 1;                        // c) match nel brand
-        }
-        // d) copertura: bonus proporzionale a quante parole della query matchano
-        const matched = qWords.filter(w => name.includes(w) || brand.includes(w)).length;
-        s += Math.round((matched / qWords.length) * 3);
-        // e) scheda italiana disponibile
-        if (p.product_name_it && p.product_name_it.trim()) s += 1;
-        return s;
-      };
-      return _score(b) - _score(a);
-    });
-  }
-
-  return products.slice(0, 20).map(p => {
+  const mapped = products.map(p => {
     const n = p.nutriments;
     return {
       name:    (p.product_name_it || p.product_name || '').trim().slice(0, 60),
@@ -555,9 +743,12 @@ async function fetchOFF(q, signal) {
       p100:    Math.round((n['proteins_100g']      || 0) * 10) / 10,
       c100:    Math.round((n['carbohydrates_100g'] || 0) * 10) / 10,
       f100:    Math.round((n['fat_100g']           || 0) * 10) / 10,
+      _offHasItLabel: !!(p.product_name_it && p.product_name_it.trim()),
       src: 'off',
     };
-  }).filter(r => r.name && r.kcal100 > 0);
+  }).filter(r => r.name && r.kcal100 > 0 && hasQueryMatch(r, localQueryCtx));
+
+  return dedupeFoodResults(mapped, localQueryCtx, 20);
 }
 
 // fetchUSDA rimosso — OFF è la sorgente API primaria
@@ -611,6 +802,8 @@ function _bindManualForm(resEl, onSelectFn) {
 function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
   const uid = resEl.id || ('mf' + Date.now());
   const manualHtml = _manualFormHTML(uid);
+  const PRIMARY_VISIBLE = 5;
+  const OFF_VISIBLE = 5;
 
   // Alert / spinner API status
   let alertsHtml = '';
@@ -645,21 +838,29 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
 
   let html = alertsHtml;
   let idx = 0;
+  const primaryItems = [...groups.local, ...groups.recent];
 
   // Sezione locale + recenti: nessun header
-  [...groups.local, ...groups.recent].forEach(item => {
+  const _renderPrimaryItem = (item) => {
     const k = 'r-' + idx++;
-    html +=
-      '<div class="fsr-item" id="fsri-' + k + '">' +
+    return '<div class="fsr-item" id="fsri-' + k + '">' +
       (item.src === 'recent' ? srcBadge.recent : '') +
       '<div class="fsr-info"><div class="fsr-name">' + htmlEsc(item.name) + '</div>' +
       '<div class="fsr-brand">' + htmlEsc(item.brand || '') + '</div></div>' +
       '<div class="fsr-macros"><div class="fsr-kcal">' + item.kcal100 + '</div>' +
       '<div class="fsr-per">kcal/100g</div></div></div>';
-  });
+  };
+  primaryItems.slice(0, PRIMARY_VISIBLE).forEach(item => { html += _renderPrimaryItem(item); });
+  if (primaryItems.length > PRIMARY_VISIBLE) {
+    const moreCount = primaryItems.length - PRIMARY_VISIBLE;
+    const moreId = 'fsr-primary-more-' + Date.now();
+    html += '<div class="fsr-show-more" onclick="document.getElementById(\'' + moreId + '\').style.display=\'block\';this.style.display=\'none\'">Mostra più risultati (' + moreCount + ')</div>';
+    html += '<div id="' + moreId + '" style="display:none">';
+    primaryItems.slice(PRIMARY_VISIBLE).forEach(item => { html += _renderPrimaryItem(item); });
+    html += '</div>';
+  }
 
-  // Sezione OFF: header + primi 8, poi "mostra più" per i restanti
-  const OFF_VISIBLE = 8;
+  // Sezione OFF: header + primi 5, poi "mostra più" per i restanti
   if (groups.off.length) {
     html += '<div class="fsr-section">Open Food Facts</div>';
     const _offItem = (item) => {

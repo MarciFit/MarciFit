@@ -144,12 +144,18 @@ App accessibile su: `http://localhost:8788`
 ## Ricerca Alimenti — Architettura OFF
 
 - **Endpoint search**: `it.openfoodfacts.net/cgi/search.pl?search_terms=...&search_simple=1&action=process&json=1&page_size=30`
-- **Endpoint barcode**: `world.openfoodfacts.org/api/v0/product/{barcode}.json` (~400ms). Struttura: `data.status === 1 ? data.product : null`. ⚠️ NON usare `cgi/search.pl?code=` per barcode — restituisce sempre 0 risultati.
+- **Endpoint barcode**: `world.openfoodfacts.org/api/v0/product/{barcode}.json?fields=code,product_name,product_name_it,product_name_en,generic_name,generic_name_it,brands,quantity,nutriments`
 - **AbortController**: `_offAbort` cancella ricerche precedenti; `_searchVersion` counter scarta callback stale
-- **Ranking 5 fattori**: name match +3, starts-with +2, brand +1, coverage bonus +3, IT label +1
+- **Normalizzazione query**: `normalizeFoodText()` + `tokenizeFoodText()` + `removeWeakTokens()` + `buildFoodQueryContext()`
+- **Ranking centralizzato**: `scoreFoodResult()` usato per locale, recenti e OFF; segnali principali = exact/contains, coverage token, bigram, brand, qualità nutrizionale, priorità source
+- **Deduplica robusta**: `getFoodDedupeKey()` + `dedupeFoodResults()` (nome normalizzato + brand + kcal arrotondate)
+- **Whole-food tuning**: `WHOLE_FOOD_TERMS` + `COMPOUND_FOOD_TERMS` + `wholeFoodQueryAdjustment()` per favorire query semplici tipo `banana`, `mela`, `pollo`, `riso`
 - **Progressive retry**: se 0 risultati e query ≥3 parole → retry senza ultima parola
-- **"Mostra più"**: primi 8 OFF visibili, resto in `<div style="display:none">` con bottone toggle inline
+- **"Mostra più"**: primi 5 risultati locali/recenti e primi 5 OFF visibili, resto dietro bottone toggle inline
 - **Debounce**: 400ms su tutti i search handler
+- **Barcode cache**: `_bcProductCache[barcode]` per evitare refetch sullo stesso codice
+- **Fallback nutrimenti barcode**: kcal da `energy-kcal_100g`, altrimenti `energy-kj_100g`/`energy_100g`, altrimenti formula da macro
+- **Scanner barcode**: conferma ridotta a 2 letture consecutive identiche; su miss riprende la scansione senza rifare `getUserMedia`
 
 ---
 
@@ -165,6 +171,15 @@ App accessibile su: `http://localhost:8788`
 ---
 
 ## Storico Sessioni
+
+### Sessione 14 — Ricerca cibi: ranking, whole-food, UI e barcode polish (2026-03-19)
+- **Greeting tab Oggi compattato**: data spostata accanto ai badge nel `tg-head-row` e spacing ridotto per evitare vuoti tra data e saluto.
+- **Ricerca cibi rifatta lato motore**: aggiunti in `nutritionLogic.js` `normalizeFoodText()`, `buildFoodQueryContext()`, `buildFoodResultContext()`, `scoreFoodResult()`, `dedupeFoodResults()`, `getFoodDedupeKey()`. `searchFoods()` e `fetchOFF()` ora usano ranking/deduplica unificati.
+- **Whole-food boost**: query semplici tipo `banana` / `mela` / `pollo` / `riso` riconosciute tramite `WHOLE_FOOD_TERMS`; prodotti composti (`chips`, `snack`, `dessert`, `bevanda`, ecc.) penalizzati con `COMPOUND_FOOD_TERMS`.
+- **Dropdown risultati più compatto**: primi 5 locali/recenti e primi 5 OFF visibili, poi bottone `Mostra più risultati`.
+- **Restyling risultati ricerca**: `style.css` aggiornato per `.food-search-results`, `.fsr-item`, `.fsr-show-more`, `.fsr-gram-row`, `.mf-form` — cards più pulite, badge migliori, stato selezionato più leggibile.
+- **Barcode migliorato**: cache per barcode (`_bcProductCache`), parsing nutrimenti più robusto (`_buildFoodItemFromBarcodeProduct()`), timeout fetch ridotto a 5s con `AbortController`, resume scan senza riaprire la camera, stop stream quando il prodotto viene trovato.
+- **Barcode modal ridisegnato**: `index.html` ripulito dagli inline style del modal e nuove classi CSS `.bc-*` in `style.css` per shell, header, frame camera, status e result card.
 
 ### Sessione 1 — Audit UI/UX (2026-03-18)
 - `.nav` nascosta su mobile — navigazione solo via bottom tab bar

@@ -859,6 +859,89 @@ let _bcStream = null;
 let _bcScanning = false;
 let _bcItem = null;
 let _bcMode = 'log'; // 'log' | 'ff'
+let _bcLookupController = null;
+let _bcResolvedCode = null;
+const _bcProductCache = {};
+
+function _sanitizeBarcode(raw) {
+  return String(raw || '').replace(/\D/g, '');
+}
+
+function _getBcNutriment(n, keys) {
+  for (const key of keys) {
+    const val = Number(n?.[key]);
+    if (Number.isFinite(val) && val > 0) return val;
+  }
+  return 0;
+}
+
+function _buildFoodItemFromBarcodeProduct(product, barcode) {
+  if (!product) return null;
+  const n = product.nutriments || {};
+  const p100 = Math.round((_getBcNutriment(n, ['proteins_100g']) || 0) * 10) / 10;
+  const c100 = Math.round((_getBcNutriment(n, ['carbohydrates_100g']) || 0) * 10) / 10;
+  const f100 = Math.round((_getBcNutriment(n, ['fat_100g']) || 0) * 10) / 10;
+  let kcal100 = Math.round(_getBcNutriment(n, ['energy-kcal_100g', 'energy_from_fat_100g']));
+  if (!kcal100) {
+    const kj = _getBcNutriment(n, ['energy-kj_100g', 'energy_100g']);
+    if (kj) kcal100 = Math.round(kj / 4.184);
+  }
+  if (!kcal100 && (p100 || c100 || f100)) {
+    kcal100 = Math.round(p100 * 4 + c100 * 4 + f100 * 9);
+  }
+
+  const rawName = (
+    product.product_name_it ||
+    product.product_name_en ||
+    product.product_name ||
+    product.generic_name_it ||
+    product.generic_name ||
+    'Prodotto'
+  ).trim();
+
+  if (!rawName || !kcal100) return null;
+
+  return {
+    barcode,
+    name: rawName.slice(0, 60),
+    brand: (product.brands || '').split(',')[0].trim().slice(0, 30),
+    quantity: (product.quantity || '').trim().slice(0, 24),
+    kcal100,
+    p100,
+    c100,
+    f100,
+  };
+}
+
+function _cacheBarcodeItem(item) {
+  if (!item?.barcode) return;
+  _bcProductCache[item.barcode] = { ...item };
+  const ck = item.name.toLowerCase().slice(0, 20);
+  if (!S.foodCache[ck]) S.foodCache[ck] = [];
+  if (!S.foodCache[ck].find(x => x.name === item.name && x.brand === item.brand)) {
+    S.foodCache[ck].push({
+      name: item.name,
+      brand: item.brand,
+      kcal100: item.kcal100,
+      p100: item.p100,
+      c100: item.c100,
+      f100: item.f100,
+      src: 'cache',
+    });
+  }
+}
+
+function _resumeBarcodeScanning(delay = 1200) {
+  if (_bcStream) {
+    setTimeout(() => {
+      if (!_bcStream || _bcScanning) return;
+      _bcScanning = true;
+      const status = document.getElementById('bc-status');
+      if (status) status.textContent = 'Inquadra il codice a barre del prodotto';
+      scanBarcode();
+    }, delay);
+  }
+}
 let _ffSearchResults = [];
 let _ffSearchTimer = null;
 
@@ -1152,7 +1235,12 @@ function showBarcodeResult() {
 function openBarcode(dateKey, mealIdx) {
   _bcCtx = (dateKey != null) ? {dateKey, mealIdx} : null;
   _bcItem = null;
+  _bcResolvedCode = null;
   _bcScanning = false;
+  if (_bcLookupController) {
+    try { _bcLookupController.abort(); } catch(e) {}
+    _bcLookupController = null;
+  }
   const modal = document.getElementById('barcode-modal');
   const result = document.getElementById('bc-result');
   const status = document.getElementById('bc-status');
@@ -1176,7 +1264,7 @@ async function startBcCamera() {
       // Native BarcodeDetector: richiede 3 letture consecutive identiche prima di accettare
       const det = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']});
       let _lastCode = null, _codeCount = 0;
-      const CONFIRM_NEEDED = 3;
+      const CONFIRM_NEEDED = 2;
       const tick = async () => {
         if (!_bcScanning) return;
         try {
@@ -1206,7 +1294,7 @@ async function startBcCamera() {
     } else if (typeof Quagga !== 'undefined') {
       const cv = document.getElementById('bc-canvas');
       let _lastCode = null, _codeCount = 0;
-      const CONFIRM_NEEDED = 3;
+      const CONFIRM_NEEDED = 2;
 
       const _quaggaConfident = (r) => {
         // Accetta solo se tutti i digit decodificati hanno confidence > 0.5
@@ -1263,36 +1351,63 @@ async function startBcCamera() {
 }
 
 async function onBarcodeDetected(barcode) {
-  document.getElementById('bc-status').textContent = '🔍 Codice: '+barcode+' · Cerco su Open Food Facts...';
+  const cleanBarcode = _sanitizeBarcode(barcode);
+  if (!cleanBarcode) return;
+  if (_bcResolvedCode === cleanBarcode && _bcItem) {
+    showBcResult();
+    return;
+  }
+
+  _bcScanning = false;
+  if (_bcLookupController) {
+    try { _bcLookupController.abort(); } catch(e) {}
+  }
+
+  const cached = _bcProductCache[cleanBarcode];
+  if (cached) {
+    _bcResolvedCode = cleanBarcode;
+    _bcItem = { ...cached };
+    document.getElementById('bc-status').textContent = '⚡ Prodotto riconosciuto dalla cache';
+    showBcResult();
+    return;
+  }
+
+  document.getElementById('bc-status').textContent = '🔍 Codice: '+cleanBarcode+' · Cerco su Open Food Facts...';
+  let timeoutId = null;
   try {
-    const resp = await fetch('https://world.openfoodfacts.org/api/v0/product/'+barcode+'.json?fields=product_name,product_name_it,product_name_en,brands,nutriments', {signal: AbortSignal.timeout(8000)});
+    _bcLookupController = new AbortController();
+    timeoutId = setTimeout(() => {
+      try { _bcLookupController?.abort(); } catch(e) {}
+    }, 5000);
+    const resp = await fetch(
+      'https://world.openfoodfacts.org/api/v0/product/'+cleanBarcode+'.json?fields=code,product_name,product_name_it,product_name_en,generic_name,generic_name_it,brands,quantity,nutriments',
+      { signal: _bcLookupController.signal }
+    );
+    clearTimeout(timeoutId);
     const data = await resp.json();
     const p = data.status === 1 ? data.product : null;
-    if (!p || !p.nutriments?.['energy-kcal_100g']) {
-      document.getElementById('bc-status').textContent = '⚠️  Prodotto non trovato ('+barcode+'). Riprova o usa la ricerca.';
-      _bcScanning = true;
-      if ('BarcodeDetector' in window || typeof Quagga!=='undefined') {
-        setTimeout(() => { if (_bcScanning) startBcCamera(); }, 2000);
-      }
+    const item = _buildFoodItemFromBarcodeProduct(p, cleanBarcode);
+    if (!item) {
+      document.getElementById('bc-status').textContent = '⚠️  Prodotto non trovato ('+cleanBarcode+'). Riprova o usa la ricerca.';
+      _bcResolvedCode = null;
+      _resumeBarcodeScanning(1400);
       return;
     }
-    const n = p.nutriments;
-    _bcItem = {
-      name:    (p.product_name_it||p.product_name_en||p.product_name||'Prodotto').trim().slice(0,60),
-      brand:   (p.brands||'').split(',')[0].trim().slice(0,30),
-      kcal100: Math.round(n['energy-kcal_100g']||0),
-      p100:    Math.round((n['proteins_100g']||0)*10)/10,
-      c100:    Math.round((n['carbohydrates_100g']||0)*10)/10,
-      f100:    Math.round((n['fat_100g']||0)*10)/10,
-    };
-    // Cache
-    const ck = _bcItem.name.toLowerCase().slice(0,20);
-    if (!S.foodCache[ck]) S.foodCache[ck]=[];
-    if (!S.foodCache[ck].find(x=>x.name===_bcItem.name)) S.foodCache[ck].push({..._bcItem,src:'cache'});
+    _bcResolvedCode = cleanBarcode;
+    _bcItem = item;
+    _cacheBarcodeItem(_bcItem);
     save();
     showBcResult();
   } catch(e) {
-    document.getElementById('bc-status').textContent = '❌  Errore di rete. Controlla la connessione.';
+    if (e.name === 'AbortError') {
+      document.getElementById('bc-status').textContent = '⚠️  Ricerca troppo lenta. Riprova o usa la ricerca testuale.';
+      _resumeBarcodeScanning(1200);
+    } else {
+      document.getElementById('bc-status').textContent = '❌  Errore di rete. Controlla la connessione.';
+    }
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+    _bcLookupController = null;
   }
 }
 
@@ -1305,7 +1420,9 @@ function showBcResult() {
   }
   document.getElementById('bc-product-name').textContent = _bcItem.name;
   document.getElementById('bc-product-meta').textContent =
-    (_bcItem.brand?_bcItem.brand+' · ':'')+_bcItem.kcal100+' kcal · P '+_bcItem.p100+'g · C '+_bcItem.c100+'g · G '+_bcItem.f100+'g per 100g';
+    (_bcItem.brand ? _bcItem.brand + ' · ' : '') +
+    (_bcItem.quantity ? _bcItem.quantity + ' · ' : '') +
+    _bcItem.kcal100 + ' kcal · P ' + _bcItem.p100 + 'g · C ' + _bcItem.c100 + 'g · G ' + _bcItem.f100 + 'g per 100g';
   document.getElementById('bc-status').textContent = '✅ Prodotto trovato!';
   const gi = document.getElementById('bc-gram-input');
   const gc = document.getElementById('bc-gram-calc');
@@ -1313,6 +1430,10 @@ function showBcResult() {
   gc.textContent = '= '+_bcItem.kcal100+' kcal';
   gi.oninput = () => { gc.textContent = '= '+Math.round(_bcItem.kcal100*(+gi.value||0)/100)+' kcal'; };
   document.getElementById('bc-result').style.display = 'block';
+  if (_bcStream) {
+    _bcStream.getTracks().forEach(t => t.stop());
+    _bcStream = null;
+  }
   gi.focus();
 }
 
@@ -1338,6 +1459,11 @@ function confirmBarcodeItem() {
 function closeBarcode() {
   _bcScanning = false;
   _bcMode = 'log';
+  _bcResolvedCode = null;
+  if (_bcLookupController) {
+    try { _bcLookupController.abort(); } catch(e) {}
+    _bcLookupController = null;
+  }
   if (_bcStream) { _bcStream.getTracks().forEach(t=>t.stop()); _bcStream=null; }
   document.getElementById('barcode-modal').style.display = 'none';
   document.getElementById('bc-result').style.display = 'none';
