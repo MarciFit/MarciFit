@@ -746,7 +746,7 @@ function renderWeekCal(now) {
       isPast ? 'past'  : '',
     ].filter(Boolean).join(' ');
 
-    const doneBadge = hasDone
+    const doneBadge = hasDone && dayInfo.done > 0
       ? `<div class="wc-done${isFull?' full':''}" title="${dayInfo.done}/${dayInfo.total} pasti"></div>`
       : '';
 
@@ -1782,9 +1782,18 @@ function toast(msg) {
   const el=document.getElementById('toast'); el.classList.add('show');
   _tt=setTimeout(()=>el.classList.remove('show'),2400);
 }
+const _tipShownAt = {}; // tracks when each tip was last shown (ms)
+
 function showTip(id, anchor) {
   const tip = document.getElementById(id);
   if (!tip) return;
+  _tipShownAt[id] = Date.now();
+
+  // Remove any stale outside-click handler from previous open
+  if (tip._outsideHandler) {
+    document.removeEventListener('pointerdown', tip._outsideHandler);
+    tip._outsideHandler = null;
+  }
 
   // Make visible off-screen to measure size
   tip.style.visibility = 'hidden';
@@ -1794,7 +1803,6 @@ function showTip(id, anchor) {
   const tipH = tip.offsetHeight;
   const rect = anchor.getBoundingClientRect();
   const vw = window.innerWidth;
-  const vh = window.innerHeight;
   const GAP = 10;
 
   // Horizontal: try to centre on anchor, clamp to viewport with padding
@@ -1819,11 +1827,33 @@ function showTip(id, anchor) {
   tip.style.left = left + 'px';
   tip.style.top  = top  + 'px';
   tip.style.visibility = 'visible';
+
+  // Outside-click/tap handler: close when touching anywhere outside the tip
+  // (delayed 200ms to skip the triggering touch itself)
+  const outside = (e) => {
+    if (!tip.contains(e.target) && e.target !== anchor) {
+      tip.style.display = 'none';
+      document.removeEventListener('pointerdown', outside);
+      tip._outsideHandler = null;
+    }
+  };
+  setTimeout(() => {
+    document.addEventListener('pointerdown', outside, { passive: true });
+    tip._outsideHandler = outside;
+  }, 200);
 }
 
 function hideTip(id) {
+  // Debounce: on mobile, a synthetic mouseleave fires immediately after onclick.
+  // Ignore the close if the tip was shown less than 400ms ago.
+  if (Date.now() - (_tipShownAt[id] || 0) < 400) return;
   const tip = document.getElementById(id);
-  if (tip) tip.style.display = 'none';
+  if (!tip) return;
+  if (tip._outsideHandler) {
+    document.removeEventListener('pointerdown', tip._outsideHandler);
+    tip._outsideHandler = null;
+  }
+  tip.style.display = 'none';
 }
 function renderTmplFormItems() {
   const el = document.getElementById('tf-items-list');

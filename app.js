@@ -237,8 +237,16 @@ function syncDoneByDate() {
   const type = S.day;
   const n = S.meals[type].filter((_,i) => S.checked[`${type}-${i}`]).length;
   const total = S.meals[type].length;
-  if (n === 0) delete S.doneByDate[dateKey];
-  else S.doneByDate[dateKey] = { done: n, total, type };
+  if (n === 0) {
+    // Bug fix: if the type was manually overridden vs scheduled, persist it even with 0 meals done
+    // so the calendar doesn't lose the override when switching days
+    const dow = new Date(dateKey + 'T12:00:00').getDay();
+    const scheduledType = new Set(S.onDays).has(dow) ? 'on' : 'off';
+    if (type !== scheduledType) S.doneByDate[dateKey] = { done: 0, total, type };
+    else delete S.doneByDate[dateKey];
+  } else {
+    S.doneByDate[dateKey] = { done: n, total, type };
+  }
 }
 function toggleExtraMeal(key) {
   const dateKey = S.selDate || localDate();
@@ -501,6 +509,8 @@ function setGoalPhase(phase) {
   });
   const descEl = document.getElementById('goal-phase-desc');
   if (descEl) descEl.textContent = PHASE_INFO[phase] || '';
+  // Always refresh fabbisogno preview after phase change (bug fix)
+  _updateFabbisognoPreview();
 }
 function toggleSupp(id) {
   const key = localDate();
@@ -1509,6 +1519,7 @@ function goView(name) {
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById(`view-${name}`).classList.add('active');
   document.querySelector(`.nav-tab[data-view="${name}"]`)?.classList.add('active');
+  window.scrollTo(0, 0); // scroll to top on tab change
   if (name==='piano')   renderPiano();
   if (name==='stats')   renderStats();
   if (name==='profilo') renderProfile();
