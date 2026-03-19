@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Diagnostic</title></head>
+<body>
+<div id="out" style="font:12px monospace;white-space:pre"></div>
+<div id="S_state"></div>
+<script>
+var errors = [];
+window.onerror = function(msg, src, line, col, err) {
+  errors.push('ERROR: ' + msg + ' at ' + src + ':' + line + ':' + col);
+  document.getElementById('out').textContent = errors.join('\n');
+  return false;
+};
+</script>
+<script src="storage.js"></script>
+<script>document.getElementById('out').textContent += '\nstorage.js loaded OK';</script>
+<script src="nutritionLogic.js"></script>
+<script>document.getElementById('out').textContent += '\nnutritionLogic.js loaded OK';</script>
+<script src="uiComponents.js"></script>
+<script>document.getElementById('out').textContent += '\nuiComponents.js loaded OK';</script>
+<script src="app.js"></script>
+<script>
+document.getElementById('out').textContent += '\napp.js loaded OK';
+document.getElementById('out').textContent += '\nErrors: ' + errors.length;
+document.getElementById('out').textContent += '\ntypeof S: ' + typeof S;
+document.getElementById('out').textContent += '\ntypeof renderGreeting: ' + typeof renderGreeting;
+document.getElementById('out').textContent += '\ntypeof initAll: ' + typeof initAll;
+if (errors.length === 0) {
+  document.getElementById('out').textContent += '\n\nNO JS ERRORS - running initAll()...';
+  try { initAll(); document.getElementById('out').textContent += '\ninitAll() OK'; }
+  catch(e) { document.getElementById('out').textContent += '\ninitAll() THREW: ' + e.message; }
+}
+</script>
+</body></html>
