@@ -29,7 +29,8 @@ function loadSaved() {
       'checked','altSel','weightLog','notes','noteSearch','profHist',
       'profilo','anagrafica','macro','meals','alts','onDays','calOffset','selDate',
       'doneByDate','measurements','goal','supplements','suppChecked',
-      'lastCheckin','foodCache','foodLog','templates','customFoods','water'
+      'lastCheckin','foodCache','foodLog','templates','customFoods','water',
+      'favoriteFoods'
     ];
     USER_KEYS.forEach(k => { if (k in saved) S[k] = saved[k]; });
 

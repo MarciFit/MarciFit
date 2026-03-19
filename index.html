@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=49">
+<link rel="stylesheet" href="style.css?v=53">
 </head>
 <body>
 <div class="app">
@@ -60,16 +60,11 @@
     <span id="dp-label" class="dp-compact-label">0 / 4 pasti</span>
     <div class="dp-bar"><div class="dp-fill" id="dp-fill" style="width:0%"></div></div>
     <button class="dp-info-btn" onmouseenter="showPastiDistTip(this)" onmouseleave="hideTip('tip-pasti-dist')" onclick="showPastiDistTip(this)" title="Info distribuzione calorie">i</button>
+    <button class="dp-print-btn" onclick="printDay()" title="Stampa / PDF"><i data-lucide="printer" style="width:14px;height:14px;stroke-width:2"></i></button>
   </div>
 
   <!-- Meals -->
   <div class="meals-list" id="meals-today"></div>
-
-  <!-- Day controls (print / reset) - now separate, no progress bar here -->
-  <div class="dp-actions-row">
-    <button class="btn-ghost btn" onclick="printDay()" title="Stampa / PDF"><i data-lucide="printer" class="nav-action-icon"></i> Stampa</button>
-    <button class="dp-reset" onclick="clearChecks()">Azzera giornata</button>
-  </div>
 
   <!-- Note giornaliere -->
   <div class="notes-section">
@@ -310,6 +305,10 @@
 <div id="tip-score"  class="stat-tip tip-up"></div>
 <div id="tip-water"      class="stat-tip tip-up"></div>
 <div id="tip-pasti-dist" class="stat-tip tip-up"></div>
+<div id="tip-fab-bmr"  class="stat-tip tip-up"></div>
+<div id="tip-fab-pal"  class="stat-tip tip-up"></div>
+<div id="tip-fab-tdee" class="stat-tip tip-up"></div>
+<div id="tip-fab-goal" class="stat-tip tip-up"></div>
 
 <!-- Weekly check-in modal -->
 <div id="checkin-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:500;align-items:center;justify-content:center" onclick="if(event.target===this)closeCheckin()">
@@ -373,9 +372,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.7.4/dist/quagga.min.js"></script>
 <script src="storage.js?v=31"></script>
-<script src="nutritionLogic.js?v=44"></script>
-<script src="uiComponents.js?v=56"></script>
-<script src="app.js?v=56"></script>
+<script src="nutritionLogic.js?v=45"></script>
+<script src="uiComponents.js?v=60"></script>
+<script src="app.js?v=60"></script>
 <script>lucide.createIcons();</script>
 </body>
 </html>

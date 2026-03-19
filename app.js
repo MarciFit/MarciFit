@@ -234,14 +234,21 @@ function clearChecks() {
 }
 function syncDoneByDate() {
   const dateKey = S.selDate || localDate();
+  const todayKey = localDate();
   const type = S.day;
-  const n = S.meals[type].filter((_,i) => S.checked[`${type}-${i}`]).length;
   const total = S.meals[type].length;
+
+  // S.checked is global (not date-scoped) — only valid for today.
+  // For other dates use foodLog to count actually logged meals.
+  const n = (dateKey === todayKey)
+    ? S.meals[type].filter((_,i) => S.checked[`${type}-${i}`]).length
+    : Object.keys(S.foodLog[dateKey] || {}).filter(k => (S.foodLog[dateKey][k]||[]).length > 0).length;
+
+  const dow = new Set(S.onDays);
+  const scheduledType = dow.has(new Date(dateKey + 'T12:00:00').getDay()) ? 'on' : 'off';
+
   if (n === 0) {
-    // Bug fix: if the type was manually overridden vs scheduled, persist it even with 0 meals done
-    // so the calendar doesn't lose the override when switching days
-    const dow = new Date(dateKey + 'T12:00:00').getDay();
-    const scheduledType = new Set(S.onDays).has(dow) ? 'on' : 'off';
+    // Persist override (done:0) only when type was manually changed vs schedule
     if (type !== scheduledType) S.doneByDate[dateKey] = { done: 0, total, type };
     else delete S.doneByDate[dateKey];
   } else {
@@ -500,17 +507,29 @@ function setGoalPhase(phase) {
     mantieni: 'Intake vicino al TDEE (−100 kcal OFF) per mantenere composizione corporea e performance in palestra.',
   };
   S.goal.phase = phase;
-  if (!S.goal.startDate) S.goal.startDate = localDate();
   save();
-  renderGoalCard();
   document.querySelectorAll('.goal-phase-btn').forEach(b => {
     const pid = b.getAttribute('onclick')?.match(/'(\w+)'/)?.[1];
     b.className = 'goal-phase-btn' + (pid === phase ? ' active-' + phase : '');
   });
   const descEl = document.getElementById('goal-phase-desc');
   if (descEl) descEl.textContent = PHASE_INFO[phase] || '';
-  // Always refresh fabbisogno preview after phase change (bug fix)
-  _updateFabbisognoPreview();
+  // Recalculate directly from S.anagrafica (no DOM read) so it works regardless of view state
+  const _r = computeNutrition(S.anagrafica, S.goal);
+  if (_r) {
+    S.macro.on = _r.macroOn; S.macro.off = _r.macroOff; saveSoon();
+    const fabEl = document.getElementById('fab-preview');
+    if (fabEl) {
+      const { bmr, pal, tdee, formula, macroOn, macroOff } = _r;
+      fabEl.innerHTML = `
+        <div class="fab-row fab-row-top"><span class="fab-label">BMR</span><span class="fab-value">${bmr} kcal</span><span class="fab-note">${formula}</span></div>
+        <div class="fab-row"><span class="fab-label">PAL</span><span class="fab-value">${pal}</span><span class="fab-note">occupazione + allenamento</span></div>
+        <div class="fab-row fab-row-tdee"><span class="fab-label">TDEE</span><span class="fab-value">${tdee} kcal</span></div>
+        <div class="fab-divider"></div>
+        <div class="fab-day-row"><span class="fab-day-label on-lbl">Giorno ON</span><span class="fab-day-kcal">${macroOn.k} kcal</span><span class="fab-day-macros">P ${macroOn.p}g · C ${macroOn.c}g · F ${macroOn.f}g</span></div>
+        <div class="fab-day-row"><span class="fab-day-label off-lbl">Giorno OFF</span><span class="fab-day-kcal">${macroOff.k} kcal</span><span class="fab-day-macros">P ${macroOff.p}g · C ${macroOff.c}g · F ${macroOff.f}g</span></div>`;
+    }
+  }
 }
 function toggleSupp(id) {
   const key = localDate();
@@ -654,6 +673,29 @@ function editLogItem(dateKey, mealIdx, itemIdx) {
   // Focus input after modal renders
   setTimeout(() => {
     const inp = document.getElementById('edit-gram-inp');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 50);
+}
+
+function renameMeal(type, mealIdx) {
+  const meal = S.meals[type]?.[mealIdx];
+  if (!meal) return;
+  const _pencilSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>`;
+  showDayModal({
+    icon: '✏️',
+    title: 'Rinomina pasto',
+    body: `<input id="rename-meal-inp" type="text" class="rename-meal-inp" value="${meal.name}" maxlength="30" style="font-size:16px;width:100%;padding:8px 10px;border:1.5px solid var(--b1);border-radius:8px;font-family:'Manrope',sans-serif;color:var(--ink)">`,
+    onConfirm: () => {
+      const val = document.getElementById('rename-meal-inp')?.value?.trim();
+      if (val) {
+        S.meals[type][mealIdx].name = val;
+        save();
+        renderTodayLog();
+      }
+    }
+  });
+  setTimeout(() => {
+    const inp = document.getElementById('rename-meal-inp');
     if (inp) { inp.focus(); inp.select(); }
   }, 50);
 }
@@ -1623,22 +1665,29 @@ function _updateFabbisognoPreview() {
   S.macro.off = result.macroOff;
   saveSoon();
   const { bmr, pal, tdee, formula, macroOn, macroOff } = result;
+  const _isvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`;
+  const phaseLabels = { bulk: 'Bulk — Massa', cut: 'Cut — Definizione', mantieni: 'Mantenimento' };
+  const phaseLabel = phaseLabels[S.goal?.phase] || 'Mantenimento';
   el.innerHTML = `
     <div class="fab-row fab-row-top">
-      <span class="fab-label">BMR</span>
+      <span class="fab-label">BMR <button class="fab-info-btn" onmouseenter="showFabBmrTip(this)" onmouseleave="hideTip('tip-fab-bmr')" onclick="showFabBmrTip(this)">${_isvg}</button></span>
       <span class="fab-value">${bmr} kcal</span>
       <span class="fab-note">${formula}</span>
     </div>
     <div class="fab-row">
-      <span class="fab-label">PAL</span>
+      <span class="fab-label">PAL <button class="fab-info-btn" onmouseenter="showFabPalTip(this)" onmouseleave="hideTip('tip-fab-pal')" onclick="showFabPalTip(this)">${_isvg}</button></span>
       <span class="fab-value">${pal}</span>
       <span class="fab-note">occupazione + allenamento</span>
     </div>
     <div class="fab-row fab-row-tdee">
-      <span class="fab-label">TDEE</span>
+      <span class="fab-label">TDEE <button class="fab-info-btn" onmouseenter="showFabTdeeTip(this)" onmouseleave="hideTip('tip-fab-tdee')" onclick="showFabTdeeTip(this)">${_isvg}</button></span>
       <span class="fab-value">${tdee} kcal</span>
     </div>
     <div class="fab-divider"></div>
+    <div class="fab-goal-header">
+      <span class="fab-goal-phase">${phaseLabel}</span>
+      <button class="fab-info-btn fab-info-btn--goal" onmouseenter="showFabGoalTip(this)" onmouseleave="hideTip('tip-fab-goal')" onclick="showFabGoalTip(this)">${_isvg} perché questi valori?</button>
+    </div>
     <div class="fab-day-row">
       <span class="fab-day-label on-lbl">Giorno ON</span>
       <span class="fab-day-kcal">${macroOn.k} kcal</span>
@@ -1909,6 +1958,7 @@ function macroAlerts() {
 }
 function initAll() {
   const hadSaved = loadSaved();
+  S.selDate = null; // sempre apre su oggi
 
   // Sanitize corrupted meal icons coming from old/localStorage saves.
   // (We observed replacement chars + CJK codepoints in logs.)

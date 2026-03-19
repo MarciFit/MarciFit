@@ -290,9 +290,6 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
           <button class="bc-btn" onclick="openBarcode('${dateKey}',${i});event.stopPropagation()" title="Scansiona barcode">📷 </button>
         </div>
         <div class="food-search-results" id="mlsr-${domKey}"></div>
-        ${!hasLog ? `<button class="mc-log-from-plan" onclick="loadPlanToLog('${dateKey}',${i},'${type}');event.stopPropagation()">
-          📋 Carica dal piano
-        </button>` : ''}
       </div>
     </div>`;
   })();
@@ -323,7 +320,10 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
         <div class="mc-body" style="cursor:default">
           <div class="mc-top">
             <span class="mc-icon">${base.icon}</span>
-            <span class="mc-name">${htmlEsc(base.name)}</span>
+            <span class="mc-name-group">
+              <span class="mc-name">${htmlEsc(base.name)}</span>
+              ${mode === 'today' ? `<button class="mc-rename-btn" onclick="renameMeal('${type}',${i});event.stopPropagation()" title="Rinomina pasto"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>` : ''}
+            </span>
             ${currentBadge}
             ${ai !== undefined && alts[ai] ? `<span style="font-size:9px;font-weight:700;color:var(--on);margin-left:4px;background:var(--on-l);padding:1px 7px;border-radius:10px;border:1px solid var(--on-b);white-space:nowrap">${alts[ai].label}</span>` : ''}
             <span class="mc-time">${clockSVG}${base.time}</span>
@@ -632,13 +632,8 @@ function renderGreeting(type, now) {
   const chipTxt = isOn ? '🟢 Giorno ON' : '🟡 Giorno OFF';
   const dayChip = `<button onclick="setDay('${isOn?'off':'on'}')" style="font-family:'Manrope',sans-serif;font-size:11px;font-weight:700;padding:5px 13px;border-radius:20px;cursor:pointer;transition:all .18s;${chipStyle};letter-spacing:.01em">${chipTxt}</button>`;
 
-  // Badge fase obiettivo
+  // Badge fase obiettivo rimosso (tracking settimane rimandato a implementazione futura)
   let goalBadge = '';
-  if (S.goal?.phase && S.goal?.startDate) {
-    const weeks = Math.floor((new Date()-new Date(S.goal.startDate+'T12:00:00'))/(7*86400000));
-    const phaseLabel = {bulk:'Bulk',cut:'Cut',mantieni:'Mantenimento'}[S.goal.phase]||S.goal.phase;
-    goalBadge = `<span style="font-size:10px;font-weight:700;color:var(--blue);background:var(--blue-l);border:1px solid #bfdbfe;border-radius:20px;padding:2px 9px;white-space:nowrap">Sett. ${weeks+1} · ${phaseLabel}</span>`;
-  }
 
   // Frase del giorno
   const dateKey = S.selDate || localDate(now);
@@ -1225,7 +1220,6 @@ function renderStats() {
 function renderProfile() {
   renderAnagrafica();
   renderOnDaysPicker();
-  renderGoalCard();
   renderSupplements();
 }
 function drawChart(log) {
@@ -1658,7 +1652,8 @@ function showPastiDistTip(anchor) {
 
 function renderSuppToday() {
   const el = document.getElementById('supp-today');
-  if (!el) return;
+  if (el) el.style.display = 'none';
+  return; // sezione rimossa dalla tab Oggi (ridondante)
   const active = S.supplements.filter(s=>s.active);
   if (!active.length) { el.style.display='none'; return; }
   el.style.display='block';
@@ -1828,11 +1823,21 @@ function showTip(id, anchor) {
   tip.style.top  = top  + 'px';
   tip.style.visibility = 'visible';
 
-  // Outside-click/tap handler: close when touching anywhere outside the tip
+  // Close immediately on scroll (user expects hover to vanish when scrolling)
+  const onScroll = () => {
+    tip.style.display = 'none';
+    if (tip._outsideHandler) { document.removeEventListener('pointerdown', tip._outsideHandler); tip._outsideHandler = null; }
+    tip._scrollHandler = null;
+  };
+  window.addEventListener('scroll', onScroll, { once: true, passive: true, capture: true });
+  tip._scrollHandler = onScroll;
+
+  // Outside-click/tap: close when touching anywhere outside the tip
   // (delayed 200ms to skip the triggering touch itself)
   const outside = (e) => {
     if (!tip.contains(e.target) && e.target !== anchor) {
       tip.style.display = 'none';
+      if (tip._scrollHandler) { window.removeEventListener('scroll', tip._scrollHandler, { capture: true }); tip._scrollHandler = null; }
       document.removeEventListener('pointerdown', outside);
       tip._outsideHandler = null;
     }
@@ -1844,16 +1849,74 @@ function showTip(id, anchor) {
 }
 
 function hideTip(id) {
-  // Debounce: on mobile, a synthetic mouseleave fires immediately after onclick.
-  // Ignore the close if the tip was shown less than 400ms ago.
-  if (Date.now() - (_tipShownAt[id] || 0) < 400) return;
+  // Debounce: on mobile, a synthetic mouseleave fires immediately after onclick (~50ms).
+  // Ignore if shown less than 400ms ago — scroll handler will close it instead.
+  if (Date.now() - (_tipShownAt[id] || 0) < 80) return;
   const tip = document.getElementById(id);
   if (!tip) return;
-  if (tip._outsideHandler) {
-    document.removeEventListener('pointerdown', tip._outsideHandler);
-    tip._outsideHandler = null;
-  }
+  if (tip._outsideHandler) { document.removeEventListener('pointerdown', tip._outsideHandler); tip._outsideHandler = null; }
+  if (tip._scrollHandler) { window.removeEventListener('scroll', tip._scrollHandler, { capture: true }); tip._scrollHandler = null; }
   tip.style.display = 'none';
+}
+
+// --- Fabbisogno section tooltips ---
+
+function showFabBmrTip(anchor) {
+  const el = document.getElementById('tip-fab-bmr');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="tip-title">METABOLISMO BASALE (BMR)</div>
+    <div class="tip-desc">Kcal bruciate a completo riposo — il minimo per le funzioni vitali.<br><br>
+    <strong>Katch-McArdle</strong> (se % grasso disponibile):<br>
+    BMR = 370 + 21.6 × massa magra (kg)<br><br>
+    <strong>Mifflin-St Jeor</strong> (fallback):<br>
+    M: 10×kg + 6.25×cm − 5×età + 5<br>
+    F: 10×kg + 6.25×cm − 5×età − 161</div>`;
+  showTip('tip-fab-bmr', anchor);
+}
+
+function showFabPalTip(anchor) {
+  const el = document.getElementById('tip-fab-pal');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="tip-title">LIVELLO DI ATTIVITÀ (PAL)</div>
+    <div class="tip-desc"><strong>Physical Activity Level</strong> — moltiplica il BMR per stimare il consumo reale.<br><br>
+    <strong>Occupazione</strong>: da 1.20 (scrivania) a 1.75 (lavoro fisico intenso)<br>
+    <strong>Allenamento</strong>: +0.10 (1–2/sett) fino a +0.40 (7+/sett)<br><br>
+    Formula: PAL = occupazione + delta allenamento<br>
+    Range tipico: 1.20 – 2.50</div>`;
+  showTip('tip-fab-pal', anchor);
+}
+
+function showFabTdeeTip(anchor) {
+  const el = document.getElementById('tip-fab-tdee');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="tip-title">DISPENDIO ENERGETICO TOTALE (TDEE)</div>
+    <div class="tip-desc"><strong>Total Daily Energy Expenditure</strong> — stima delle kcal bruciate in un giorno medio.<br><br>
+    <strong>Formula</strong>: TDEE = BMR × PAL<br><br>
+    È il punto di pareggio calorico: mangiare esattamente il TDEE mantiene il peso stabile nel tempo.</div>`;
+  showTip('tip-fab-tdee', anchor);
+}
+
+function showFabGoalTip(anchor) {
+  const el = document.getElementById('tip-fab-goal');
+  if (!el) return;
+  const phase = (typeof S !== 'undefined' && S.goal?.phase) || 'mantieni';
+  const data = {
+    bulk:     { title: 'BULK — MASSA', on: 'TDEE + 250 kcal', off: 'TDEE', note: 'Surplus moderato per stimolare la sintesi muscolare. I carboidrati salgono nei giorni di allenamento per supportare la performance.', prot: '2.0 g/kg' },
+    cut:      { title: 'CUT — DEFINIZIONE', on: 'TDEE − 300 kcal', off: 'TDEE − 500 kcal', note: 'Deficit progressivo: più contenuto nei giorni di allenamento, più ampio nei giorni di riposo. Le proteine sono alte per preservare la massa muscolare.', prot: '2.3 g/kg' },
+    mantieni: { title: 'MANTENIMENTO', on: 'TDEE', off: 'TDEE − 100 kcal', note: 'Pareggio calorico nei giorni di allenamento. Leggero deficit nei giorni di riposo per una composizione corporea stabile.', prot: '1.8 g/kg' },
+  };
+  const d = data[phase] || data.mantieni;
+  el.innerHTML = `
+    <div class="tip-title">${d.title}</div>
+    <div class="tip-desc">
+    <strong>Giorno ON</strong>: ${d.on}<br>
+    <strong>Giorno OFF</strong>: ${d.off}<br><br>
+    ${d.note}<br><br>
+    Proteine target: <strong>${d.prot}</strong></div>`;
+  showTip('tip-fab-goal', anchor);
 }
 function renderTmplFormItems() {
   const el = document.getElementById('tf-items-list');

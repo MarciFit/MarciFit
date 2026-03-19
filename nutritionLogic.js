@@ -703,7 +703,7 @@ const FOOD_PORTIONS = [
   { label: 'Tazza',      g: 240 },
 ];
 
-function showGramPicker(resEl, item, onConfirmFn) {
+function showGramPicker(resEl, item, onConfirmFn, mealCtx) {
   const old = resEl.nextSibling;
   if (old && old.classList?.contains('fsr-gram-row')) old.remove();
   const div = document.createElement('div');
@@ -713,7 +713,7 @@ function showGramPicker(resEl, item, onConfirmFn) {
     `<button class="fsr-portion" data-g="${p.g}">${p.label}<span class="fsr-portion-g">${p.g}g</span></button>`
   ).join('');
 
-  // Compute remaining kcal from current state
+  // Compute daily remaining kcal
   const _dk = (typeof S !== 'undefined' && S.selDate) || (typeof localDate === 'function' ? localDate() : '');
   const _type = typeof S !== 'undefined' ? S.day : 'on';
   const _tgtK = typeof S !== 'undefined' ? (S.macro[_type]?.k || 0) : 0;
@@ -726,6 +726,27 @@ function showGramPicker(resEl, item, onConfirmFn) {
   }
   const _remK = _tgtK - _eatenK;
 
+  // Compute per-meal remaining kcal (only for numbered meal slots)
+  let _mealTgtK = 0, _mealEatenK = 0, _hasMealTarget = false;
+  if (mealCtx && typeof mealCtx.mealIdx === 'number' && typeof S !== 'undefined') {
+    const meals = S.meals[_type] || [];
+    const thisMeal = meals[mealCtx.mealIdx];
+    if (thisMeal) {
+      const totalPlanK = meals.reduce((s, ml) => s + (mealMacros(ml).kcal || 0), 0);
+      const scale = (_tgtK > 0 && totalPlanK > 0) ? _tgtK / totalPlanK : 1;
+      _mealTgtK = Math.round(mealMacros(thisMeal).kcal * scale);
+      const mealLog = S.foodLog[_dk]?.[mealCtx.mealIdx] || [];
+      _mealEatenK = mealLog.reduce((s, it) => s + Math.round(it.kcal100 * it.grams / 100), 0);
+      _hasMealTarget = _mealTgtK > 0;
+    }
+  }
+  const _mealRemK = _mealTgtK - _mealEatenK;
+
+  const remRowHTML = (_tgtK > 0 || _hasMealTarget) ? `<div class="fsr-rem-row">` +
+    (_hasMealTarget ? `<span class="fsr-rem-lbl">Pasto:</span><span class="fsr-meal-rem-val ${_mealRemK < 0 ? 'err' : _mealRemK < _mealTgtK * 0.1 ? 'warn' : 'ok'}">${_mealRemK - item.kcal100} kcal rim.</span><span class="fsr-rem-sep">·</span>` : '') +
+    (_tgtK > 0 ? `<span class="fsr-rem-lbl">Giorno:</span><span class="fsr-rem-val ok">${_remK - item.kcal100} kcal rim.</span>` : '') +
+    `</div>` : '';
+
   div.innerHTML =
     `<div class="fsr-gram-name">${htmlEsc(item.name.slice(0, 30))}</div>` +
     `<div class="fsr-portions">${portionChips}</div>` +
@@ -735,20 +756,26 @@ function showGramPicker(resEl, item, onConfirmFn) {
     `<span class="fsr-gram-calc">=\u00a0${item.kcal100}\u00a0kcal</span>` +
     `<button class="fsr-gram-add">Aggiungi</button>` +
     `</div>` +
-    (_tgtK > 0 ? `<div class="fsr-rem-row"><span class="fsr-rem-lbl">Dopo:</span><span class="fsr-rem-val ok">${_remK - item.kcal100} kcal rimanenti</span></div>` : '');
+    remRowHTML;
 
   resEl.after(div);
   const gi = div.querySelector('.fsr-gram-input');
   const gc = div.querySelector('.fsr-gram-calc');
   const gr = div.querySelector('.fsr-rem-val');
+  const gm = div.querySelector('.fsr-meal-rem-val');
 
   const updateCalc = g => {
     const thisKcal = Math.round(item.kcal100 * g / 100);
     gc.textContent = '=\u00a0' + thisKcal + '\u00a0kcal';
     if (gr && _tgtK > 0) {
       const afterRem = _remK - thisKcal;
-      gr.textContent = (afterRem >= 0 ? afterRem : Math.abs(afterRem)) + (afterRem >= 0 ? ' kcal rimanenti' : ' kcal in più');
+      gr.textContent = (afterRem >= 0 ? afterRem : Math.abs(afterRem)) + (afterRem >= 0 ? ' kcal rim.' : ' kcal in più');
       gr.className = 'fsr-rem-val ' + (afterRem < 0 ? 'err' : afterRem < _tgtK * 0.1 ? 'warn' : 'ok');
+    }
+    if (gm && _hasMealTarget) {
+      const mAfterRem = _mealRemK - thisKcal;
+      gm.textContent = (mAfterRem >= 0 ? mAfterRem : Math.abs(mAfterRem)) + (mAfterRem >= 0 ? ' kcal rim.' : ' kcal in più');
+      gm.className = 'fsr-meal-rem-val ' + (mAfterRem < 0 ? 'err' : mAfterRem < _mealTgtK * 0.1 ? 'warn' : 'ok');
     }
   };
 
@@ -808,7 +835,7 @@ function onLogFoodSearch(input, dateKey, mealIdx, domKey) {
             if (gp2?.classList?.contains('fsr-gram-row')) gp2.remove();
             toast('✅ ' + confirmed.name + ' aggiunto');
             refreshMealCard(S.day, mealIdx);
-          });
+          }, { mealIdx, dateKey });
         },
         null, apiStatus
       );

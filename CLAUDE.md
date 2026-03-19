@@ -45,27 +45,20 @@
 
 ## Stato Attuale
 
-> Ultima modifica: 2026-03-18 (sessione 7)
+> Ultima modifica: 2026-03-19 (sessione 13)
 
 - Progetto funzionante con le 4 view principali operative
-- **Navbar aggiornata**: icone emoji sostituite con Lucide SVG icons (calendar-days, utensils, bar-chart-2, user, printer)
-- **Mobile-first layout**: bottom tab bar su mobile (≤600px), top tab bar centrata fisso su desktop
-- CSS `?v=45`, `uiComponents.js?v=51`, `app.js?v=53` — versioni attuali (incrementare ad ogni cambio significativo)
-
-**Audit UI/UX (sessione 1, 2026-03-18):**
-- `.nav` nascosta su mobile — navigazione solo via bottom tab bar
-- Nome pasto visibile: `.mc-top { flex-wrap: wrap }` su mobile → badge va a riga separata
-- Note textarea: font cambiato da JetBrains Mono a Manrope
-- Profilo tabella: label da `--muted` a `--ink2` (contrasto migliorato), colonna ridotta a 96px
-- Pulsante Stampa in azioni giornata: emoji → Lucide icon + testo "Stampa"
-
-**Miglioramenti UI (sessione 2, 2026-03-18):**
-- **Brand mobile**: `.nav` ora visibile su mobile (48px) con solo logo MF + "MarciFit", `.nav-actions` nascosto. `margin-top:48px` su `.view` mobile per compensare.
-- **Stats mini-card row**: `renderGreeting()` ora usa `.tg-stats-row` con 4 `.tg-stat-card` (BMI, BMR, TDEE, Peso) in una riga orizzontale scrollabile. Vecchi `.tg-stat` rimossi.
-- **Calendario picker**: tap sul titolo data apre modal con selezione mese/anno (`openCalPicker()`, `renderCalPicker()`, `pickerGoMonth()`). Limite ±26 settimane rimosso da `calMove()`. Picker con griglia 4×3 mesi + nav anno.
-- **Badge target due righe**: `.mc-target-badge` ora flex-direction:column con `.mc-badge-kcal` (kcal, 11px) e `.mc-badge-macros` (P/C/G, 9px grigio).
-- **Note focus-within**: tag nascosti di default, animati in view quando `.notes-input-group` è in focus (CSS `:focus-within`). Campo ricerca con icona Lucide `search`.
-- **Macro strip colori corretti**: `rc='ok'` (verde) quando rem>0 (sotto target), `rc='err'` (rosso) quando rem<0 (sopra target), `rc='warn'` quando rem < 15% del target.
+- **Versioni asset correnti**: `style.css?v=53`, `uiComponents.js?v=60`, `app.js?v=60`, `nutritionLogic.js?v=45` — incrementare ad ogni cambio significativo
+- **Navbar**: Lucide SVG icons (calendar-days, utensils, bar-chart-2, user, printer). `.nav` sticky top con brand mobile, `.nav-tabs` bottom su mobile / top centrata su desktop
+- **Layout mobile**: bottom tab bar stile iOS, brand bar in alto (48px sticky), tastiera aperta → `kb-open` nasconde nav-tabs
+- **Greeting**: frase motivazionale quotidiana (Lora italic) + alert engine condizionale (supplementi/mezzogiorno/serali)
+- **Macro strip**: card hero kcal + 3 card macro (P/C/F) con barre colorate e resto mancante
+- **Pasti extra**: "Merenda" e "Spuntino" attivabili per-day, salvati in `S.extraMeals[dateKey]`
+- **Cibi Preferiti**: `S.favoriteFoods[]` persistente, usati per suggerimenti alimentari negli alert serali
+- **Barcode scanner**: BarcodeDetector + Quagga fallback, 3 letture consecutive richieste, camera 1920×1080
+- **Edit grammatura**: matita inline nelle log row, live preview kcal nel modal
+- **Click macro card**: breakdown per pasto del nutriente selezionato
+- **Calorie rimanenti**: mostrate nel gram picker durante l'aggiunta di un alimento
 
 ---
 
@@ -77,11 +70,11 @@ _Nessun bug noto documentato al momento._
 
 ---
 
-## Implementazioni in Corso
+## Implementazioni in Corso / Feature Future
 
 > Aggiungere feature WIP con formato: **[DATA] Feature** — stato, file coinvolti, note
 
-_Nessuna implementazione in corso al momento._
+- **⚠️ [FUTURA] Gestione tolleranza alert**: soglie kcal/proteine da Profilo > Impostazioni alert. Attualmente hardcoded in `renderTodayLog()`: `ALERT_KCAL_ERR=300`, `ALERT_KCAL_WARN=150`, `ALERT_PROT_WARN=20g`.
 
 ---
 
@@ -91,14 +84,14 @@ _Nessuna implementazione in corso al momento._
 - `.nav-tabs` è **fuori** dal `.nav` nel DOM — necessario perché `backdrop-filter` sul `.nav` rompe `position: fixed` dei figli
 - **Desktop**: `.nav-tabs` è `position: fixed; top: 0; left: 50%; transform: translateX(-50%); height: 56px` — galleggia centrata sulla top bar
 - **Mobile (≤600px)**: `.nav-tabs` diventa `position: fixed; bottom: 0` — bottom tab bar stile iOS
-- **Mobile nav brand**: `.nav` visibile su mobile (48px, `padding: 0 16px`), solo logo + nome, `.nav-actions` nascosto
-- `.view` su mobile ha `margin-top: 48px` per compensare la nav brand visibile
+- **Mobile nav brand**: `.nav` è `position:sticky;top:0` (48px, `padding: 0 16px`), solo logo + nome, `.nav-actions` nascosto. Non serve `margin-top` su `.view` — il sticky è nel document flow.
 - Attivo su mobile: solo colore verde (`--on`), no pill background
 - `env(safe-area-inset-bottom)` gestisce il notch/home indicator iPhone
-- **Tastiera aperta**: classe `kb-open` su `<body>` tramite JS `focusin`/`focusout` → `.nav-tabs` nascosta, `.view` padding ridotto a 16px
+- **Tastiera aperta**: classe `kb-open` su `<body>` tramite JS `focusin`/`focusout` → `.kb-open .nav-tabs { display:none }` e `.kb-open .view { padding-bottom:16px }`
 
 ### Cache CSS
 - `style.css?v=N` — incrementare N ad ogni cambio CSS significativo per forzare reload nel preview browser (Chromium aggressivo sulla cache)
+- Hard reload JS se `window.location.reload()` non basta: `location.href = location.href.split('?')[0] + '?bust=' + Date.now()`
 
 ### Preview System (Claude Code)
 - **Problema macOS sandbox**: `preview_start` lancia Python in un processo sandboxed che non può leggere da `~/Desktop`. Soluzione: il server serve da `/tmp/marcifit/` (accessibile al sandbox).
@@ -109,6 +102,8 @@ _Nessuna implementazione in corso al momento._
   ```
 - **Avvio sessione**: se `preview_start` fallisce per porta occupata → `kill $(lsof -ti :8788)` poi riprovare.
 
+---
+
 ## Architettura & Convenzioni
 
 ### State management
@@ -118,11 +113,13 @@ _Nessuna implementazione in corso al momento._
 ### Pattern UI
 - Componenti renderizzati come stringhe HTML in `uiComponents.js`, iniettati via `innerHTML`
 - Event delegation per elementi dinamici
+- `generateAssistantMessage()` è **RIMOSSA** — usare `getDailyQuote()` + `generateAlerts()` in `uiComponents.js`
 
 ### Dati
 - Tutto persiste in `localStorage` — nessuna chiamata server per i dati utente
 - Misurazioni corporee: append-only (mai sovrascritte)
 - Template pasti separati dal log giornaliero
+- `S.checked` è globale (chiavi `on-0`, `on-1`...) — non è date-scoped. Il fallback "pasto spuntato senza log → usa piano come stima" in `renderMacroStrip()` è protetto da `isToday`
 
 ### File `start.html`
 - Versione alternativa con tutto inline — non è il file principale di sviluppo
@@ -147,76 +144,124 @@ App accessibile su: `http://localhost:8788`
 ## Ricerca Alimenti — Architettura OFF
 
 - **Endpoint search**: `it.openfoodfacts.net/cgi/search.pl?search_terms=...&search_simple=1&action=process&json=1&page_size=30`
-- **Endpoint barcode**: `it.openfoodfacts.net/cgi/search.pl?code={barcode}&action=process&json=1` → `data.products?.[0]` (NON `data.product` — endpoint `world.openfoodfacts.org` va in timeout)
+- **Endpoint barcode**: `world.openfoodfacts.org/api/v0/product/{barcode}.json` (~400ms). Struttura: `data.status === 1 ? data.product : null`. ⚠️ NON usare `cgi/search.pl?code=` per barcode — restituisce sempre 0 risultati.
 - **AbortController**: `_offAbort` cancella ricerche precedenti; `_searchVersion` counter scarta callback stale
 - **Ranking 5 fattori**: name match +3, starts-with +2, brand +1, coverage bonus +3, IT label +1
 - **Progressive retry**: se 0 risultati e query ≥3 parole → retry senza ultima parola
 - **"Mostra più"**: primi 8 OFF visibili, resto in `<div style="display:none">` con bottone toggle inline
 - **Debounce**: 400ms su tutti i search handler
 
+---
+
 ## Note per la Prossima Sessione
 
-> Aggiungere qui context, decisioni pendenti, cose da ricordare
+> Solo note pendenti, non storico. Rimuovere quando risolte.
 
-- Il CSS ha una sezione duplicate notes rimossa (c'erano due blocchi `/* NOTES */` — uno intorno a riga 587, uno intorno a 837. Il secondo è stato rimosso.)
-- `.stat-i` (icona info "i") non è più nested in `.tg-stat` — usare `.stat-i` come selettore diretto (aggiornato in sessione 2)
-- I tooltips BMI/BMR/TDEE funzionano ancora: usano `showTip()`/`hideTip()` con `onmouseenter`/`onmouseleave` sui `.tg-stat-card`
-**Sessione 3 — Breathing room & UX (2026-03-18):**
-- **Card calendario+macro**: `.today-section-card` wrappa `.cal-nav` + `.week-cal` + `.macro-strip`. Stesso stile di `.today-greeting` (bianco, border-radius 16px, shadow).
-- **Alert slim**: `alert_()` ora produce `.alert-slim` con `.alert-dot` colorato (rosso/ambra) invece dei box a larghezza piena. Gli alert appaiono SOLO dopo le 20:00 o su date passate (`isViewingPast || nowHour >= 20`). Soglie: `ALERT_KCAL_ERR=300`, `ALERT_KCAL_WARN=150`, `ALERT_PROT_WARN=20g`.
-- **BMI pill inline**: BMI/BMR/TDEE ora in un'unica pill nella riga `.tg-extras` (accanto a streak/score). Classe `.tg-bmi-pill` con main line (BMI + label) e sub line (BMR · ~TDEE). Mini-card row (`.tg-stats-row`) rimossa. Peso rimosso.
-- **⚠️ FEATURE FUTURA**: Gestione tolleranza alert (soglie kcal/proteine) da Profilo > Impostazioni alert. Le soglie sono hardcoded in `renderTodayLog()` come costanti `ALERT_KCAL_ERR`, `ALERT_KCAL_WARN`, `ALERT_PROT_WARN`.
-- `.nav` è `position:sticky;top:0` — su mobile non serve `margin-top` sul `.view`, il sticky nav è già nel document flow
-- Meal card in today mode: `.mc-pills` non vengono renderizzate (dati ridondanti con Apporto Reale). In edit mode i pills restano.
-- `.mc-add-btn` ora è tondo con colori pastello (`#e8f0fb` bg, `#5b82b8` icon, `#c8d9f0` border), SVG "+" inside
-- `.mc-target-badge` è ora un blocco centrato a larghezza piena con label "OBIETTIVO", kcal grande, macros sotto
+- CSS: sezione `/* NOTES */` duplicata rimossa (c'erano due blocchi — uno ~riga 587, uno ~riga 837. Il secondo è stato rimosso.)
+- `.stat-i` (icona info "i") non è nested in `.tg-stat` — usare `.stat-i` come selettore diretto
+- I tooltips BMI/BMR/TDEE usano `showTip()`/`hideTip()` con `onmouseenter`/`onmouseleave` sui `.tg-stat-card`
+- **Logo PNG gotcha**: PNG con sfondo opaco — `mix-blend-mode:screen/multiply` non funziona su sfondo beige. Per logo immagine: esportare **sempre PNG con sfondo trasparente**.
 
-**Sessione 5 — Macro strip redesign & bugfix (2026-03-18):**
-- **Macro strip redesign**: sostituita la griglia 4-card con struttura a 2 livelli. Card hero kcal (`.ms-kcal-card`) con numero grande + barra progresso + "obiettivo: X kcal". Sotto: 3 card macro (`.ms-macros-row` → `.ms-macro-card.prot/carb/fat`) con emoji (🥩🍚🧈), mini barra colorata, resto mancante.
-- **Calendario spostato sotto il recap**: in `today-section-card` l'ordine è ora: titolo "RIEPILOGO GIORNATA" → macro strip → divisore → cal-nav → week-cal.
-- **Bug S.checked non date-scoped**: `S.checked` è globale (chiavi `on-0`, `on-1`...), non legato alla data. Il fallback "pasto spuntato senza log → usa piano come stima" in `renderMacroStrip()` ora è protetto da `isToday` — non si applica a date passate/future.
-- **Goal badge spostato**: rimosso da `.tg-extras` (causava overflow con 4 badge), ora è in `.tg-right` sotto il chip "Giorno ON/OFF" (flex-column, align-items:flex-end). Separatore corretto `·` (era `?`).
-- **Hard reload JS cache**: se `window.location.reload()` non basta, usare `location.href = location.href.split('?')[0] + '?bust=' + Date.now()`.
+---
 
-**Sessione 6 — Extra meals, calendario & logo (2026-03-18):**
-- **Pasti extra opzionali**: "Merenda" (tra colazione e pranzo) e "Spuntino" (dopo cena) attivabili per-day. Pulsante tratteggiato `+ Merenda` / `+ Spuntino` per attivare. Attivazione salvata in `S.extraMeals[dateKey]`. Non persistono al giorno successivo.
-- **Calendario dot → linea**: giorni compilati mostrano linea verde sottile sopra il numero (`border-top: 2px solid var(--on)`) invece del pallino sovrapposto.
-- **`.mc-badge-row` con solo `mc-add-btn`**: senza targetBadge il `+` si allinea a sinistra. Fix: `justify-content:flex-end` sul `.mc-badge-row` nelle card extra senza badge target.
-- **Logo PNG — gotcha**: PNG con sfondo nero opaco (canvas 1536×1024), `mix-blend-mode:screen/multiply` non funziona su sfondo beige. Ripristinato logo testuale. **Per logo immagine: esportare sempre PNG con sfondo trasparente.**
-- **CLAUDE.md**: aggiornare automaticamente dopo ogni sessione con modifiche significative.
+## Storico Sessioni
 
-**Sessione 7 — Barcode scanner + mobile fixes (2026-03-18):**
-- **Barcode endpoint**: `world.openfoodfacts.org/api/v0/product/{barcode}.json` (~400ms). La struttura è `data.status === 1 ? data.product : null` (non `data.products[0]`). `cgi/search.pl?code=` restituisce sempre 0 risultati — non usarlo per lookup barcode.
-- **`showBcResult` fix**: rimossa la riga `document.getElementById('bc-confirm-btn').onclick = confirmBarcodeItem` — il pulsante nel HTML usa già `onclick="confirmBarcodeItem()"` inline, non ha `id="bc-confirm-btn"`.
-- **Barcode multi-read confirmation**: BarcodeDetector e Quagga ora richiedono **3 letture consecutive identiche** prima di accettare un barcode. Elimina false letture da frame mosso/sfocato.
-- **Quagga migliorato**: intervallo 400ms → 150ms, size 640 → 800, `halfSample:false`, filtro confidence (`avgErr < 0.25` su `decodedCodes`).
-- **Camera risoluzione**: `1280×720` → `1920×1080` per migliore lettura barcode piccoli.
-- **Zoom disabilitato**: viewport meta `maximum-scale=1.0,user-scalable=no` — previene pinch-zoom e double-tap zoom su mobile.
-- **Bottom nav + tastiera**: aggiunto listener `focusin`/`focusout` (in `app.js` dopo `initAll()`) che aggiunge/rimuove classe `kb-open` su `<body>`. In CSS (`@media ≤600px`): `.kb-open .nav-tabs { display:none }` e `.kb-open .view { padding-bottom:16px }`. La barra non sale più sopra la tastiera.
+### Sessione 1 — Audit UI/UX (2026-03-18)
+- `.nav` nascosta su mobile — navigazione solo via bottom tab bar
+- Nome pasto visibile: `.mc-top { flex-wrap: wrap }` su mobile → badge va a riga separata
+- Note textarea: font cambiato da JetBrains Mono a Manrope
+- Profilo tabella: label da `--muted` a `--ink2` (contrasto migliorato), colonna ridotta a 96px
+- Pulsante Stampa in azioni giornata: emoji → Lucide icon + testo "Stampa"
 
-**Sessione 8 — Greeting redesign + Alert Engine + Cibi Preferiti (2026-03-19):**
-- **Greeting ridisegnato**: rimossi BMI pill, streak/score badge, chips macro (ridondanti con strip sotto). Sostituiti con frase motivazionale quotidiana (Lora italic) + alert engine condizionale.
-- **`getDailyQuote(dateKey)`** in `uiComponents.js`: pool 40 frasi / 4 categorie (Mindset/Scienza/Recupero/Nutrizione), selezione stabile 24h via `dayOfYear % pool.length`.
-- **`generateAlerts(type, h, dateKey)`** in `uiComponents.js`: max 3 alert per priorità — supplementi (h≥8), mezzogiorno (h≥12, pct<20%), serali (h≥20 o data passata: kcal/prot/carb). Array `{type, icon, text, hasSuggest, remK, remP, remC, remF}`.
-- **`suggestFood(remK, remP, remC, remF)`** in `uiComponents.js`: legge `S.favoriteFoods`, seleziona 1-2 cibi ottimali per deficit dominante, scala porzione se necessario.
-- **`S.favoriteFoods = []`** in `app.js`: campo persistente. Schema: `{id, name, kcal100, p100, c100, f100, typicalGrams}`.
-- **Funzioni `app.js`**: `addFavoriteFood()`, `removeFavoriteFood(id)`, `_toggleFfForm()`, `openFoodSuggestion(remK,remP,remC,remF)` (apre `showDayModal` `noButtons:true` con cibi suggeriti).
-- **Sezione "Cibi Preferiti"** in `renderAnagrafica()`: lista + form inline dashed (nome + kcal/P/C/G per 100g + porzione tipica) con toggle show/hide.
-- **Alert "Vedi cosa mangiare →"**: `hasSuggest:true` + `S.favoriteFoods` vuoto → mostra "Aggiungi cibi preferiti →".
-- **CSS aggiunto**: `.tg-quote*`, `.tg-alert*`, `.tg-alert-suggest`, `.ff-*`, `.sug-food-*`, `.sug-total` (prima di `@media print`).
-- **`generateAssistantMessage()` RIMOSSA** — sostituita da `getDailyQuote()` + `generateAlerts()`. Non riferirla in futuro.
+### Sessione 2 — Brand mobile & calendario picker (2026-03-18)
+- **Brand mobile**: `.nav` ora visibile su mobile (48px) con solo logo MF + "MarciFit", `.nav-actions` nascosto
+- **Stats mini-card row**: `renderGreeting()` usa `.tg-stats-row` con 4 `.tg-stat-card` (BMI, BMR, TDEE, Peso) — poi rimossa in sessione 3
+- **Calendario picker**: tap sul titolo data apre modal con selezione mese/anno (`openCalPicker()`, `renderCalPicker()`, `pickerGoMonth()`). Limite ±26 settimane rimosso da `calMove()`
+- **Badge target due righe**: `.mc-target-badge` flex-direction:column con `.mc-badge-kcal` e `.mc-badge-macros`
+- **Note focus-within**: tag nascosti di default, animati in view con CSS `:focus-within`
+- **Macro strip colori**: `rc='ok'` verde (rem>0), `rc='err'` rosso (rem<0), `rc='warn'` (rem < 15% target)
 
-**Sessione 9 — Alert rossi, streak badge, override-dot inline, Cibi Preferiti search/barcode (2026-03-19):**
-- **Alert supplementi → rosso**: `.tg-alert-supp` ora usa `background:#fef2f2;border:1px solid #fca5a5;color:var(--red)` (era viola).
-- **Override-dot inline**: rimosso `<div>` absolute-positioned nel calendario, sostituito con `<span>` inline dentro `.wc-badge` (5px amber dot). `.wc-badge` ora ha `display:flex;align-items:center;justify-content:center`.
-- **Streak badge nel greeting**: `calcStreak()` + `streakBadgeStyle()` (già in nutritionLogic.js / uiComponents.js) wired in `renderGreeting()` tg-right. `#tip-streak` div già in index.html riga 286 — popolare in setTimeout block.
-- **`_bcMode = 'log' | 'ff'`** in app.js: pattern per riutilizzare il barcode modal in contesti diversi. `openBarcodeForFf()` setta `_bcMode='ff'`; `showBcResult()` brancha su `_bcMode` — se `'ff'` chiama `fillFfFromProduct()` e chiude; `closeBarcode()` resetta sempre `_bcMode='log'`.
-- **Cibi Preferiti search**: `onFfSearch(inp)` debounce 400ms → `searchFoods()` → `_ffSearchResults[]`. `selectFfFood(i)` → `fillFfFromProduct(item)` compila tutti i campi del form.
-- **CSS fix Grassi**: `align-items:end` su `.ff-add-grid` allinea inputs in basso anche quando il label "Grassi / 100G" va a capo. `margin-top:12px` su `.ff-add-row` per spazio prima dei bottoni.
-- **Versioni correnti**: `style.css?v=46`, `uiComponents.js?v=52`, `app.js?v=54`.
+### Sessione 3 — Breathing room & UX (2026-03-18)
+- **Card calendario+macro**: `.today-section-card` wrappa `.cal-nav` + `.week-cal` + `.macro-strip`
+- **Alert slim**: `alert_()` produce `.alert-slim` con `.alert-dot`. Alert SOLO dopo le 20:00 o date passate
+- **BMI pill inline**: BMI/BMR/TDEE in unica pill `.tg-bmi-pill` nella riga `.tg-extras`. Mini-card row rimossa
+- `.nav` diventa `position:sticky;top:0` — non serve più `margin-top` su `.view`
+- Meal card in today mode: `.mc-pills` non renderizzate (ridondanti). In edit mode restano
+- `.mc-add-btn` tondo con colori pastello (`#e8f0fb` bg, `#5b82b8` icon)
+- `.mc-target-badge` blocco centrato a larghezza piena con label "OBIETTIVO"
 
-**Sessione 4 — Bugfix mobile (2026-03-18):**
-- **iOS zoom fix**: iOS Safari zooma su `<input>` con `font-size < 16px`. Fix: `font-size:16px` nella media query `@media (max-width:600px)` su `.food-search-input`.
-- **Bottone duplicato "Carica dal piano"**: era generato sia staticamente in `uiComponents.js` (template `mc-log-panel`) sia dinamicamente in `nutritionLogic.js` (`onLogFoodSearch` → `extra` passato a `renderFoodDropdown`). Rimosso da `nutritionLogic.js`, resta solo in `uiComponents.js`.
-- **`renderFoodDropdown(results, resEl, onSelectFn, extraHTML)`** — il 4° param `extraHTML` esiste ancora ma non usarlo per "Carica dal piano" (già nel template statico). Usarlo solo per contenuti specifici ai risultati.
-- **Porta 8788 occupata**: se `preview_start` fallisce, usare `lsof -i :8788` + `kill <PID>` per liberare la porta prima di riavviare.
+### Sessione 4 — Bugfix mobile (2026-03-18)
+- **iOS zoom fix**: `font-size:16px` su `.food-search-input` in `@media (max-width:600px)`
+- **Bottone duplicato "Carica dal piano"**: rimosso da `nutritionLogic.js`, resta solo in `uiComponents.js`
+- `renderFoodDropdown(results, resEl, onSelectFn, extraHTML)` — 4° param `extraHTML` non usarlo per "Carica dal piano"
+
+### Sessione 5 — Macro strip redesign & bugfix (2026-03-18)
+- **Macro strip redesign**: card hero kcal (`.ms-kcal-card`) + 3 card macro (`.ms-macros-row` → `.ms-macro-card.prot/carb/fat`) con emoji (🥩🍚🧈)
+- **Calendario spostato sotto il recap**: ordine in `today-section-card` → titolo → macro strip → divisore → cal-nav → week-cal
+- **Bug S.checked**: fallback in `renderMacroStrip()` protetto da `isToday` per evitare stime errate su date passate
+- **Goal badge**: rimosso da `.tg-extras`, ora in `.tg-right` sotto chip "Giorno ON/OFF"
+
+### Sessione 6 — Extra meals, calendario & logo (2026-03-18)
+- **Pasti extra**: "Merenda" e "Spuntino" attivabili per-day con pulsante tratteggiato. Salvati in `S.extraMeals[dateKey]`
+- **Calendario dot → linea**: `border-top: 2px solid var(--on)` sopra il numero del giorno
+- **`.mc-badge-row`**: `justify-content:flex-end` nelle card extra senza badge target
+
+### Sessione 7 — Barcode scanner + mobile fixes (2026-03-18)
+- **Barcode endpoint corretto**: `world.openfoodfacts.org/api/v0/product/{barcode}.json`, struttura `data.status === 1 ? data.product : null`
+- **`showBcResult` fix**: rimossa riga `getElementById('bc-confirm-btn').onclick` — il pulsante usa già `onclick` inline
+- **Barcode multi-read**: 3 letture consecutive identiche richieste prima di accettare
+- **Quagga**: intervallo 150ms, size 800, `halfSample:false`, filtro confidence `avgErr < 0.25`
+- **Camera**: risoluzione 1920×1080
+- **Zoom disabilitato**: viewport `maximum-scale=1.0,user-scalable=no`
+- **Bottom nav + tastiera**: classe `kb-open` su `<body>` via `focusin`/`focusout`
+
+### Sessione 8 — Greeting redesign + Alert Engine + Cibi Preferiti (2026-03-19)
+- **Greeting ridisegnato**: frase motivazionale quotidiana + alert engine (rimossi BMI pill, streak/score, chips macro)
+- **`getDailyQuote(dateKey)`**: pool 40 frasi / 4 categorie, selezione stabile 24h via `dayOfYear % pool.length`
+- **`generateAlerts(type, h, dateKey)`**: max 3 alert — supplementi (h≥8), mezzogiorno (h≥12), serali (h≥20 o data passata)
+- **`suggestFood(remK,remP,remC,remF)`**: legge `S.favoriteFoods`, seleziona 1-2 cibi ottimali
+- **`S.favoriteFoods = []`**: schema `{id, name, kcal100, p100, c100, f100, typicalGrams}`
+- **Funzioni `app.js`**: `addFavoriteFood()`, `removeFavoriteFood(id)`, `_toggleFfForm()`, `openFoodSuggestion()`
+- **CSS aggiunto**: `.tg-quote*`, `.tg-alert*`, `.tg-alert-suggest`, `.ff-*`, `.sug-food-*`, `.sug-total`
+- **`generateAssistantMessage()` RIMOSSA** — non usarla mai più
+
+### Sessione 9 — Alert rossi, streak badge, Cibi Preferiti search/barcode (2026-03-19)
+- **Alert supplementi → rosso**: `.tg-alert-supp` usa `background:#fef2f2;border:1px solid #fca5a5;color:var(--red)`
+- **Override-dot inline**: `<span>` inline dentro `.wc-badge` (5px amber dot) invece di `<div>` absolute
+- **Streak badge nel greeting**: `calcStreak()` + `streakBadgeStyle()` wired in `renderGreeting()` tg-right
+- **`_bcMode = 'log' | 'ff'`**: barcode modal riutilizzabile in contesti diversi. `openBarcodeForFf()` setta `_bcMode='ff'`
+- **Cibi Preferiti search**: `onFfSearch(inp)` → `searchFoods()` → `_ffSearchResults[]`. `selectFfFood(i)` → `fillFfFromProduct(item)`
+- **Versioni**: `style.css?v=46`, `uiComponents.js?v=52`, `app.js?v=54`
+
+### Sessione 13 — Fix UX: edit icon, kcal pasto, cibi preferiti, tracking obiettivo (2026-03-19)
+- **Icona rinomina più vicina al nome**: `.mc-name` e `.mc-rename-btn` wrappati in `.mc-name-group` (`display:inline-flex;gap:3px;flex:1`). Rimosso `flex:1` da `.mc-name`. L'icona matita appare immediatamente a destra del testo del nome.
+- **Kcal rimanenti per pasto nel gram picker**: il problema era che `nutritionLogic.js` aveva ancora `?v=44` in index.html — il browser caricava la versione precedente senza la modifica. Aggiornato a `?v=45`. Ora mostra "PASTO: X kcal rim. · GIORNO: Y kcal rim." entrambi dinamici.
+- **Cibi Preferiti scrollabili**: aggiunto `max-height:260px;overflow-y:auto;padding-right:4px` a `.ff-list`. La lista non allunga più la pagina.
+- **Rimosso tracking settimane/obiettivo**: rimosso `goalBadge` da `renderGreeting()` (era "Sett. X · Bulk/Cut/Mantenimento"). Rimossa chiamata a `renderGoalCard()` da `renderProfile()`. In `setGoalPhase()`: rimosso `if (!S.goal.startDate) S.goal.startDate = localDate()`. Il selettore Bulk/Cut/Mantieni nel Profilo rimane (necessario per i calcoli kcal).
+- **⚠️ NOTA**: `S.goal.targetWeight` è usato in `drawChart()` in `uiComponents.js` per la proiezione peso (riga target nel grafico). Senza input UI è solo `null`. Implementare in futuro con il sistema di tracking più serio.
+- **Versioni**: `style.css?v=53`, `uiComponents.js?v=60`, `app.js?v=60`, `nutritionLogic.js?v=45`.
+
+### Sessione 12 — Fix UX tab Oggi: hover, integratori, gram picker, rinomina pasto (2026-03-19)
+- **App apre sempre su oggi**: `S.selDate = null` all'inizio di `initAll()` — previene che un selDate salvato in localStorage venga ripristinato.
+- **Integratori di oggi rimosso**: `renderSuppToday()` ora fa solo `el.style.display='none'; return;` — sezione ridondante con l'alert engine nel greeting.
+- **Hover tooltip chiude correttamente**: debounce in `hideTip()` ridotto da 400ms a 80ms. 80ms è ancora abbastanza per prevenire la falsa chiusura da touch (~50ms) ma permette il mouseleave su desktop.
+- **Kcal rimanenti per pasto nel gram picker**: `showGramPicker()` ora accetta 4° param `mealCtx = { mealIdx, dateKey }`. Calcola `_mealTgtK` (target proporzionale del pasto = stessa formula del targetBadge: TDEE-scaled) e `_mealEatenK` (già loggato nel pasto). Mostra "Pasto: X kcal rim. · Giorno: Y kcal rim." nella riga `.fsr-rem-row`. `onLogFoodSearch` passa `{ mealIdx, dateKey }` come 4° arg.
+- **"Carica dal piano" rimosso**: eliminato il blocco `!hasLog ? <button mc-log-from-plan>` da `mealCardHTML()` in `uiComponents.js`.
+- **Rinomina pasto**: matita `.mc-rename-btn` accanto a `.mc-name` in today mode (visibile solo su hover della card). Chiama `renameMeal(type, mealIdx)` in `app.js` → `showDayModal` con input pre-selezionato. Al confirm: `S.meals[type][mealIdx].name = val; save(); renderTodayLog()`.
+- **CSS aggiunto**: `.mc-rename-btn` (opacità 0, visibile su `.mc:hover`), `.fsr-meal-rem-val`, `.fsr-rem-sep`.
+- **Versioni**: `style.css?v=52`, `uiComponents.js?v=59`, `app.js?v=59`.
+
+### Sessione 11 — Tooltip informativi nel Fabbisogno (Profilo) (2026-03-19)
+- **Pulsanti (i) inline** accanto a BMR, PAL, TDEE nel blocco fabbisogno. Generati nella template string di `_updateFabbisognoPreview()` in `app.js` con SVG Lucide-style inline.
+- **Row obiettivo**: sopra "Giorno ON/OFF" aggiunta `.fab-goal-header` con nome fase (`Bulk — Massa` / `Cut — Definizione` / `Mantenimento`) e pulsante pill "perché questi valori?" (`.fab-info-btn--goal`).
+- **4 funzioni tip** aggiunte in `uiComponents.js` dopo `hideTip()`: `showFabBmrTip`, `showFabPalTip`, `showFabTdeeTip`, `showFabGoalTip`. Usano il pattern `showTip(id, anchor)` esistente.
+- **`showFabGoalTip`**: legge `S.goal.phase` direttamente (S è globale) e mostra delta ON/OFF + nota + proteine target specifici per la fase corrente.
+- **4 tip divs** aggiunti in `index.html`: `tip-fab-bmr`, `tip-fab-pal`, `tip-fab-tdee`, `tip-fab-goal`.
+- **CSS aggiunto**: `.fab-goal-header`, `.fab-goal-phase`, `.fab-info-btn`, `.fab-info-btn--goal`, override `display:inline-flex` su `.fab-label`.
+- **Versioni**: `style.css?v=51`, `uiComponents.js?v=58`, `app.js?v=58`.
+
+### Sessione 10 — Edit grammatura, macro breakdown, calorie rimanenti (2026-03-19)
+- **Matita edit grammatura**: `.fir-edit` (pencil SVG) nella log row. `editLogItem(dateKey, mealIdx, itemIdx)` apre modal con live preview kcal. Al confirm: aggiorna `grams`, chiama `save()` + `refreshMealCard()`
+- **Click macro card → breakdown**: `openMacroDetail(macroKey)` mostra breakdown per pasto del nutriente selezionato (`.md-meal-block` / `.md-food-row` / `.md-meal-total`)
+- **Calorie rimanenti nel gram picker**: `showGramPicker()` calcola `_remK`. Riga `.fsr-rem-row` aggiornata live da `updateCalc(g)` con classe ok/warn/err
+- **CSS aggiunto**: `.fir-edit`, `.edit-gram-*`, `.md-*`, `.fsr-rem-row`, `.fsr-rem-lbl`, `.fsr-rem-val`
