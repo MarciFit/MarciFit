@@ -1039,12 +1039,79 @@ function renderTodaySignals(type, dateKey) {
   if (!el) return;
   const model = splitTodayAlerts(type, dateKey);
   if (!model.signals.length) { el.innerHTML = ''; return; }
+  const visibleSignals = model.signals.slice(0, 3);
+  const hiddenCount = Math.max(model.signals.length - visibleSignals.length, 0);
   el.innerHTML = `
     <div class="today-signal-row">
-      ${model.signals.map(signal => signal.action
+      ${visibleSignals.map(signal => signal.action
         ? `<button class="today-signal today-signal-${signal.tone} is-action" onclick="${signal.action}">${signal.text}</button>`
         : `<div class="today-signal today-signal-${signal.tone}">${signal.text}</div>`
       ).join('')}
+      ${hiddenCount ? `<div class="today-signal today-signal-muted">+${hiddenCount} altri segnali</div>` : ''}
+    </div>`;
+}
+
+function renderTodayQuickActions(type, dateKey) {
+  const el = document.getElementById('today-quick-actions');
+  if (!el) return;
+  const mealState = getCurrentMealState(type, dateKey);
+  const hasMealFocus = mealState.index !== -1;
+  const mealLabel = hasMealFocus
+    ? (mealState.kind === 'now' ? 'Pasto attuale' : 'Prossimo pasto')
+    : 'Apri pasti';
+  const mealMeta = hasMealFocus
+    ? htmlEsc(mealState.name || '')
+    : 'Vai alla timeline';
+  const firstActiveSupp = (S.supplements || []).find(s => s.active)?.id || null;
+  const suppAction = firstActiveSupp
+    ? `revealTodaySupplement('${firstActiveSupp}')`
+    : `document.querySelector('.today-support-panel')?.scrollIntoView({behavior:'smooth',block:'start'})`;
+  const checkedSupps = new Set((S.suppChecked?.[dateKey]) || []);
+  const pendingSupps = (S.supplements || []).filter(s => s.active && !checkedSupps.has(s.id)).length;
+  const mealAction = hasMealFocus
+    ? `document.getElementById('${mealState.isExtra ? `mc-extra-${mealState.key}` : `mc-${type}-${mealState.key}`}')?.scrollIntoView({behavior:'smooth',block:'center'})`
+    : `document.getElementById('meals-today')?.scrollIntoView({behavior:'smooth',block:'start'})`;
+  const waterCount = (S.water?.[dateKey]) || 0;
+  const trackedType = getTrackedDayType(dateKey, getScheduledDayType(dateKey));
+  const peso = S.anagrafica?.peso || 0;
+  const baseMl = peso > 0 ? Math.round(peso * 35) : 2000;
+  const totalMl = baseMl + (trackedType === 'on' ? 350 : 0);
+  const waterTarget = Math.max(6, Math.round(totalMl / 250));
+  const noteValue = (S.notes?.[dateKey] || '').trim();
+  el.innerHTML = `
+    <div class="today-quick-actions-head">
+      <div class="today-dashboard-block-title">Salti rapidi</div>
+      <div class="today-quick-actions-sub">Acqua, routine e note senza perdere il filo della giornata.</div>
+    </div>
+    <div class="today-quick-actions">
+      <button class="today-quick-btn is-primary" onclick="${mealAction}">
+        <span class="today-quick-ico">🍽️</span>
+        <span class="today-quick-copy">
+          <span class="today-quick-label">${mealLabel}</span>
+          <span class="today-quick-meta">${mealMeta}</span>
+        </span>
+      </button>
+      <button class="today-quick-btn" onclick="addWaterAndReveal(1)">
+        <span class="today-quick-ico">💧</span>
+        <span class="today-quick-copy">
+          <span class="today-quick-label">+ Acqua</span>
+          <span class="today-quick-meta">${waterCount}/${waterTarget} bicchieri</span>
+        </span>
+      </button>
+      <button class="today-quick-btn" onclick="${suppAction}">
+        <span class="today-quick-ico">💊</span>
+        <span class="today-quick-copy">
+          <span class="today-quick-label">Routine</span>
+          <span class="today-quick-meta">${pendingSupps > 0 ? `${pendingSupps} da segnare` : 'Tutto in ordine'}</span>
+        </span>
+      </button>
+      <button class="today-quick-btn" onclick="focusTodayNotes()">
+        <span class="today-quick-ico">📝</span>
+        <span class="today-quick-copy">
+          <span class="today-quick-label">Note</span>
+          <span class="today-quick-meta">${noteValue ? 'Apri nota del giorno' : 'Scrivi promemoria'}</span>
+        </span>
+      </button>
     </div>`;
 }
 
@@ -1055,8 +1122,8 @@ function renderSupportAlerts(type, dateKey) {
   const alert = model.supportAlert;
   if (!alert) { el.innerHTML = ''; return; }
   el.innerHTML = `
-    <div class="today-context-alert today-context-alert-support">
-      <div class="today-context-alert-kicker">Routine da segnare</div>
+    <div class="today-context-alert today-context-alert-support today-context-alert-support-compact">
+      <div class="today-context-alert-kicker">Da non perdere</div>
       <div class="today-context-alert-main">${alert.text}</div>
       ${alert.ctaLabel && alert.ctaAction ? `<button class="today-context-alert-btn" onclick="${alert.ctaAction}">${alert.ctaLabel}</button>` : ''}
     </div>`;
@@ -1246,6 +1313,7 @@ function renderToday() {
   renderGreeting(type, now);
   renderWeekCal(now);
   renderTodayLog(); // cards + macro + alerts + progress
+  renderTodayQuickActions(type, S.selDate || localDate(now));
 
   // Notes
   const noteKey   = S.selDate || localDate(now);
@@ -1420,7 +1488,10 @@ function renderNotes() {
     .sort((a,b) => b[0].localeCompare(a[0])).slice(0, 20);
   const el = document.getElementById('notes-prev');
   if (!el) return;
-  if (!entries.length) { el.innerHTML = ''; return; }
+  if (!entries.length) {
+    el.innerHTML = `<div class="notes-empty-state">Nessuna nota recente. Usa questo spazio solo per segnali che vuoi ritrovare piu tardi.</div>`;
+    return;
+  }
   el.innerHTML = `<div class="notes-hist-label">Storico</div>` +
     entries.map(([k,v]) => `
     <div class="note-item">
@@ -1429,18 +1500,68 @@ function renderNotes() {
       <button class="note-del" onclick="deleteNote('${k}')" title="Elimina nota">✕</button>
     </div>`).join('');
 }
+function macroVisualCardsHTML(macros, opts = {}) {
+  const sizeClass = opts.size === 'compact' ? ' compact' : '';
+  const items = [
+    { cls: 'kcal', icon: '🔥', label: 'Kcal', value: `${Math.round(macros.k || macros.kcal || 0)}`, unit: 'kcal' },
+    { cls: 'prot', icon: '🥩', label: 'Proteine', value: `${Math.round(macros.p || 0)}`, unit: 'g' },
+    { cls: 'carb', icon: '🍚', label: 'Carb', value: `${Math.round(macros.c || 0)}`, unit: 'g' },
+    { cls: 'fat', icon: '🧈', label: 'Grassi', value: `${Math.round(macros.f || 0)}`, unit: 'g' },
+  ];
+  return `<div class="macro-visual-grid${sizeClass}">
+    ${items.map(item => `<div class="macro-visual-card ${item.cls}">
+      <span class="macro-visual-icon">${item.icon}</span>
+      <span class="macro-visual-label">${item.label}</span>
+      <span class="macro-visual-value">${item.value}<span class="macro-visual-unit">${item.unit}</span></span>
+    </div>`).join('')}
+  </div>`;
+}
+
+function pianoMiniStatCardHTML(stat) {
+  const infoIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 10v6"></path><path d="M12 7.2h.01"></path></svg>`;
+  return `<div class="piano-mini-stat ${stat.cls || ''}">
+    <div class="piano-mini-stat-top">
+      <span class="piano-mini-stat-kicker">${stat.kicker}</span>
+      <button class="piano-mini-stat-info" onmouseenter="showPianoSummaryTip('${stat.tipKey}', this)" onmouseleave="hideTip('tip-piano-summary')" onclick="showPianoSummaryTip('${stat.tipKey}', this)" aria-label="Informazioni ${stat.kicker}">${infoIcon}</button>
+    </div>
+    <div class="piano-mini-stat-main">${stat.main}</div>
+    <div class="piano-mini-stat-foot">${stat.foot}</div>
+  </div>`;
+}
+
+function getLoggedDayMacros(dateKey) {
+  const dayLog = S.foodLog?.[dateKey] || {};
+  let k = 0, p = 0, c = 0, f = 0;
+  Object.values(dayLog).forEach(items => {
+    (items || []).forEach(it => {
+      const grams = (it.grams || 0) / 100;
+      k += Math.round((it.kcal100 || 0) * grams);
+      p += (it.p100 || 0) * grams;
+      c += (it.c100 || 0) * grams;
+      f += (it.f100 || 0) * grams;
+    });
+  });
+  return {
+    k,
+    p: Math.round(p * 10) / 10,
+    c: Math.round(c * 10) / 10,
+    f: Math.round(f * 10) / 10,
+  };
+}
 function renderPiano() {
   if (!S.templates) S.templates = [];
 
   // --- Piano Pasti section ---
-  const planType = S.planTab || 'on';
+  const planType = S.day || S.planTab || 'on';
+  S.planTab = planType;
   const plannerState = ensureMealPlannerState(planType);
   const targetDay = S.macro[planType];
-  // Sync toggle button states
-  const ptOn  = document.getElementById('pt-on');
-  const ptOff = document.getElementById('pt-off');
-  if (ptOn)  ptOn.className  = 'pt on'  + (planType === 'on'  ? ' active' : '');
-  if (ptOff) ptOff.className = 'pt off' + (planType === 'off' ? ' active' : '');
+  const plannerMeal = S.meals[planType]?.[plannerState.mealIdx];
+  const plannerMealType = getMealTypeFromName(plannerMeal?.name || '');
+  const templatesForMealType = (S.templates || []).filter(t => {
+    if (!plannerMealType) return true;
+    return String(t.mealType || t.tag || '').toLowerCase().includes(plannerMealType);
+  });
   // Meal cards in edit mode
   const planMealsEl = document.getElementById('piano-meals-list');
   if (planMealsEl) {
@@ -1449,14 +1570,23 @@ function renderPiano() {
   // Macro summary for the day
   const planMacroEl = document.getElementById('piano-macros-summary');
   if (planMacroEl) {
-    const totals = S.meals[planType].reduce((acc, _, i) => {
-      const mm = mealMacros(S.meals[planType][i]);
-      return { k: acc.k + mm.kcal, p: acc.p + mm.p, c: acc.c + mm.c, f: acc.f + mm.f };
-    }, { k:0, p:0, c:0, f:0 });
-    const deltaK = totals.k - targetDay.k;
-    const deltaP = totals.p - targetDay.p;
-    const deltaC = totals.c - targetDay.c;
-    const deltaF = totals.f - targetDay.f;
+    const dateKey = S.selDate || localDate();
+    const loggedTotals = getLoggedDayMacros(dateKey);
+    const remK = targetDay.k - loggedTotals.k;
+    const remP = targetDay.p - loggedTotals.p;
+    const remC = targetDay.c - loggedTotals.c;
+    const remF = targetDay.f - loggedTotals.f;
+    const macroGap = Math.abs(remP) + Math.abs(remC) + Math.abs(remF);
+    const hasNoIntake = loggedTotals.k === 0 && loggedTotals.p === 0 && loggedTotals.c === 0 && loggedTotals.f === 0;
+    const kcalState = hasNoIntake
+      ? 'Tutto da coprire'
+      : Math.abs(remK) <= 80 ? 'In linea' : (remK < 0 ? 'Sei sopra' : 'Da colmare');
+    const macroState = hasNoIntake
+      ? 'Macro da coprire'
+      : macroGap <= 20 ? 'Macro in ordine' : macroGap <= 40 ? 'Quasi centrati' : 'Da colmare';
+    const plannerSummary = plannerMeal
+      ? `${plannerMeal.name}${plannerMeal.time ? ` · ${plannerMeal.time}` : ''}`
+      : 'Seleziona un pasto';
     planMacroEl.innerHTML =
       `<div class="piano-summary-card">
         <div class="piano-summary-top">
@@ -1465,26 +1595,43 @@ function renderPiano() {
         </div>
         <div class="piano-summary-main">
           <div class="piano-summary-col">
-            <span class="piano-summary-label">Piano attuale</span>
-            <div class="piano-summary-pills">
-              <span class="pill pk">${totals.k} kcal</span>
-              <span class="pill pp">P ${totals.p.toFixed(0)}g</span>
-              <span class="pill pc">C ${totals.c.toFixed(0)}g</span>
-              <span class="pill pf">F ${totals.f.toFixed(0)}g</span>
-            </div>
-          </div>
-          <div class="piano-summary-col">
             <span class="piano-summary-label">Target giorno</span>
-            <div class="piano-summary-pills">
-              <span class="pill pk">${targetDay.k} kcal</span>
-              <span class="pill pp">P ${targetDay.p.toFixed(0)}g</span>
-              <span class="pill pc">C ${targetDay.c.toFixed(0)}g</span>
-              <span class="pill pf">F ${targetDay.f.toFixed(0)}g</span>
-            </div>
+            ${macroVisualCardsHTML(targetDay, { size: 'compact' })}
           </div>
         </div>
-        <div class="piano-summary-delta">
-          Scarto: ${deltaK >= 0 ? '+' : ''}${Math.round(deltaK)} kcal · P ${deltaP >= 0 ? '+' : ''}${deltaP.toFixed(0)}g · C ${deltaC >= 0 ? '+' : ''}${deltaC.toFixed(0)}g · F ${deltaF >= 0 ? '+' : ''}${deltaF.toFixed(0)}g
+        <div class="piano-summary-stats">
+          ${pianoMiniStatCardHTML({
+            cls: hasNoIntake ? 'warn' : remK > 80 ? 'warn' : remK < -80 ? 'ok' : 'neutral',
+            tipKey: 'kcal',
+            kicker: 'Stato kcal',
+            info: 'Confronta le calorie gia registrate oggi con il target del giorno selezionato. Se non hai ancora loggato cibi, il fabbisogno resta tutto da coprire.',
+            main: kcalState,
+            foot: `${remK > 0 ? '-' : '+'}${Math.abs(Math.round(remK))} kcal`,
+          })}
+          ${pianoMiniStatCardHTML({
+            cls: hasNoIntake ? 'warn' : macroGap > 40 ? 'warn' : macroGap <= 20 ? 'ok' : 'neutral',
+            tipKey: 'macro',
+            kicker: 'Stato macro',
+            info: 'Mostra quanto ti manca ancora oggi per arrivare ai target di proteine, carboidrati e grassi del giorno selezionato.',
+            main: macroState,
+            foot: `P ${remP > 0 ? '-' : '+'}${Math.abs(remP).toFixed(0)}g · C ${remC > 0 ? '-' : '+'}${Math.abs(remC).toFixed(0)}g · F ${remF > 0 ? '-' : '+'}${Math.abs(remF).toFixed(0)}g`,
+          })}
+          ${pianoMiniStatCardHTML({
+            cls: 'focus',
+            tipKey: 'focus',
+            kicker: 'Pasto in focus',
+            info: 'E il pasto che l’helper sta usando adesso per generare suggerimenti e template utili.',
+            main: htmlEsc(plannerMeal?.name || 'Seleziona un pasto'),
+            foot: htmlEsc(plannerMeal?.time || 'Helper pronto sul pasto selezionato'),
+          })}
+          ${pianoMiniStatCardHTML({
+            cls: 'template',
+            tipKey: 'template',
+            kicker: 'Template utili',
+            info: 'Conta quanti template in libreria sono compatibili con il tipo di pasto selezionato.',
+            main: `${templatesForMealType.length}`,
+            foot: plannerMealType ? `Per ${plannerMealType}` : 'Libreria completa',
+          })}
         </div>
       </div>`;
   }
@@ -1511,10 +1658,16 @@ function renderPiano() {
   const filtered = _tmplFilter === 'tutti'
     ? S.templates
     : S.templates.filter(t => t.tag.toLowerCase().includes(_tmplFilter.toLowerCase()));
+  const sortedFiltered = filtered.slice().sort((a, b) => {
+    const aMatch = plannerMealType && String(a.mealType || a.tag || '').toLowerCase().includes(plannerMealType) ? 1 : 0;
+    const bMatch = plannerMealType && String(b.mealType || b.tag || '').toLowerCase().includes(plannerMealType) ? 1 : 0;
+    if (aMatch !== bMatch) return bMatch - aMatch;
+    return String(a.name || '').localeCompare(String(b.name || ''), 'it');
+  });
 
   const listEl = document.getElementById('tmpl-list');
-  if (!filtered.length) {
-    listEl.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:24px 0;text-align:center">${
+  if (!sortedFiltered.length) {
+    listEl.innerHTML = `<div class="tmpl-empty-state">${
       S.templates.length ? 'Nessun template con questo tag.' : 'Nessun template. Creane uno con +.'
     }</div>`;
     return;
@@ -1523,7 +1676,22 @@ function renderPiano() {
   const TMPL_TYPE_EMOJI = {colazione:'🥣', pranzo:'🍽️', cena:'🍳', merenda:'🍎', spuntino:'⚡', altro:'📦'};
 
   listEl.innerHTML = '';
-  filtered.forEach(t => {
+  listEl.innerHTML = `<div class="tmpl-library-meta">
+    <div class="tmpl-library-stat">
+      <span class="tmpl-library-kicker">In libreria</span>
+      <span class="tmpl-library-value">${S.templates.length}</span>
+    </div>
+    <div class="tmpl-library-stat">
+      <span class="tmpl-library-kicker">Filtro attivo</span>
+      <span class="tmpl-library-value">${sortedFiltered.length}</span>
+    </div>
+    <div class="tmpl-library-stat">
+      <span class="tmpl-library-kicker">Utili adesso</span>
+      <span class="tmpl-library-value">${templatesForMealType.length}</span>
+    </div>
+  </div>`;
+
+  sortedFiltered.forEach(t => {
     const macros = t.items.reduce((acc,it) => {
       const g = it.grams/100;
       return {k:acc.k+Math.round(it.kcal100*g), p:acc.p+it.p100*g, c:acc.c+it.c100*g, f:acc.f+it.f100*g};
@@ -1597,6 +1765,18 @@ function mealPlannerHelperHTML(type, plannerState) {
   const isCurrent = mealState?.key === mealIdx && !mealState?.isExtra && (mealState.kind === 'now' || mealState.kind === 'next');
   const mealStateLabel = !isCurrent ? 'Pasto selezionato' : (mealState.kind === 'now' ? 'Pasto del momento' : 'Prossimo pasto');
   const mealType = getMealTypeFromName(meal?.name || '');
+  const mealButtons = (S.meals[type] || []).map((mealOpt, idx) => `
+    <button class="mph-meal-chip${idx === mealIdx ? ' active' : ''}" onclick="setMealPlannerMeal('${type}', ${idx})">
+      <span class="mph-meal-chip-name">${htmlEsc(mealOpt.name)}</span>
+      <span class="mph-meal-chip-time">${htmlEsc(mealOpt.time || '')}</span>
+    </button>
+  `).join('');
+  const promptPresets = [
+    { label: 'Veloce', value: 'qualcosa di veloce' },
+    { label: 'Saziante', value: 'pasto saziante' },
+    { label: 'Leggero', value: 'pasto leggero' },
+    { label: 'Post workout', value: 'post workout' },
+  ];
   const matchingTemplates = (S.templates || []).filter(t => {
     if (!mealType) return true;
     return String(t.mealType || t.tag || '').toLowerCase().includes(mealType);
@@ -1608,20 +1788,24 @@ function mealPlannerHelperHTML(type, plannerState) {
         const deltaP = Math.round(result.delta.p * 10) / 10;
         const deltaC = Math.round(result.delta.c * 10) / 10;
         const deltaF = Math.round(result.delta.f * 10) / 10;
+        const scoreLabel = result.score >= 92 ? 'Molto vicino' : result.score >= 82 ? 'Buona base' : 'Da rifinire';
         return `<div class="mph-result-card">
           <div class="mph-result-top">
             <div>
               <div class="mph-result-title">${htmlEsc(result.title)}</div>
               <div class="mph-result-sub">${htmlEsc(result.summary)}</div>
             </div>
-            <div class="mph-score">${result.score}</div>
+            <div class="mph-score-wrap">
+              <div class="mph-score">${result.score}</div>
+              <div class="mph-score-label">${scoreLabel}</div>
+            </div>
           </div>
-          <div class="mph-macros">
-            <span class="pill pk">${result.macros.kcal} kcal</span>
-            <span class="pill pp">P ${result.macros.p.toFixed(0)}g</span>
-            <span class="pill pc">C ${result.macros.c.toFixed(0)}g</span>
-            <span class="pill pf">F ${result.macros.f.toFixed(0)}g</span>
-          </div>
+          <div class="mph-macros">${macroVisualCardsHTML({
+            k: result.macros.kcal,
+            p: result.macros.p,
+            c: result.macros.c,
+            f: result.macros.f,
+          }, { size: 'compact' })}</div>
           <div class="mph-delta">
             Scarto vs target: ${deltaK >= 0 ? '+' : ''}${deltaK} kcal · P ${deltaP >= 0 ? '+' : ''}${deltaP}g · C ${deltaC >= 0 ? '+' : ''}${deltaC}g · F ${deltaF >= 0 ? '+' : ''}${deltaF}g
           </div>
@@ -1635,50 +1819,74 @@ function mealPlannerHelperHTML(type, plannerState) {
           </div>
         </div>`;
       }).join('')
-    : `<div class="mph-empty">Seleziona il pasto, indica voglie o alimenti disponibili e genera una proposta che provi a centrare il target.</div>`;
+    : `<div class="mph-empty">
+        <div class="mph-empty-title">Nessun suggerimento ancora</div>
+        <div class="mph-empty-copy">Scegli il pasto, aggiungi un paio di vincoli o preferenze e genera una proposta che si avvicini al target.</div>
+        <div class="mph-empty-list">
+          <span>1. Seleziona il pasto da sistemare</span>
+          <span>2. Scrivi 2-3 alimenti o il contesto del momento</span>
+          <span>3. Genera e usa la proposta migliore</span>
+        </div>
+      </div>`;
 
   return `<div class="meal-planner-helper">
     <div class="meal-planner-head">
       <div>
         <div class="meal-planner-title">Helper pasto del momento</div>
-        <div class="meal-planner-sub">Parti dal pasto selezionato, aggiungi preferenze o alimenti disponibili e ottieni proposte pronte da usare.</div>
+        <div class="meal-planner-sub">Usalo quando un pasto non è chiaro: selezioni lo slot, dai un contesto rapido e il sistema ti propone combinazioni riutilizzabili.</div>
       </div>
-      ${target ? `<div class="meal-planner-target">
-        <span class="pill pk">${target.k} kcal</span>
-        <span class="pill pp">P ${target.p.toFixed(0)}g</span>
-        <span class="pill pc">C ${target.c.toFixed(0)}g</span>
-        <span class="pill pf">F ${target.f.toFixed(0)}g</span>
-      </div>` : ''}
+      ${target ? `<div class="meal-planner-target">${macroVisualCardsHTML(target, { size: 'compact' })}</div>` : ''}
     </div>
     <div class="meal-planner-grid">
       <div class="meal-planner-controls">
+        <div class="meal-planner-steps">
+          <span class="meal-planner-step">1. Scegli</span>
+          <span class="meal-planner-step">2. Dai contesto</span>
+          <span class="meal-planner-step">3. Usa</span>
+        </div>
         <div class="meal-planner-focus">
           <div class="meal-planner-focus-kicker">${mealStateLabel}</div>
           <div class="meal-planner-focus-title">${htmlEsc(meal?.name || 'Pasto')}</div>
           <div class="meal-planner-focus-meta">${htmlEsc(meal?.time || '')}${mealType ? ` · ${mealType}` : ''}</div>
         </div>
-        <label class="mph-label">Pasto da costruire</label>
-        <select class="mph-select" onchange="setMealPlannerMeal('${type}', this.value)">
-          ${(S.meals[type] || []).map((mealOpt, idx) => `<option value="${idx}"${idx === mealIdx ? ' selected' : ''}>${mealOpt.name} · ${mealOpt.time}</option>`).join('')}
-        </select>
+        <div class="mph-chip-group mph-chip-group-meals">
+          <div class="mph-chip-label">Pasto da costruire</div>
+          <div class="mph-meal-chip-row">${mealButtons}</div>
+        </div>
         <label class="mph-label">Input utente</label>
         <textarea class="mph-textarea" placeholder="Esempio: riso, pollo, qualcosa di veloce; oppure alimenti che hai disponibili adesso" oninput="setMealPlannerPrompt('${type}', this.value)">${htmlEsc(plannerState.prompt || '')}</textarea>
-        <div class="mph-helper-copy">Suggerimento: separa gli input con una virgola, ad esempio "riso, pollo, yogurt".</div>
-        <div class="mph-toggles">
-          <button class="mph-toggle${plannerState.useFavorites ? ' active' : ''}" onclick="toggleMealPlannerOption('${type}','useFavorites')">Usa preferiti</button>
-          <button class="mph-toggle${plannerState.useTemplates ? ' active' : ''}" onclick="toggleMealPlannerOption('${type}','useTemplates')">Usa template</button>
+        <div class="mph-helper-copy">Scrivi cosa vuoi mangiare, che situazione hai o cosa hai disponibile. Esempio: "riso, pollo, pranzo veloce".</div>
+        <div class="mph-chip-group mph-chip-group-inline">
+          <div class="mph-chip-label">Preset rapidi</div>
+          <div class="mph-inline-row">
+            ${promptPresets.map(preset => `<button class="mph-chip-btn mph-chip-btn-min" onclick="appendMealPlannerPrompt('${type}','${preset.value}')">${preset.label}</button>`).join('')}
+          </div>
+        </div>
+        <div class="mph-options-block">
+          <div class="mph-chip-label">Opzioni</div>
+          <div class="mph-inline-row mph-inline-row-options">
+            <button class="mph-toggle${plannerState.useFavorites ? ' active' : ''}" onclick="toggleMealPlannerOption('${type}','useFavorites')">Preferiti</button>
+            <button class="mph-toggle${plannerState.useTemplates ? ' active' : ''}" onclick="toggleMealPlannerOption('${type}','useTemplates')">Template</button>
+          </div>
         </div>
         ${favoriteFoods.length ? `<div class="mph-chip-group">
           <div class="mph-chip-label">Preferiti rapidi</div>
-          ${favoriteFoods.map(food => `<button class="mph-chip-btn" onclick="appendMealPlannerPrompt('${type}','${esc(food.name)}')">${htmlEsc(food.name)}</button>`).join('')}
+          <div class="mph-inline-row">
+            ${favoriteFoods.map(food => `<button class="mph-chip-btn mph-chip-btn-min" onclick="appendMealPlannerPrompt('${type}','${esc(food.name)}')">${htmlEsc(food.name)}</button>`).join('')}
+          </div>
         </div>` : ''}
         ${matchingTemplates.length ? `<div class="mph-chip-group">
           <div class="mph-chip-label">Template utili</div>
-          ${matchingTemplates.map(t => `<button class="mph-chip-btn" onclick="appendMealPlannerPrompt('${type}','${esc(t.name)}')">${htmlEsc(t.name)}</button>`).join('')}
+          <div class="mph-inline-row">
+            ${matchingTemplates.map(t => `<button class="mph-chip-btn mph-chip-btn-min" onclick="appendMealPlannerPrompt('${type}','${esc(t.name)}')">${htmlEsc(t.name)}</button>`).join('')}
+          </div>
         </div>` : ''}
-        <div class="mph-cta-row">
+        <div class="mph-actions-panel">
+          <div class="mph-actions-kicker">Azioni</div>
+          <div class="mph-cta-row">
           <button class="mph-generate" onclick="generateMealPlanner()">Genera suggerimenti</button>
           <button class="mph-btn" onclick="resetMealPlanner('${type}')">Reset</button>
+          </div>
         </div>
       </div>
       <div class="meal-planner-results">${resultCards}</div>
@@ -2075,12 +2283,30 @@ function renderStatsToolbar(data) {
     { key: 'all', label: 'TOTALE' },
   ];
   el.innerHTML = `
-    <div class="stats-toolbar">
-      <div class="stats-toolbar-label">Periodo</div>
-      <div class="stats-range-chips">
-        ${OPTIONS.map(opt => `
-          <button class="stats-range-chip${data.bounds.range === opt.key ? ' active' : ''}" onclick="setStatsRange('${opt.key}')">${opt.label}</button>
-        `).join('')}
+    <div class="stats-toolbar-card">
+      <div class="stats-toolbar">
+        <div class="stats-toolbar-copy">
+          <div class="stats-toolbar-label">Periodo</div>
+          <div class="stats-toolbar-title">${data.bounds.label}</div>
+          <div class="stats-toolbar-note">Usa un solo filtro per leggere peso, misure e costanza nello stesso contesto.</div>
+        </div>
+        <div class="stats-toolbar-side">
+          <div class="stats-toolbar-quickstats">
+            <div class="stats-toolbar-stat">
+              <span class="stats-toolbar-stat-label">Streak</span>
+              <strong>${calcStreak()} giorni</strong>
+            </div>
+            <div class="stats-toolbar-stat">
+              <span class="stats-toolbar-stat-label">Giorni attivi</span>
+              <strong>${data.adherence.activeDays}/${data.adherence.totalDays}</strong>
+            </div>
+          </div>
+          <div class="stats-range-chips" role="tablist" aria-label="Seleziona periodo statistiche">
+            ${OPTIONS.map(opt => `
+              <button class="stats-range-chip${data.bounds.range === opt.key ? ' active' : ''}" onclick="setStatsRange('${opt.key}')">${opt.label}</button>
+            `).join('')}
+          </div>
+        </div>
       </div>
     </div>`;
 }
@@ -2093,9 +2319,13 @@ function renderStatsHero(data) {
   el.innerHTML = `
     <div class="stats-hero${toneClass}">
       <div class="stats-hero-copy">
-        <div class="stats-hero-kicker">Panoramica</div>
+        <div class="stats-hero-kicker">Lettura del periodo</div>
         <div class="stats-hero-title">${data.hero.title}</div>
         <div class="stats-hero-body">${data.hero.body}</div>
+      </div>
+      <div class="stats-hero-meta">
+        <div class="stats-hero-meta-chip">Range · ${data.bounds.label}</div>
+        <div class="stats-hero-meta-chip">Streak · ${streak} giorni</div>
       </div>
       <div class="stats-kpis">
         <div class="sc-card">
@@ -2168,7 +2398,10 @@ function renderStatsWeight(data) {
           <div class="stat-section-title">Andamento peso</div>
           <div class="stats-panel-sub">${data.bounds.label} · ${weight.count} ${weight.count === 1 ? 'pesata' : 'pesate'}</div>
         </div>
-        <button class="stats-inline-btn" onclick="toggleWeightLog()">Cronologia</button>
+        <div class="stats-inline-actions">
+          <button class="stats-inline-btn" onclick="toggleWeightLog()">Cronologia</button>
+          <button class="stats-inline-btn stats-inline-btn-soft" onclick="document.getElementById('w-in')?.focus()">Registra</button>
+        </div>
       </div>
       <div class="w-stats stats-weight-stats">
         <div class="ws"><div class="ws-l">Attuale</div><div class="ws-v">${weight.current.toFixed(1)} kg</div></div>
@@ -2177,11 +2410,15 @@ function renderStatsWeight(data) {
         <div class="ws"><div class="ws-l">Target</div><div class="ws-v">${weight.target == null ? '—' : `${weight.target.toFixed(1)} kg`}</div></div>
       </div>
       <div class="chart-box stats-chart-box">
-        <canvas id="w-canvas" style="width:100%;height:220px"></canvas>
-        <div class="stats-weight-reading">
-          <div class="stats-weight-reading-title">Lettura</div>
-          <div class="stats-weight-reading-body">${weight.insight}</div>
-          <div class="stats-weight-reading-note">${targetText}</div>
+        <div class="stats-weight-main">
+          <div class="stats-weight-chart-area">
+            <canvas id="w-canvas" style="width:100%;height:180px"></canvas>
+          </div>
+          <div class="stats-weight-reading">
+            <div class="stats-weight-reading-title">Lettura</div>
+            <div class="stats-weight-reading-body">${weight.insight}</div>
+            <div class="stats-weight-reading-note">${targetText}</div>
+          </div>
         </div>
         <div class="w-log" id="w-log">
           <div class="w-log-title">Pesate nel periodo</div>
@@ -2227,7 +2464,7 @@ function renderStatsMeasurements(data) {
         <div class="stats-insight-title">Lettura composizione</div>
         <div class="stats-insight-body">${data.measurements.insight}</div>
       </div>
-      <div class="measure-cards">
+      <div class="measure-cards measure-cards-inline">
         ${Object.keys(LABELS).map(key => {
           const snap = data.measurements.deltas[key];
           const last = snap.last?.[key];
@@ -2286,8 +2523,10 @@ function renderStatsAdherence(data) {
         <div class="adh-chip"><span>Integratori</span><strong>${adherence.supplementRate}%</strong></div>
         <div class="adh-chip"><span>Weekend</span><strong>${adherence.weekendAdherenceRate}%</strong></div>
       </div>
-      <div id="stats-heatmap"></div>
-      <div id="stats-ratio"></div>
+      <div class="stats-adherence-lower">
+        <div class="stats-heatmap-wrap" id="stats-heatmap"></div>
+        <div class="stats-ratio-wrap" id="stats-ratio"></div>
+      </div>
     </div>`;
   renderHeatmap(data);
   renderRatio(data);
@@ -2296,17 +2535,25 @@ function renderStatsAdherence(data) {
 function renderStatsPatterns(data) {
   const el = document.getElementById('stats-patterns');
   if (!el) return;
-  const singleClass = data.patterns.length === 1 ? ' pattern-grid-single' : '';
+  const patterns = data.patterns?.length
+    ? data.patterns
+    : ['Nessun pattern rilevante nel periodo selezionato.'];
   el.innerHTML = `
     <div class="stats-panel">
-      <div class="stats-panel-head">
-        <div>
+      <div class="stats-patterns-layout">
+        <div class="stats-patterns-side">
           <div class="stat-section-title">Pattern utili</div>
           <div class="stats-panel-sub">Segnali automatici emersi dal periodo selezionato</div>
+          <div class="stats-patterns-note">Questi segnali aiutano a capire dove il comportamento sta sostenendo il percorso e dove conviene intervenire per primo.</div>
         </div>
-      </div>
-      <div class="pattern-grid${singleClass}">
-        ${data.patterns.map(text => `<div class="pattern-card">${text}</div>`).join('')}
+        <div class="stats-patterns-main">
+          <div class="pattern-card pattern-card-featured">
+            <div class="pattern-card-kicker">Insight del periodo</div>
+            <div class="pattern-card-stack">
+              ${patterns.map(text => `<div class="pattern-card-line">${text}</div>`).join('')}
+            </div>
+          </div>
+        </div>
       </div>
     </div>`;
 }
@@ -2315,29 +2562,36 @@ function renderStatsActions() {
   const el = document.getElementById('stats-actions');
   if (!el) return;
   el.innerHTML = `
-    <div class="stats-panel">
+    <div class="stats-panel stats-panel-actions">
       <div class="stats-panel-head">
         <div>
           <div class="stat-section-title">Azioni rapide</div>
-          <div class="stats-panel-sub">Aggiorna i dati che danno piu valore alla lettura della dashboard</div>
+          <div class="stats-panel-sub">Aggiorna i dati chiave della dashboard</div>
         </div>
       </div>
       <div class="stats-actions-card">
-        <div class="stats-actions-grid">
-          <div>
-            <div class="stats-actions-title">Peso</div>
-            <div class="stats-actions-note">Utile per leggere il trend e confrontarlo con il target.</div>
-            <div class="weight-entry">
-              <input class="w-input" type="number" id="w-in" step="0.1" placeholder="64.0">
-              <span style="font-size:12px;color:var(--muted);font-weight:600">kg</span>
-              <button class="w-btn" onclick="addWeight()">+ Registra peso</button>
+        <div class="stats-actions-stack">
+          <div class="stats-action-row stats-action-row-primary">
+            <div class="stats-action-copy">
+              <div class="stats-actions-title">Peso</div>
+              <div class="stats-actions-note">Per trend e target.</div>
+            </div>
+            <div class="stats-action-control">
+              <div class="weight-entry">
+                <input class="w-input" type="number" id="w-in" step="0.1" placeholder="64.0">
+                <span style="font-size:12px;color:var(--muted);font-weight:600">kg</span>
+                <button class="w-btn" onclick="addWeight()">+ Registra peso</button>
+              </div>
             </div>
           </div>
-          <div class="stats-actions-divider"></div>
-          <div>
-            <div class="stats-actions-title">Misure</div>
-            <div class="stats-actions-note">Servono per capire se il cambiamento e solo di peso o anche di composizione.</div>
-            <button class="stats-secondary-btn" onclick="openMeasurementEntry()">Apri misurazioni</button>
+          <div class="stats-action-row">
+            <div class="stats-action-copy">
+              <div class="stats-actions-title">Misure</div>
+              <div class="stats-actions-note">Per leggere la composizione.</div>
+            </div>
+            <div class="stats-action-control">
+              <button class="stats-secondary-btn" onclick="openMeasurementEntry()">Apri misurazioni</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2364,7 +2618,8 @@ function renderProfile() {
 function drawChart(log, opts = {}) {
   const el = document.getElementById('w-canvas');
   if (!el || !log?.length) return;
-  el.width = el.offsetWidth || 680; el.height = 220;
+  const isCompact = window.innerWidth <= 720;
+  el.width = el.offsetWidth || 680; el.height = isCompact ? 160 : 220;
   const ctx = el.getContext('2d');
   const W=el.width, H=el.height, pad={t:20,r:22,b:36,l:46};
   const vals = log.map(l=>l.val);
@@ -2537,10 +2792,10 @@ function renderRatio(data) {
       <span style="color:var(--off)">OFF ${offDays} giorni</span>
     </div>
     <div class="ratio-bar"><div class="ratio-fill" style="width:${onPct}%"></div></div>
-    <div style="font-size:10px;color:var(--muted);margin-top:4px">Programmazione teorica: ${expOnPct}% ON · ${100-expOnPct}% OFF</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:4px">Teorico: ${expOnPct}% ON · ${100-expOnPct}% OFF</div>
     <div class="ratio-stats">
-      <div class="rs"><div class="rs-v" style="color:var(--on)">${entries.filter(e=>e.type==='on'&&e.done>0&&e.done>=e.total).length}</div><div class="rs-l">ON completi</div></div>
-      <div class="rs"><div class="rs-v" style="color:var(--off)">${entries.filter(e=>e.type==='off'&&e.done>0&&e.done>=e.total).length}</div><div class="rs-l">OFF completi</div></div>
+      <div class="rs"><div class="rs-v" style="color:var(--on)">${entries.filter(e=>e.type==='on'&&e.done>0&&e.done>=e.total).length}</div><div class="rs-l">ON comp.</div></div>
+      <div class="rs"><div class="rs-v" style="color:var(--off)">${entries.filter(e=>e.type==='off'&&e.done>0&&e.done>=e.total).length}</div><div class="rs-l">OFF comp.</div></div>
     </div>`;
 }
 function renderMeasurementsForm(bounds) {
@@ -2669,13 +2924,13 @@ function renderWater() {
 
   const infoBtn = `<button class="water-info-btn" onmouseenter="showWaterTip(this)" onmouseleave="hideTip('tip-water')" onclick="showWaterTip(this)" title="Info fabbisogno idrico">i</button>`;
 
-  el.innerHTML = `<div class="water-widget">
+  el.innerHTML = `<div class="water-widget support-mini-card">
     <div class="water-top">
       <div class="water-left">
         <span class="water-icon">💧</span>
         <div>
-          <div class="water-title">Acqua ${infoBtn}</div>
-          <div class="water-sub">${count} di ${target} bicchieri (~${count*250} ml / ${totalMl} ml obiettivo)</div>
+          <div class="water-title">Idratazione ${infoBtn}</div>
+          <div class="water-sub">${count}/${target} bicchieri · ${count*250} ml su ${totalMl} ml</div>
         </div>
       </div>
       <div class="water-btns">
@@ -2774,12 +3029,14 @@ function renderSuppToday() {
   }).join('') : `<div class="supp-today-empty">Nessun integratore attivo. Aggiungine uno per gestirlo da qui ogni giorno.</div>`;
 
   el.innerHTML = `
+    <div class="support-mini-card support-mini-card-supp">
     <div class="supp-today-head">
-      <div class="notes-label">💊 Integratori di oggi</div>
+      <div class="notes-label">💊 Routine integratori</div>
       <button class="supp-today-add-btn" onclick="toggleSuppForm()">+ Nuovo</button>
     </div>
     <div class="supp-today-row">
       ${rows}
+    </div>
     </div>`;
   el.style.display='block';
   el.innerHTML += `
@@ -2925,6 +3182,32 @@ function hideTip(id) {
   if (tip._outsideHandler) { document.removeEventListener('pointerdown', tip._outsideHandler); tip._outsideHandler = null; }
   if (tip._scrollHandler) { window.removeEventListener('scroll', tip._scrollHandler, { capture: true }); tip._scrollHandler = null; }
   tip.style.display = 'none';
+}
+
+function showPianoSummaryTip(kind, anchor) {
+  const tip = document.getElementById('tip-piano-summary');
+  if (!tip) return;
+  const tips = {
+    kcal: {
+      title: 'Stato kcal',
+      body: 'Confronta il totale calorie del piano con il target del giorno. Ti dice se il piano e gia in linea, troppo alto o troppo basso.',
+    },
+    macro: {
+      title: 'Stato macro',
+      body: 'Riassume quanto proteine, carboidrati e grassi del piano sono vicini ai target del giorno. Serve per capire se il piano e bilanciato prima ancora di guardare il singolo pasto.',
+    },
+    focus: {
+      title: 'Pasto in focus',
+      body: 'E il pasto che il planner sta usando adesso. I suggerimenti, i template rilevanti e il contesto dell helper ruotano intorno a questo slot.',
+    },
+    template: {
+      title: 'Template utili',
+      body: 'Conta i template compatibili con il tipo di pasto selezionato, ad esempio colazioni per colazione o cene per cena. Ti fa capire subito quante basi riusabili hai disponibili.',
+    },
+  };
+  const model = tips[kind] || tips.kcal;
+  tip.innerHTML = `<div class="tip-title">${model.title}</div><div class="tip-desc">${model.body}</div>`;
+  showTip('tip-piano-summary', anchor);
 }
 
 // --- Fabbisogno section tooltips ---

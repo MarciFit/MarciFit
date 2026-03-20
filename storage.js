@@ -8,7 +8,13 @@ let _saveTimer;
 
 // Salva lo stato su localStorage
 function save() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch(e) {}
+  try {
+    const raw = JSON.stringify(S);
+    localStorage.setItem(LS_KEY, raw);
+    mfDebug('storage', 'save ok', { bytes: raw.length });
+  } catch(e) {
+    mfError('storage', 'save failed', { name: e?.name, message: e?.message });
+  }
 }
 
 // Salvataggio debounced (evita scritture eccessive durante l'editing)
@@ -19,10 +25,21 @@ function saveSoon() {
 
 // Carica lo stato da localStorage; restituisce true se trovato
 function loadSaved() {
+  _resetStorageLoadStatus();
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return false;
+    if (!raw) {
+      mfDebug('storage', 'load skipped: no saved state');
+      return false;
+    }
+    _storageStatus.hadSavedState = true;
     const saved = JSON.parse(raw);
+    const validation = validateImportedState(saved);
+    if (!validation.ok) {
+      _setStorageLoadError(validation.code, validation.detail);
+      mfError('storage', 'load validation failed', validation);
+      return false;
+    }
 
     // Chiavi dati utente – sempre ripristinate
     const USER_KEYS = [
@@ -44,8 +61,11 @@ function loadSaved() {
     // Guardrail: noteSearch sempre stringa
     if (typeof S.noteSearch !== 'string') S.noteSearch = '';
 
+    mfDebug('storage', 'load ok', { keys: Object.keys(saved).length, bytes: raw.length });
     return true;
   } catch(e) {
+    _setStorageLoadError('json_parse_failed', e?.message || 'JSON non valido');
+    mfError('storage', 'load failed', { name: e?.name, message: e?.message });
     return false;
   }
 }
@@ -58,6 +78,7 @@ function clearStorage() {
     body: 'Questa operazione <strong>cancella definitivamente</strong> tutti i dati salvati (piani, log, misurazioni, profilo) e riporta l\'app ai valori originali.<br><br>L\'operazione non è reversibile.',
     danger: true,
     onConfirm: () => {
+      mfWarn('storage', 'clear storage requested');
       localStorage.removeItem(LS_KEY);
       location.reload();
     },
@@ -69,7 +90,9 @@ function clearStorage() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function exportJSON() {
-  dl(new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' }), 'piano_federico.json');
+  const raw = JSON.stringify(S, null, 2);
+  dl(new Blob([raw], { type: 'application/json' }), 'piano_federico.json');
+  mfDebug('storage', 'export json ok', { bytes: raw.length });
   toast('💾  Salvato');
 }
 
@@ -83,12 +106,26 @@ function onLoad(e) {
   const r = new FileReader();
   r.onload = ev => {
     try {
-      Object.assign(S, JSON.parse(ev.target.result));
+      const parsed = JSON.parse(ev.target.result);
+      const validation = validateImportedState(parsed);
+      if (!validation.ok) {
+        _storageStatus.lastImportError = { code: validation.code, detail: validation.detail };
+        mfError('storage', 'import json rejected', validation);
+        toast('❌  File JSON non valido');
+        return;
+      }
+      Object.assign(S, parsed);
       save();
       initAll();
+      _storageStatus.lastImportError = null;
+      mfDebug('storage', 'import json ok', { keys: Object.keys(parsed || {}).length });
       toast('📂  Caricato');
-    } catch {
+    } catch (e) {
+      _storageStatus.lastImportError = { code: 'json_parse_failed', detail: e?.message || 'JSON non valido' };
+      mfError('storage', 'import json failed', { name: e?.name, message: e?.message });
       toast('❌  Errore JSON');
+    } finally {
+      e.target.value = '';
     }
   };
   r.readAsText(f);

@@ -739,10 +739,32 @@ function addWater(delta) {
   const key = S.selDate || localDate();
   if (!S.water) S.water = {};
   const cur = S.water[key] || 0;
-  S.water[key] = Math.max(0, Math.min(12, cur + delta));
+  const next = Math.max(0, Math.min(12, cur + delta));
+  S.water[key] = next;
   syncDoneByDate(key, getTrackedDayType(key));
   save();
   renderWater();
+  if (delta !== 0) {
+    const dayType = getTrackedDayType(key, getScheduledDayType(key));
+    const peso = S.anagrafica?.peso || 0;
+    const baseMl = peso > 0 ? Math.round(peso * 35) : 2000;
+    const totalMl = baseMl + (dayType === 'on' ? 350 : 0);
+    const target = Math.max(6, Math.round(totalMl / 250));
+    const prevPct = Math.min(cur / target, 1) * 100;
+    const nextPct = Math.min(next / target, 1) * 100;
+    requestAnimationFrame(() => {
+      const fill = document.querySelector('#water-widget .water-bar-fill');
+      if (!fill) return;
+      fill.style.width = `${prevPct}%`;
+      fill.classList.remove('is-animating');
+      void fill.offsetWidth;
+      requestAnimationFrame(() => {
+        fill.style.width = `${nextPct}%`;
+        if (delta > 0) fill.classList.add('is-animating');
+        setTimeout(() => fill.classList.remove('is-animating'), 720);
+      });
+    });
+  }
   refreshTodayDerivedViews();
 }
 function toggleSuppActive(i) {
@@ -959,6 +981,13 @@ function openProfileFavoriteFoods() {
   }, 80);
 }
 
+function focusTodayNotes() {
+  const notes = document.getElementById('notes-input');
+  const wrap = notes?.closest('.notes-section') || notes;
+  if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => notes?.focus(), 180);
+}
+
 function openFoodSuggestion(remK, remP, remC, remF) {
   const suggestion = suggestFood(+remK, +remP, +remC, +remF);
   let bodyHTML = '';
@@ -1082,644 +1111,8 @@ function loadPlanToLog(dateKey, mealIdx, type) {
   save(); refreshMealCard(type, mealIdx);
   toast('✅  Piano caricato');
 }
-let _bcCtx = null; // {dateKey, mealIdx} ? null means template form
-let _bcStream = null;
-let _bcScanning = false;
-let _bcItem = null;
-let _bcMode = 'log'; // 'log' | 'ff'
-let _bcLookupController = null;
-let _bcResolvedCode = null;
-const _bcProductCache = {};
-
-function _sanitizeBarcode(raw) {
-  return String(raw || '').replace(/\D/g, '');
-}
-
-function _getBcNutriment(n, keys) {
-  for (const key of keys) {
-    const val = Number(n?.[key]);
-    if (Number.isFinite(val) && val > 0) return val;
-  }
-  return 0;
-}
-
-function _buildFoodItemFromBarcodeProduct(product, barcode) {
-  if (!product) return null;
-  const n = product.nutriments || {};
-  const p100 = Math.round((_getBcNutriment(n, ['proteins_100g']) || 0) * 10) / 10;
-  const c100 = Math.round((_getBcNutriment(n, ['carbohydrates_100g']) || 0) * 10) / 10;
-  const f100 = Math.round((_getBcNutriment(n, ['fat_100g']) || 0) * 10) / 10;
-  let kcal100 = Math.round(_getBcNutriment(n, ['energy-kcal_100g', 'energy_from_fat_100g']));
-  if (!kcal100) {
-    const kj = _getBcNutriment(n, ['energy-kj_100g', 'energy_100g']);
-    if (kj) kcal100 = Math.round(kj / 4.184);
-  }
-  if (!kcal100 && (p100 || c100 || f100)) {
-    kcal100 = Math.round(p100 * 4 + c100 * 4 + f100 * 9);
-  }
-
-  const rawName = (
-    product.product_name_it ||
-    product.product_name_en ||
-    product.product_name ||
-    product.generic_name_it ||
-    product.generic_name ||
-    'Prodotto'
-  ).trim();
-
-  if (!rawName || !kcal100) return null;
-
-  return {
-    barcode,
-    name: rawName.slice(0, 60),
-    brand: (product.brands || '').split(',')[0].trim().slice(0, 30),
-    quantity: (product.quantity || '').trim().slice(0, 24),
-    kcal100,
-    p100,
-    c100,
-    f100,
-  };
-}
-
-function _cacheBarcodeItem(item) {
-  if (!item?.barcode) return;
-  _bcProductCache[item.barcode] = { ...item };
-  const ck = item.name.toLowerCase().slice(0, 20);
-  if (!S.foodCache[ck]) S.foodCache[ck] = [];
-  if (!S.foodCache[ck].find(x => x.name === item.name && x.brand === item.brand)) {
-    S.foodCache[ck].push({
-      name: item.name,
-      brand: item.brand,
-      kcal100: item.kcal100,
-      p100: item.p100,
-      c100: item.c100,
-      f100: item.f100,
-      src: 'cache',
-    });
-  }
-}
-
-function _resumeBarcodeScanning(delay = 1200) {
-  if (_bcStream) {
-    setTimeout(() => {
-      if (!_bcStream || _bcScanning) return;
-      _bcScanning = true;
-      const status = document.getElementById('bc-status');
-      if (status) status.textContent = 'Inquadra il codice a barre del prodotto';
-      scanBarcode();
-    }, delay);
-  }
-}
 let _ffSearchResults = [];
 let _ffSearchTimer = null;
-
-async function _startCamera() {
-  try {
-    _bcStream = await navigator.mediaDevices.getUserMedia({
-      video: {facingMode:'environment', width:{ideal:1280}, height:{ideal:720}}
-    });
-    const v = document.getElementById('bc-video');
-    v.srcObject = _bcStream;
-    await v.play();
-    _startScanning();
-  } catch(e) {
-    document.getElementById('bc-status').textContent =
-      e.name === 'NotAllowedError'
-        ? "⚠️ Permesso fotocamera negato. Abilitalo nelle impostazioni del browser."
-        : '⚠️ Fotocamera non disponibile: ' + e.message;
-  }
-}
-
-function _startScanning() {
-  if (_bcScanning) return;
-  _bcScanning = true;
-  const v = document.getElementById('bc-video');
-
-  if ('BarcodeDetector' in window) {
-    const det = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']});
-    const tick = async () => {
-      if (!_bcScanning) return;
-      try {
-        const codes = await det.detect(v);
-        if (codes.length) { _onBarcodeDetected(codes[0].rawValue); return; }
-      } catch(e) {}
-      if (_bcScanning) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-    return;
-  }
-
-  if (typeof Quagga === 'undefined') {
-    document.getElementById('bc-status').textContent = '⚠️ Libreria barcode non caricata. Usa la ricerca testuale.';
-    _bcScanning = false; return;
-  }
-  const cv = document.getElementById('bc-canvas');
-  const captureFrame = () => {
-    if (!_bcScanning) return;
-    cv.width = v.videoWidth || 640; cv.height = v.videoHeight || 480;
-    cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
-    Quagga.decodeSingle({
-      src: cv.toDataURL('image/jpeg', 0.8), numOfWorkers:0,
-      inputStream: {size:640},
-      decoder: {readers:['ean_reader','ean_8_reader','code_128_reader','code_39_reader']},
-    }, r => {
-      if (r?.codeResult?.code) _onBarcodeDetected(r.codeResult.code);
-      else if (_bcScanning) setTimeout(captureFrame, 400);
-    });
-  };
-  v.readyState >= 3 ? captureFrame() : v.addEventListener('playing', captureFrame, {once:true});
-}
-
-async function _onBarcodeDetected(barcode) {
-  _bcScanning = false;
-  document.getElementById('bc-status').textContent = `🔍 Codice: ${barcode} · Cerco su Open Food Facts...`;
-  try {
-    const resp = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json?fields=product_name,product_name_it,product_name_en,brands,nutriments`, { signal: AbortSignal.timeout(8000) });
-    const data = await resp.json();
-    const p = data.status === 1 ? data.product : null;
-    if (!p || !p.nutriments?.['energy-kcal_100g']) {
-      document.getElementById('bc-status').textContent = `⚠️ Prodotto non trovato (${barcode}). Usa la ricerca testuale.`;
-      setTimeout(() => { _bcScanning = true; _startScanning(); }, 2500);
-      return;
-    }
-    const n = p.nutriments;
-    _bcItem = {
-      name:    (p.product_name_it || p.product_name || 'Prodotto').trim().slice(0,60),
-      brand:   (p.brands||'').split(',')[0].trim().slice(0,30),
-      kcal100: Math.round(n['energy-kcal_100g'] || 0),
-      p100:    Math.round((n['proteins_100g']||0)*10)/10,
-      c100:    Math.round((n['carbohydrates_100g']||0)*10)/10,
-      f100:    Math.round((n['fat_100g']||0)*10)/10,
-    };
-    const cacheKey = _bcItem.name.toLowerCase().slice(0,20);
-    if (!S.foodCache[cacheKey]) S.foodCache[cacheKey] = [];
-    if (!S.foodCache[cacheKey].find(x=>x.name===_bcItem.name))
-      S.foodCache[cacheKey].push({..._bcItem, src:'cache'});
-    save();
-    document.getElementById('bc-product-name').textContent = _bcItem.name;
-    document.getElementById('bc-product-meta').textContent =
-      `${_bcItem.brand} · ${_bcItem.kcal100} kcal · P ${_bcItem.p100}g · C ${_bcItem.c100}g · G ${_bcItem.f100}g /100g`;
-    document.getElementById('bc-gram-label').textContent = _bcItem.name.slice(0,22);
-    document.getElementById('bc-status').textContent = '✅ Prodotto trovato!';
-    document.getElementById('bc-gram-calc').textContent = `= ${_bcItem.kcal100} kcal`;
-    document.getElementById('bc-result').style.display = 'block';
-    const gi = document.getElementById('bc-gram-input');
-    gi.value = '100';
-    gi.oninput = () => {
-      document.getElementById('bc-gram-calc').textContent =
-        '= ' + Math.round(_bcItem.kcal100 * (+gi.value||0) / 100) + ' kcal';
-    };
-    gi.focus();
-  } catch(e) {
-    document.getElementById('bc-status').textContent = '⚠️ Errore di rete.';
-    setTimeout(() => { _bcScanning = true; _startScanning(); }, 2500);
-  }
-}
-
-// ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
-// BARCODE SCANNER
-// ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
-let _bcContext = null; // {dateKey, mealIdx} or null for template
-
-async function startBarcodeCamera() {
-  try {
-    _bcStream = await navigator.mediaDevices.getUserMedia({
-      video: {facingMode:'environment', width:{ideal:1280}, height:{ideal:720}}
-    });
-    const video = document.getElementById('bc-video');
-    video.srcObject = _bcStream;
-    await video.play();
-    _bcScanning = true;
-    scanBarcode();
-  } catch(e) {
-    const msg = e.name === 'NotAllowedError'
-      ? "Permesso fotocamera negato. Abilitalo nelle impostazioni del browser."
-      : "Fotocamera non disponibile: " + e.message;
-    document.getElementById('bc-status').textContent = msg;
-  }
-}
-
-function scanBarcode() {
-  if (!_bcScanning) return;
-  const video = document.getElementById('bc-video');
-
-  if ('BarcodeDetector' in window) {
-    const detector = new BarcodeDetector({
-      formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39']
-    });
-    const tick = async () => {
-      if (!_bcScanning) return;
-      try {
-        const codes = await detector.detect(video);
-        if (codes.length) { onBarcodeDetected(codes[0].rawValue); return; }
-      } catch(e) {}
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-    return;
-  }
-
-  if (typeof Quagga !== 'undefined') {
-    const canvas = document.getElementById('bc-canvas');
-    const shoot = () => {
-      if (!_bcScanning) return;
-      canvas.width  = video.videoWidth  || 640;
-      canvas.height = video.videoHeight || 480;
-      canvas.getContext('2d').drawImage(video, 0, 0);
-      Quagga.decodeSingle({
-        src: canvas.toDataURL('image/jpeg', 0.8),
-        numOfWorkers: 0,
-        inputStream: {size: 640},
-        decoder: {readers: ['ean_reader','ean_8_reader','code_128_reader']},
-      }, result => {
-        if (result?.codeResult?.code) {
-          onBarcodeDetected(result.codeResult.code);
-        } else if (_bcScanning) {
-          setTimeout(shoot, 400);
-        }
-      });
-    };
-    if (video.readyState >= 3) shoot();
-    else video.addEventListener('playing', shoot, {once:true});
-    return;
-  }
-
-  document.getElementById('bc-status').textContent =
-    'Scanner non supportato su questo browser. Usa la ricerca testuale.';
-}
-
-function showBarcodeResult() {
-  document.getElementById('bc-product-name').textContent = _bcItem.name;
-  document.getElementById('bc-product-meta').textContent =
-    (_bcItem.brand ? _bcItem.brand + ' · ' : '') +
-    _bcItem.kcal100 + ' kcal · P ' + _bcItem.p100 +
-    'g · C ' + _bcItem.c100 + 'g · G ' + _bcItem.f100 + 'g per 100g';
-  document.getElementById('bc-gram-label').textContent = _bcItem.name.slice(0,20);
-  document.getElementById('bc-status').textContent = 'Prodotto trovato!';
-  document.getElementById('bc-result').style.display = 'block';
-  updateBcPreview();
-  document.getElementById('bc-gram-input').select();
-}
-
-function updateBcPreview() {
-  if (!_bcItem) return;
-  const g = parseFloat(document.getElementById('bc-gram-input')?.value) || 0;
-  document.getElementById('bc-gram-calc').textContent =
-    '= ' + Math.round(_bcItem.kcal100 * g / 100) + ' kcal';
-}
-
-// ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
-// BARCODE SCANNER
-// ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
-
-async function startBarcodeCamera() {
-  try {
-    _bcStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }
-    });
-    const video = document.getElementById('bc-video');
-    video.srcObject = _bcStream;
-    await video.play();
-    _bcScanning = true;
-    scanBarcode();
-  } catch(e) {
-    const msg = e.name === 'NotAllowedError'
-      ? 'Permesso fotocamera negato. Abilita nelle impostazioni del browser.'
-      : 'Fotocamera non disponibile: ' + e.message;
-    document.getElementById('bc-status').textContent = msg;
-  }
-}
-
-function scanBarcode() {
-  if (!_bcScanning) return;
-  const video = document.getElementById('bc-video');
-
-  // 1. Native BarcodeDetector (Chrome/Android/Edge)
-  if ('BarcodeDetector' in window) {
-    const detector = new BarcodeDetector({
-      formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39']
-    });
-    const tick = async () => {
-      if (!_bcScanning) return;
-      try {
-        const codes = await detector.detect(video);
-        if (codes.length) { onBarcodeDetected(codes[0].rawValue); return; }
-      } catch(e) {}
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-    return;
-  }
-
-  // 2. Quagga2 fallback
-  if (typeof Quagga === 'undefined') {
-    document.getElementById('bc-status').textContent = 'Libreria barcode non caricata. Usa la ricerca testuale.';
-    _bcScanning = false;
-    return;
-  }
-  const canvas = document.getElementById('bc-canvas');
-  const capture = () => {
-    if (!_bcScanning) return;
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    Quagga.decodeSingle({
-      src: canvas.toDataURL('image/jpeg', 0.8),
-      numOfWorkers: 0,
-      inputStream: { size: 640 },
-      decoder: { readers: ['ean_reader','ean_8_reader','code_128_reader'] },
-    }, result => {
-      if (result?.codeResult?.code) { onBarcodeDetected(result.codeResult.code); }
-      else if (_bcScanning) setTimeout(capture, 400);
-    });
-  };
-  if (video.readyState >= 3) capture();
-  else video.addEventListener('playing', capture, {once:true});
-}
-
-function showBarcodeResult() {
-  _bcItem = _bcItem;
-  document.getElementById('bc-product-name').textContent = _bcItem.name;
-  document.getElementById('bc-product-meta').textContent =
-    (_bcItem.brand ? _bcItem.brand + ' · ' : '') +
-    _bcItem.kcal100 + ' kcal ? P ' + _bcItem.p100 + 'g ? C ' + _bcItem.c100 + 'g ? G ' + _bcItem.f100 + 'g /100g';
-  document.getElementById('bc-gram-label').textContent = _bcItem.name.slice(0,18);
-  document.getElementById('bc-status').textContent = 'Prodotto trovato!';
-  const result = document.getElementById('bc-result');
-  result.style.display = 'block';
-  const gi = document.getElementById('bc-gram-input');
-  const gc = document.getElementById('bc-gram-calc');
-  gi.value = '100';
-  gc.textContent = '= ' + _bcItem.kcal100 + ' kcal';
-  gi.oninput = () => { gc.textContent = '= ' + Math.round(_bcItem.kcal100 * (+gi.value||0) / 100) + ' kcal'; };
-  document.getElementById('bc-confirm-btn').onclick = confirmBarcodeItem;
-  gi.focus();
-}
-
-// ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
-// BARCODE SCANNER
-// ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
-
-function openBarcode(dateKey, mealIdx) {
-  _bcCtx = (dateKey != null) ? {dateKey, mealIdx} : null;
-  _bcItem = null;
-  _bcResolvedCode = null;
-  _bcScanning = false;
-  if (_bcLookupController) {
-    try { _bcLookupController.abort(); } catch(e) {}
-    _bcLookupController = null;
-  }
-  const modal = document.getElementById('barcode-modal');
-  const result = document.getElementById('bc-result');
-  const status = document.getElementById('bc-status');
-  result.style.display = 'none';
-  status.textContent = 'Inquadra il codice a barre del prodotto';
-  modal.style.display = 'flex';
-  startBcCamera();
-}
-
-async function startBcCamera() {
-  try {
-    _bcStream = await navigator.mediaDevices.getUserMedia({
-      video: {facingMode:'environment', width:{ideal:1920}, height:{ideal:1080}}
-    });
-    const v = document.getElementById('bc-video');
-    v.srcObject = _bcStream;
-    await v.play();
-    _bcScanning = true;
-
-    if ('BarcodeDetector' in window) {
-      // Native BarcodeDetector: richiede 3 letture consecutive identiche prima di accettare
-      const det = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39']});
-      let _lastCode = null, _codeCount = 0;
-      const CONFIRM_NEEDED = 2;
-      const tick = async () => {
-        if (!_bcScanning) return;
-        try {
-          const codes = await det.detect(v);
-          if (codes.length) {
-            const code = codes[0].rawValue;
-            if (code === _lastCode) {
-              _codeCount++;
-              if (_codeCount >= CONFIRM_NEEDED) {
-                _bcScanning = false;
-                onBarcodeDetected(code);
-                return;
-              }
-            } else {
-              _lastCode = code;
-              _codeCount = 1;
-            }
-          } else {
-            // Nessun codice nel frame: reset contatore parziale
-            _lastCode = null; _codeCount = 0;
-          }
-        } catch(e) {}
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-
-    } else if (typeof Quagga !== 'undefined') {
-      const cv = document.getElementById('bc-canvas');
-      let _lastCode = null, _codeCount = 0;
-      const CONFIRM_NEEDED = 2;
-
-      const _quaggaConfident = (r) => {
-        // Accetta solo se tutti i digit decodificati hanno confidence > 0.5
-        const codes = r?.codeResult?.decodedCodes;
-        if (!codes) return false;
-        const errors = codes.filter(c => c.error !== undefined);
-        if (!errors.length) return true;
-        const avgErr = errors.reduce((s,c) => s + c.error, 0) / errors.length;
-        return avgErr < 0.25; // soglia qualità (Quagga usa "error" = 1 - confidence)
-      };
-
-      const scan = () => {
-        if (!_bcScanning) return;
-        cv.width = v.videoWidth || 640; cv.height = v.videoHeight || 480;
-        cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
-        Quagga.decodeSingle({
-          src: cv.toDataURL('image/jpeg', 0.9),
-          numOfWorkers: 0,
-          inputStream: {size: 800},
-          decoder: {
-            readers: ['ean_reader','ean_8_reader','code_128_reader'],
-            multiple: false
-          },
-          locator: {patchSize: 'medium', halfSample: false},
-        }, r => {
-          if (r?.codeResult?.code && _quaggaConfident(r)) {
-            const code = r.codeResult.code;
-            if (code === _lastCode) {
-              _codeCount++;
-              if (_codeCount >= CONFIRM_NEEDED) {
-                _bcScanning = false;
-                onBarcodeDetected(code);
-                return;
-              }
-            } else {
-              _lastCode = code; _codeCount = 1;
-            }
-          }
-          if (_bcScanning) setTimeout(scan, 150);
-        });
-      };
-      v.addEventListener('playing', scan, {once:true});
-      if (v.readyState >= 3) scan();
-
-    } else {
-      document.getElementById('bc-status').textContent = '⚠️  Libreria scanner non caricata. Usa la ricerca testuale.';
-    }
-  } catch(e) {
-    document.getElementById('bc-status').textContent =
-      e.name === 'NotAllowedError'
-        ? '❌  Permesso fotocamera negato. Abilitalo nelle impostazioni browser.'
-        : '❌  Fotocamera non disponibile: ' + e.message;
-  }
-}
-
-async function onBarcodeDetected(barcode) {
-  const cleanBarcode = _sanitizeBarcode(barcode);
-  if (!cleanBarcode) return;
-  if (_bcResolvedCode === cleanBarcode && _bcItem) {
-    showBcResult();
-    return;
-  }
-
-  _bcScanning = false;
-  if (_bcLookupController) {
-    try { _bcLookupController.abort(); } catch(e) {}
-  }
-
-  const cached = _bcProductCache[cleanBarcode];
-  if (cached) {
-    _bcResolvedCode = cleanBarcode;
-    _bcItem = { ...cached };
-    document.getElementById('bc-status').textContent = '⚡ Prodotto riconosciuto dalla cache';
-    showBcResult();
-    return;
-  }
-
-  document.getElementById('bc-status').textContent = '🔍 Codice: '+cleanBarcode+' · Cerco su Open Food Facts...';
-  let timeoutId = null;
-  try {
-    _bcLookupController = new AbortController();
-    timeoutId = setTimeout(() => {
-      try { _bcLookupController?.abort(); } catch(e) {}
-    }, 5000);
-    const resp = await fetch(
-      'https://world.openfoodfacts.org/api/v0/product/'+cleanBarcode+'.json?fields=code,product_name,product_name_it,product_name_en,generic_name,generic_name_it,brands,quantity,nutriments',
-      { signal: _bcLookupController.signal }
-    );
-    clearTimeout(timeoutId);
-    const data = await resp.json();
-    const p = data.status === 1 ? data.product : null;
-    const item = _buildFoodItemFromBarcodeProduct(p, cleanBarcode);
-    if (!item) {
-      document.getElementById('bc-status').textContent = '⚠️  Prodotto non trovato ('+cleanBarcode+'). Riprova o usa la ricerca.';
-      _bcResolvedCode = null;
-      _resumeBarcodeScanning(1400);
-      return;
-    }
-    _bcResolvedCode = cleanBarcode;
-    _bcItem = item;
-    _cacheBarcodeItem(_bcItem);
-    save();
-    showBcResult();
-  } catch(e) {
-    if (e.name === 'AbortError') {
-      document.getElementById('bc-status').textContent = '⚠️  Ricerca troppo lenta. Riprova o usa la ricerca testuale.';
-      _resumeBarcodeScanning(1200);
-    } else {
-      document.getElementById('bc-status').textContent = '❌  Errore di rete. Controlla la connessione.';
-    }
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-    _bcLookupController = null;
-  }
-}
-
-function showBcResult() {
-  if (_bcMode === 'ff') {
-    // Fill the Cibi Preferiti form and close scanner
-    fillFfFromProduct(_bcItem);
-    closeBarcode();
-    return;
-  }
-  document.getElementById('bc-product-name').textContent = _bcItem.name;
-  document.getElementById('bc-product-meta').textContent =
-    (_bcItem.brand ? _bcItem.brand + ' · ' : '') +
-    (_bcItem.quantity ? _bcItem.quantity + ' · ' : '') +
-    _bcItem.kcal100 + ' kcal · P ' + _bcItem.p100 + 'g · C ' + _bcItem.c100 + 'g · G ' + _bcItem.f100 + 'g per 100g';
-  document.getElementById('bc-status').textContent = '✅ Prodotto trovato!';
-  const gi = document.getElementById('bc-gram-input');
-  const gc = document.getElementById('bc-gram-calc');
-  gi.value = 100;
-  gc.textContent = '= '+_bcItem.kcal100+' kcal';
-  gi.oninput = () => { gc.textContent = '= '+Math.round(_bcItem.kcal100*(+gi.value||0)/100)+' kcal'; };
-  document.getElementById('bc-result').style.display = 'block';
-  if (_bcStream) {
-    _bcStream.getTracks().forEach(t => t.stop());
-    _bcStream = null;
-  }
-  gi.focus();
-}
-
-function confirmBarcodeItem() {
-  if (!_bcItem) return;
-  const grams = Math.round(+document.getElementById('bc-gram-input').value||100);
-  const item = {..._bcItem, grams};
-  if (_bcCtx) {
-    // Log in Oggi
-    const {dateKey, mealIdx} = _bcCtx;
-    if (!S.foodLog[dateKey]) S.foodLog[dateKey]={};
-    if (!S.foodLog[dateKey][mealIdx]) S.foodLog[dateKey][mealIdx]=[];
-    S.foodLog[dateKey][mealIdx].push(item);
-    syncLoggedMealState(dateKey, mealIdx, S.day);
-    save();
-    closeBarcode();
-    toast('✅  '+item.name+' aggiunto');
-    refreshMealCard(S.day, mealIdx);
-  } else {
-    // Template form
-    _tmplFormItems.push(item);
-    closeBarcode(); renderTmplFormItems();
-    toast('✅  '+item.name+' aggiunto al template');
-  }
-}
-
-function closeBarcode() {
-  _bcScanning = false;
-  _bcMode = 'log';
-  _bcResolvedCode = null;
-  if (_bcLookupController) {
-    try { _bcLookupController.abort(); } catch(e) {}
-    _bcLookupController = null;
-  }
-  if (_bcStream) { _bcStream.getTracks().forEach(t=>t.stop()); _bcStream=null; }
-  document.getElementById('barcode-modal').style.display = 'none';
-  document.getElementById('bc-result').style.display = 'none';
-  _bcItem = null; _bcCtx = null;
-}
-function openBarcodeForFf() {
-  _bcMode = 'ff';
-  openBarcode(null, null);
-}
-
-function fillFfFromProduct(item) {
-  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
-  setVal('ff-nome', item.name || '');
-  setVal('ff-kcal', item.kcal100 || 0);
-  setVal('ff-prot', item.p100 || 0);
-  setVal('ff-carb', item.c100 || 0);
-  setVal('ff-fat',  item.f100 || 0);
-  // clear search field
-  const si = document.getElementById('ff-search-inp');
-  if (si) si.value = item.name || '';
-  const sr = document.getElementById('ff-search-results');
-  if (sr) sr.style.display = 'none';
-  toast('✅ Dati compilati — verifica e salva');
-}
 
 function onFfSearch(inp) {
   const q = inp.value.trim();
@@ -1926,12 +1319,9 @@ function goView(name) {
 }
 
 function setPianoDay(type) {
-  S.planTab = type;
-  ensureMealPlannerState(type);
-  document.getElementById('pt-on').className  = 'pt on'  + (type==='on' ?' active':'');
-  document.getElementById('pt-off').className = 'pt off' + (type==='off'?' active':'');
-  save();
-  renderPiano();
+  setDay(type);
+  const active = document.querySelector('.view.active')?.id;
+  if (active === 'view-piano') renderPiano();
 }
 
 function setStatsRange(range) {
@@ -2102,8 +1492,6 @@ function setDay(type) {
   S.planTab = type;
   document.getElementById('ds-on').className  = 'ds-btn' + (type==='on' ?' on':'');
   document.getElementById('ds-off').className = 'ds-btn' + (type==='off'?' off':'');
-  document.getElementById('pt-on').className  = 'pt on'  + (type==='on' ?' active':'');
-  document.getElementById('pt-off').className = 'pt off' + (type==='off'?' active':'');
   // Update doneByDate so the calendar cell reflects the new day type immediately
   syncDoneByDate();
   save();
@@ -2216,8 +1604,6 @@ function calSelectDay(dateStr, dayType) {
   // Update switch buttons visually
   document.getElementById('ds-on').className  = 'ds-btn' + (dayType==='on' ?' on':'');
   document.getElementById('ds-off').className = 'ds-btn' + (dayType==='off'?' off':'');
-  document.getElementById('pt-on').className  = 'pt on'  + (dayType==='on' ?' active':'');
-  document.getElementById('pt-off').className = 'pt off' + (dayType==='off'?' active':'');
   // Reset notes-input for the selected date
   const ni = document.getElementById('notes-input');
   if (ni) {
@@ -2323,142 +1709,31 @@ function macroAlerts() {
 }
 function initAll() {
   const hadSaved = loadSaved();
-  S.selDate = null; // sempre apre su oggi
-
-  // Sanitize corrupted meal icons coming from old/localStorage saves.
-  // (We observed replacement chars + CJK codepoints in logs.)
-  let _iconsFixed = 0;
-  function __badIcon(x){
-    if (typeof x !== 'string') return true;
-    if (!x.trim()) return true;
-    // If the file/save replaced emoji with '?' we want to treat it as corrupted too.
-    if (/^[?\s]+$/.test(x)) return true;
-    if (x.includes('\uFFFD')) return true; // replacement char
-    // CJK blocks often show up in corruption like "?"
-    if (/[\u3400-\u4DBF\u4E00-\u9FFF]/.test(x)) return true;
-    return false;
-  }
-  function __defaultIconFor(name, idx){
-    const n = String(name||'').toLowerCase();
-    if (n.includes('colazione')) return '\u{1F963} ';            // ??
-    if (n.includes('pranzo')) return '\u{1F37D}\uFE0F ';         // ???
-    if (n.includes('cena')) return '\u{1F373} ';                 // ??
-    if (n.includes('spuntino')) return '\u{26A1} ';              // ?
-    // fallback by index
-    if (idx === 0) return '\u{1F963} ';
-    if (idx === 1) return '\u{1F37D}\uFE0F ';
-    if (idx === 2) return '\u{26A1} ';
-    return '\u{1F373} ';
-  }
-  ['on','off'].forEach(type=>{
-    (S.meals && Array.isArray(S.meals[type]) ? S.meals[type] : []).forEach((m,idx)=>{
-      if (__badIcon(m.icon)) { m.icon = __defaultIconFor(m.name, idx); _iconsFixed++; }
-      // normalize common variation selector spacing (plate)
-      if (typeof m.icon === 'string') m.icon = m.icon.replace('\u{1F37D} \uFE0F','\u{1F37D}\uFE0F');
-    });
-  });
-
-  if (!hadSaved) {
-    const dow = new Date().getDay();
-    S.day = S.onDays.includes(dow) ? 'on' : 'off';
-  }
-  // Ensure new fields exist after loading older saves
-  if (!S.measurements) S.measurements = [];
-  if (!S.goal) S.goal = { phase:'bulk', startDate:null, targetWeight:null, notes:'' };
-  if (!S.supplements) S.supplements = [
-    { id:'creatina', name:'Creatina Creapure', dose:'3 g', when:'mattina', active:true },
-    { id:'vitd',     name:'Vitamina D',        dose:'---', when:'mattina', active:false },
-  ];
-  if (!S.suppChecked) S.suppChecked = {};
-  if (!S.doneByDate)  S.doneByDate  = {};
-  if (!['7d', '30d', '8w', 'all'].includes(S.statsRange)) S.statsRange = '30d';
-  if (!S.foodCache)   S.foodCache   = {};
-  if (!S.foodLog)     S.foodLog     = {};
-  if (!S.templates)   S.templates   = [];
-  if (!S.mealPlanner) S.mealPlanner = {
-    on: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
-    off:{ mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
-  };
-  if (!S.foodLog)     S.foodLog     = {};
-  if (S.checked) delete S.checked;
-  // Migrazione: backfill mealType da tag per template salvati in precedenza
-  S.templates.forEach(t => {
-    if (!t.mealType && t.tag) {
-      const tag = t.tag.toLowerCase();
-      const TYPES = ['colazione','pranzo','cena','merenda','spuntino'];
-      t.mealType = TYPES.find(tp => tag.includes(tp)) || t.tag.split(',')[0].trim() || 'altro';
-    }
-  });
-
-  // Migrazione S.profilo → S.anagrafica (se anagrafica non ancora inizializzata)
-  if (!S.anagrafica) {
-    const findP = lbl => S.profilo?.find(r => r.l === lbl)?.v || '';
-    S.anagrafica = {
-      nome:            findP('Nome')            || 'Federico Marci',
-      sesso:           'm',
-      eta:             parseInt(findP('Età'))   || null,
-      altezza:         parseInt(findP('Altezza')) || null,
-      peso:            parseFloat(findP('Peso attuale')) || null,
-      grassoCorporeo:  null,
-      professione:     'desk_sedentary',
-      allenamentiSett: '3-4',
-    };
-  }
-
-  // ? ?  Migrazione: pasti flat ?  items[] ? ? 
-  // Solo se il pasto non ha items[] e ha i vecchi campi flat
-  ['on','off'].forEach(type => {
-    S.meals[type]?.forEach(m => {
-      if (!m.items) {
-        // Il vecchio formato aveva kcal/p/c/f come totali del pasto
-        // Non possiamo sapere i valori /100g, quindi creiamo un item generico
-        // con il testo descrittivo come nome e valori flat come fallback
-        m.items = [{
-          name:    m.ingr || m.name || 'Ingredienti',
-          brand:   '',
-          grams:   100,
-          kcal100: m.kcal || 0,
-          p100:    m.p    || 0,
-          c100:    m.c    || 0,
-          f100:    m.f    || 0,
-        }];
-        // Mantieni i campi flat per compatibilit? con effMeal fallback
-      }
-    });
-  });
-
-  // ? ?  Migrazione icone: sostituisce vecchi simboli con emoji ? ? 
-  const ICON_MAP = new Map([
-    ['\u2600 ', '🥣 '],       // ☀ -> bowl
-    ['\u25C6 ', '🍽️ '],      // ◆ -> plate
-    ['\u25CF ', '🥚 '],       // ● -> eggs
-    ['\u25CB ', '🍎 '],       // ○ -> apple
-  ]);
-  ['on','off'].forEach(type => {
-    S.meals[type]?.forEach(m => {
-      if (typeof m.icon === 'string') {
-        const v = ICON_MAP.get(m.icon);
-        if (v) m.icon = v;
-        // normalize common broken sequences (variation selectors / stray spaces)
-        m.icon = m.icon
-          .replace('🥣 🍽️','🍽️')
-          .replace('🥣🥚','🥚')
-          .replace(/\s+$/,' ');
-      }
-    });
-  });
+  const storageStatus = typeof getMarciFitStorageStatus === 'function' ? getMarciFitStorageStatus() : null;
+  sanitizeMealIcons(S);
+  ensureBootstrapDefaults(S);
+  migrateTemplateMealTypes(S);
+  migrateProfiloToAnagrafica(S);
+  migrateFlatMealsToItems(S);
+  normalizeLegacyMealIcons(S);
+  finalizeBootstrapState(S, hadSaved);
   save(); // salva subito con le icone aggiornate
 
-  S.planTab = S.day;
   ensureMealPlannerState('on');
   ensureMealPlannerState('off');
-  document.getElementById('pt-on').className  = 'pt on'  + (S.day==='on' ?' active':'');
-  document.getElementById('pt-off').className = 'pt off' + (S.day==='off'?' active':'');
   setDay(S.day);
-  // Reset notes-input loaded flag
-  const ni = document.getElementById('notes-input');
-  if (ni) delete ni.dataset.loaded;
-  if (hadSaved) toast('✅  Dati ripristinati');
+  resetBootstrapUiState();
+  if (storageStatus?.loadError && storageStatus.hadSavedState) {
+    showDayModal({
+      icon: '⚠️',
+      title: 'Dati salvati non leggibili',
+      body: `Abbiamo trovato uno stato salvato, ma non e stato possibile ripristinarlo in modo sicuro.<br><br><strong>Motivo:</strong> ${htmlEsc(storageStatus.loadError.detail || 'formato non valido')}.<br><br>L'app e partita con i dati di base. Se vuoi, puoi usare <strong>Reset dati</strong> dalla sezione backup oppure importare un JSON valido.`,
+      noButtons: true,
+    });
+    toast('⚠️  Ripristino dati non riuscito');
+  } else if (hadSaved) {
+    toast('✅  Dati ripristinati');
+  }
 }
 initAll();
 syncTodayGreetingAutoRefresh();

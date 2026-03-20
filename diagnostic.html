@@ -11,13 +11,19 @@ window.onerror = function(msg, src, line, col, err) {
   return false;
 };
 </script>
+<script src="debugTools.js"></script>
+<script>document.getElementById('out').textContent += '\ndebugTools.js loaded OK';</script>
 <script src="storage.js"></script>
 <script>document.getElementById('out').textContent += '\nstorage.js loaded OK';</script>
 <script src="nutritionLogic.js"></script>
 <script>document.getElementById('out').textContent += '\nnutritionLogic.js loaded OK';</script>
 <script src="uiComponents.js"></script>
 <script>document.getElementById('out').textContent += '\nuiComponents.js loaded OK';</script>
+<script src="bootstrapTools.js"></script>
+<script>document.getElementById('out').textContent += '\nbootstrapTools.js loaded OK';</script>
 <script src="app.js"></script>
+<script src="barcodeTools.js"></script>
+<script>document.getElementById('out').textContent += '\nbarcodeTools.js loaded OK';</script>
 <script>
 document.getElementById('out').textContent += '\napp.js loaded OK';
 document.getElementById('out').textContent += '\nErrors: ' + errors.length;

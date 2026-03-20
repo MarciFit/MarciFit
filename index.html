@@ -48,6 +48,7 @@
         <div class="today-dashboard-sub">Stato di oggi e contesto della settimana in un unico colpo d'occhio.</div>
       </div>
     </div>
+    <div id="today-quick-actions"></div>
     <div id="today-signal-row"></div>
     <div class="today-dashboard-grid">
       <div class="today-dashboard-block today-summary-card">
@@ -85,29 +86,37 @@
   <div class="today-support-panel">
     <div class="today-support-head">
       <div class="today-flow-kicker">Supporto giornata</div>
-      <div class="today-flow-sub">Idratazione, integratori e note restano vicini al flusso del giorno.</div>
+      <div class="today-flow-sub">Routine e promemoria restano vicini al flusso del giorno, ma con un peso piu calmo.</div>
     </div>
-    <div id="today-support-alerts"></div>
-    <div id="supp-today" style="display:none"></div>
-    <div id="water-widget"></div>
-    <div class="notes-section">
-      <div class="notes-header">
-        <span class="notes-label">Note del giorno</span>
-        <span class="notes-autosave" id="notes-autosave"></span>
-      </div>
-      <div class="notes-input-group">
-        <div class="note-tags">
-          <span class="note-tag" onclick="addNoteTag('#energia_alta')">#energia_alta</span>
-          <span class="note-tag" onclick="addNoteTag('#reflusso')">#reflusso</span>
-          <span class="note-tag" onclick="addNoteTag('#sgarrato')">#sgarrato</span>
-          <span class="note-tag" onclick="addNoteTag('#sonno_breve')">#sonno_breve</span>
-          <span class="note-tag" onclick="addNoteTag('#stanco')">#stanco</span>
+    <div class="today-support-layout">
+      <div class="today-support-primary">
+        <div id="today-support-alerts"></div>
+        <div class="today-routine-grid">
+          <div id="water-widget"></div>
+          <div id="supp-today" style="display:none"></div>
         </div>
-        <textarea class="notes-input" id="notes-input" rows="2"
-          placeholder="Come ti senti: energia, reflusso, allenamento..."
-          oninput="onNoteInput(this)"></textarea>
       </div>
-      <div class="notes-prev" id="notes-prev"></div>
+      <div class="today-support-secondary">
+        <div class="notes-section notes-section-secondary">
+          <div class="notes-header">
+            <span class="notes-label">Note del giorno</span>
+            <span class="notes-autosave" id="notes-autosave"></span>
+          </div>
+          <div class="notes-input-group">
+            <div class="note-tags">
+              <span class="note-tag" onclick="addNoteTag('#energia_alta')">#energia_alta</span>
+              <span class="note-tag" onclick="addNoteTag('#reflusso')">#reflusso</span>
+              <span class="note-tag" onclick="addNoteTag('#sgarrato')">#sgarrato</span>
+              <span class="note-tag" onclick="addNoteTag('#sonno_breve')">#sonno_breve</span>
+              <span class="note-tag" onclick="addNoteTag('#stanco')">#stanco</span>
+            </div>
+            <textarea class="notes-input" id="notes-input" rows="3"
+              placeholder="Come ti senti oggi: energia, reflusso, allenamento, eccezioni..."
+              oninput="onNoteInput(this)"></textarea>
+          </div>
+          <div class="notes-prev" id="notes-prev"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -126,10 +135,6 @@
       <div class="piano-section-copy">
         <span class="piano-section-title">Piano Pasti</span>
         <span class="piano-section-sub">Modifica il piano ON/OFF e usa l'helper sul pasto che ti interessa in questo momento.</span>
-      </div>
-      <div class="piano-day-toggle">
-        <button id="pt-on" class="pt on" onclick="setPianoDay('on')">ON</button>
-        <button id="pt-off" class="pt off" onclick="setPianoDay('off')">OFF</button>
       </div>
     </div>
     <div id="piano-macros-summary" class="piano-macros-summary"></div>
@@ -316,6 +321,7 @@
 <div id="tip-streak" class="stat-tip tip-up"></div>
 <div id="tip-water"      class="stat-tip tip-up"></div>
 <div id="tip-pasti-dist" class="stat-tip tip-up"></div>
+<div id="tip-piano-summary" class="stat-tip tip-up"></div>
 <div id="tip-fab-bmr"  class="stat-tip tip-up"></div>
 <div id="tip-fab-pal"  class="stat-tip tip-up"></div>
 <div id="tip-fab-tdee" class="stat-tip tip-up"></div>
@@ -382,10 +388,13 @@
 <div id="cal-picker" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center" onclick="if(event.target===this)closeCalPicker()"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.7.4/dist/quagga.min.js"></script>
+<script src="debugTools.js?v=1"></script>
 <script src="storage.js?v=31"></script>
 <script src="nutritionLogic.js?v=45"></script>
 <script src="uiComponents.js?v=60"></script>
+<script src="bootstrapTools.js?v=1"></script>
 <script src="app.js?v=60"></script>
+<script src="barcodeTools.js?v=1"></script>
 <script>lucide.createIcons();</script>
 </body>
 </html>

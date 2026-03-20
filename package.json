@@ -8,7 +8,10 @@
     "preview:live": "python3 server.py",
     "preview:today": "node scripts/preview-today.mjs",
     "preview:stats": "node scripts/preview-stats.mjs",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "smoke:core": "node scripts/smoke-core.mjs",
+    "smoke:dataflow": "node scripts/smoke-dataflow.mjs",
+    "smoke:storage": "node scripts/smoke-storage-edges.mjs",
+    "test": "npm run smoke:core"
   },
   "keywords": [],
   "author": "",

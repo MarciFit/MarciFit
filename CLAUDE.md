@@ -45,7 +45,7 @@
 
 ## Stato Attuale
 
-> Ultima modifica: 2026-03-20 (sessione 15)
+> Ultima modifica: 2026-03-20 (sessione 17)
 
 - Progetto funzionante con le 4 view principali operative
 - **Versioni asset correnti**: `style.css?v=56`, `uiComponents.js?v=60`, `app.js?v=60`, `nutritionLogic.js?v=45`, `storage.js?v=31` — incrementare ad ogni cambio significativo
@@ -63,6 +63,13 @@
 - **Focus del momento**: card singola con un solo CTA verso il pasto e insight sintetico su stato/log del pasto
 - **Stato vuoto premium rimosso**: non esiste più la card "Oggi è ancora da accendere"
 - **Preview live locale**: `live-preview.html` con watch file-based, memoria di tab/scroll e toggle opzionale per `preview-state.json`
+- **Tab Piano semplificata**: la vista segue direttamente `S.day` (giorno attivo di `Oggi`), senza più toggle ON/OFF dedicato
+- **Quadro giornaliero più compatto**: in `Piano` resta solo `Target giorno`, con mini-stat compatti (`Stato kcal`, `Stato macro`, `Pasto in focus`, `Template utili`) e tooltip reali
+- **Planner pasti più guidato**: flow `Scegli > Dai contesto > Usa`, preset rapidi, opzioni compatte e card macro mini orizzontali
+- **Template library orientata al contesto**: contatori in alto, ordinamento privilegiando i template coerenti col pasto in focus
+- **Quick actions in Oggi**: blocco azioni rapide sotto la dashboard (`Pasto attuale/prossimo`, `+ Acqua`, `Routine`, `Note`) con micro-contesto utile
+- **Acqua premium animation**: la progress bar della card acqua anima davvero dal valore precedente al successivo con sheen/glow quando si preme `+`
+- **Tooltip piano reali**: gli info button del `Quadro giornaliero` usano `showTip()` con `tip-piano-summary`, non solo il `title` nativo
 
 ---
 
@@ -79,6 +86,8 @@ _Nessun bug noto documentato al momento._
 > Aggiungere feature WIP con formato: **[DATA] Feature** — stato, file coinvolti, note
 
 - **⚠️ [FUTURA] Gestione tolleranza alert**: soglie kcal/proteine da Profilo > Impostazioni alert. Attualmente hardcoded in `renderTodayLog()`: `ALERT_KCAL_ERR=300`, `ALERT_KCAL_WARN=150`, `ALERT_PROT_WARN=20g`.
+- **⚠️ [FUTURA] Lista della spesa**: da collegare alla tab `Piano`, idealmente come output dei template e del planner pasti.
+- **⚠️ [FUTURA] Planner pasti ancora più assistito**: possibili CTA contestuali tipo `Sistema questo pasto`, suggerimenti auto sul pasto più debole e modalità `minimo sforzo`.
 
 ---
 
@@ -181,6 +190,7 @@ App accessibile su: `http://localhost:8788`
 > Solo note pendenti, non storico. Rimuovere quando risolte.
 
 - **Tab Oggi — prossima priorità**: le meal card nella `Timeline pasti` sono ancora molto simili tra loro. Sprint successivo consigliato = differenziare meglio `active / started / idle` mantenendo l'ordine temporale invariato.
+- **Tab Piano — prossima priorità**: verificare se `Quadro giornaliero` può essere compattato ancora o ridotto a sola reference + mini-stat, senza reintrodurre ridondanza col planner.
 - **Alert dashboard cliccabili**: i chip nella `Dashboard del giorno` ora possono avere `onclick`; se aggiungi nuovi alert, pensa sempre a una `resolve action` contestuale in `splitTodayAlerts()`.
 - **Integratori**: non stanno più nella tab `Piano`; gestione quotidiana + aggiunta nuovi integratori vive ora in `Supporto giornata` (`renderSuppToday()`). `renderSupplements()` resta usato nel `Profilo`, non in `Piano`.
 - **Stats preview**: esiste `scripts/preview-stats.mjs` con stato demo ricco; usare `npm run preview:stats` prima di toccare layout/gerarchia della tab `Stats`.
@@ -189,6 +199,16 @@ App accessibile su: `http://localhost:8788`
 ---
 
 ## Storico Sessioni
+
+### Sessione 17 — Semplificazione tab Piano + rifiniture Oggi (2026-03-20)
+- **Tab Piano ripensata**: eliminato il toggle ON/OFF dedicato; la vista segue direttamente `S.day` deciso in `Oggi`. `renderPiano()` usa `S.day` come fonte primaria del tipo giorno.
+- **Quadro giornaliero semplificato**: rimosso `Totale piano`, mantenuto solo `Target giorno`; rimossa anche la riga finale `Mancano oggi...` per evitare ridondanza.
+- **Mini-stat in Piano**: `Stato kcal`, `Stato macro`, `Pasto in focus`, `Template utili` convertiti in mini-card compatte con tooltip reali (`tip-piano-summary`) e info icon SVG.
+- **Bugfix logica stato kcal/macro**: gli stati non leggono più il piano scritto, ma il log reale della giornata (`getLoggedDayMacros(dateKey)`). Se non ci sono cibi inseriti, il fabbisogno risulta correttamente tutto da coprire.
+- **Planner pasti compattato**: target macro in card mini orizzontali, preset più minimal, opzioni separate dal blocco azioni (`Genera suggerimenti` / `Reset`), helper meno verticale.
+- **Template library contestuale**: aggiunti contatori di libreria e ordinamento che privilegia i template coerenti col pasto attualmente in focus.
+- **Quick actions nella tab Oggi**: aggiunto blocco scorciatoie sotto la dashboard con CTA rapide verso pasto corrente/prossimo, acqua, routine e note.
+- **Water widget premium**: progress bar acqua con animazione reale dal valore precedente al nuovo valore, glow leggero e sheen al click su `+`.
 
 ### Sessione 16 — Redesign tab Stats, redesign tab Oggi e alert contestuali (2026-03-20)
 - **Tab Stats rifatta per gerarchia**: introdotti `statsRange` persistente, toolbar `7d/30d/8w/all`, hero insight, nuova sezione peso e blocchi separati per `Misure e composizione`, `Aderenza e costanza`, `Pattern utili`, `Azioni rapide`.

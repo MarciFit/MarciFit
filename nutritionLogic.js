@@ -895,9 +895,11 @@ async function fetchOFF(q, signal, queryCtx) {
   // Ricerca full-text v1 — se 0 risultati, riprova con query più corta
   // (es. "fettine di pollo lidl" → 0 → riprova "fettine di pollo")
   const _fetch = async (terms) => {
-    const resp = await fetch(
-      `${V1}?search_terms=${encodeURIComponent(terms)}&search_simple=1&action=process&json=1&page_size=30&fields=${FIELDS}`,
-      fetchOpts
+    const url = `${V1}?search_terms=${encodeURIComponent(terms)}&search_simple=1&action=process&json=1&page_size=30&fields=${FIELDS}`;
+    const resp = await mfFetch(
+      url,
+      fetchOpts,
+      { source: 'openfoodfacts-search', terms }
     );
     if (!resp.ok) throw new Error('OFF ' + resp.status);
     const data = await resp.json();
