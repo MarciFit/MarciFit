@@ -842,6 +842,7 @@ function splitTodayAlerts(type, dateKey) {
   const supportAlerts = alerts.filter(a => a.type === 'supp' || String(a.id || '').startsWith('supp-'));
   const focusAlerts = alerts.filter(a => !supportAlerts.includes(a) && a.type !== 'ok');
   const statusAlerts = alerts.filter(a => a.type === 'ok');
+  const orderedAlerts = [...supportAlerts, ...focusAlerts];
   const signals = [...supportAlerts, ...focusAlerts, ...statusAlerts].slice(0, 2).map(alert => ({
     tone: alert.type === 'err' || alert.type === 'supp' ? 'err' : alert.type === 'warn' ? 'warn' : 'ok',
     text: alert.type === 'supp'
@@ -853,6 +854,7 @@ function splitTodayAlerts(type, dateKey) {
   }));
 
   return {
+    orderedAlerts,
     signals,
     focusAlert: focusAlerts[0] || null,
     supportAlert: supportAlerts[0] || null,
@@ -1011,6 +1013,7 @@ function renderGreeting(type, now) {
 
   const greetingEl = document.getElementById('today-greeting');
   if (greetingEl) {
+    greetingEl.dataset.dayState = type;
     greetingEl.classList.remove('is-on', 'is-off');
     greetingEl.classList.add(isOn ? 'is-on' : 'is-off');
   }
@@ -1037,18 +1040,24 @@ function renderGreeting(type, now) {
 function renderTodaySignals(type, dateKey) {
   const el = document.getElementById('today-signal-row');
   if (!el) return;
+  el.innerHTML = '';
+}
+
+function renderDashboardAlertSummary(type, dateKey) {
+  const el = document.getElementById('today-alerts-summary');
+  if (!el) return;
   const model = splitTodayAlerts(type, dateKey);
-  if (!model.signals.length) { el.innerHTML = ''; return; }
-  const visibleSignals = model.signals.slice(0, 3);
-  const hiddenCount = Math.max(model.signals.length - visibleSignals.length, 0);
+  const count = model.orderedAlerts.length;
+  if (!count) { el.innerHTML = ''; return; }
+  const label = count === 1 ? '1 avviso da leggere' : `${count} avvisi da leggere`;
   el.innerHTML = `
-    <div class="today-signal-row">
-      ${visibleSignals.map(signal => signal.action
-        ? `<button class="today-signal today-signal-${signal.tone} is-action" onclick="${signal.action}">${signal.text}</button>`
-        : `<div class="today-signal today-signal-${signal.tone}">${signal.text}</div>`
-      ).join('')}
-      ${hiddenCount ? `<div class="today-signal today-signal-muted">+${hiddenCount} altri segnali</div>` : ''}
-    </div>`;
+    <button class="today-alerts-summary-btn" onclick="document.querySelector('.today-support-panel')?.scrollIntoView({behavior:'smooth',block:'start'})">
+      <span class="today-alerts-summary-icon" aria-hidden="true">!</span>
+      <span class="today-alerts-summary-copy">
+        <span class="today-alerts-summary-label">${label}</span>
+        <span class="today-alerts-summary-sub">Apri supporto giornata</span>
+      </span>
+    </button>`;
 }
 
 function renderTodayQuickActions(type, dateKey) {
@@ -1119,13 +1128,26 @@ function renderSupportAlerts(type, dateKey) {
   const el = document.getElementById('today-support-alerts');
   if (!el) return;
   const model = splitTodayAlerts(type, dateKey);
-  const alert = model.supportAlert;
-  if (!alert) { el.innerHTML = ''; return; }
+  if (!model.orderedAlerts.length) { el.innerHTML = ''; return; }
   el.innerHTML = `
-    <div class="today-context-alert today-context-alert-support today-context-alert-support-compact">
-      <div class="today-context-alert-kicker">Da non perdere</div>
-      <div class="today-context-alert-main">${alert.text}</div>
-      ${alert.ctaLabel && alert.ctaAction ? `<button class="today-context-alert-btn" onclick="${alert.ctaAction}">${alert.ctaLabel}</button>` : ''}
+    <div class="today-support-alerts-list">
+      ${model.orderedAlerts.map((alert, idx) => `
+        <div class="today-context-alert today-context-alert-support today-context-alert-support-compact">
+          <div class="today-context-alert-shell">
+            <div class="today-context-alert-icon" aria-hidden="true">!</div>
+            <div class="today-context-alert-content">
+              <div class="today-context-alert-kicker">${idx === 0 ? 'Da leggere ora' : 'Da controllare'}</div>
+              <div class="today-context-alert-main">${alert.text}</div>
+              ${(alert.ctaLabel && alert.ctaAction) || alert.hasSuggest ? `
+                <div class="today-context-alert-actions">
+                  ${alert.ctaLabel && alert.ctaAction ? `<button class="today-context-alert-btn" onclick="${String(alert.id || '').startsWith('supp-') ? `resolveSupportSupplementAlert('${String(alert.id || '').replace(/^supp-/, '')}', this)` : alert.ctaAction}">${alert.ctaLabel}</button>` : ''}
+                  ${alert.hasSuggest ? `<button class="today-context-alert-btn is-secondary" onclick="openFoodSuggestion(${alert.remK||0},${alert.remP||0},${alert.remC||0},${alert.remF||0})">${(S.favoriteFoods || []).length > 0 ? 'Vedi cosa mangiare' : 'Aggiungi cibi preferiti'}</button>` : ''}
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `).join('')}
     </div>`;
 }
 
@@ -1313,8 +1335,6 @@ function renderToday() {
   renderGreeting(type, now);
   renderWeekCal(now);
   renderTodayLog(); // cards + macro + alerts + progress
-  renderTodayQuickActions(type, S.selDate || localDate(now));
-
   // Notes
   const noteKey   = S.selDate || localDate(now);
   const noteInput = document.getElementById('notes-input');
@@ -1402,11 +1422,16 @@ function renderCurrentMealFocus(type, mealState, dateKey, alertModel = null) {
   const hasFavFoods = (S.favoriteFoods || []).length > 0;
   const focusAlertHtml = focusAlert ? `
     <div class="today-context-alert">
-      <div class="today-context-alert-kicker">Segnale del momento</div>
-      <div class="today-context-alert-main">${focusAlert.text}</div>
-      <div class="today-context-alert-actions">
-        ${focusAlert.ctaLabel && focusAlert.ctaAction ? `<button class="today-context-alert-btn" onclick="${focusAlert.ctaAction}">${focusAlert.ctaLabel}</button>` : ''}
-        ${focusAlert.hasSuggest ? `<button class="today-context-alert-btn is-secondary" onclick="openFoodSuggestion(${focusAlert.remK||0},${focusAlert.remP||0},${focusAlert.remC||0},${focusAlert.remF||0})">${hasFavFoods ? 'Vedi cosa mangiare' : 'Aggiungi cibi preferiti'}</button>` : ''}
+      <div class="today-context-alert-shell">
+        <div class="today-context-alert-icon" aria-hidden="true">!</div>
+        <div class="today-context-alert-content">
+          <div class="today-context-alert-kicker">Segnale del momento</div>
+          <div class="today-context-alert-main">${focusAlert.text}</div>
+          <div class="today-context-alert-actions">
+            ${focusAlert.ctaLabel && focusAlert.ctaAction ? `<button class="today-context-alert-btn" onclick="${focusAlert.ctaAction}">${focusAlert.ctaLabel}</button>` : ''}
+            ${focusAlert.hasSuggest ? `<button class="today-context-alert-btn is-secondary" onclick="openFoodSuggestion(${focusAlert.remK||0},${focusAlert.remP||0},${focusAlert.remC||0},${focusAlert.remF||0})">${hasFavFoods ? 'Vedi cosa mangiare' : 'Aggiungi cibi preferiti'}</button>` : ''}
+          </div>
+        </div>
       </div>
     </div>` : '';
 
@@ -1472,6 +1497,7 @@ function renderTodayLog() {
   });
   document.getElementById('meals-today').innerHTML = _mealsHTML;
   renderCurrentMealFocus(type, mealState, dateKey, alertModel);
+  renderDashboardAlertSummary(type, dateKey);
   renderTodaySignals(type, dateKey);
   renderSupportAlerts(type, dateKey);
 

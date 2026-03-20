@@ -40,6 +40,7 @@ const S = {
   water: {},        // {'2026-03-17': 3}  (bicchieri)
   lastCheckin: null,
   foodCache: {},  // {query: [{name,brand,kcal100,p100,c100,f100,src}]}
+  foodSearchLearn: {}, // { itemKey: { count, lastPickedAt, queries: { queryKey: count }, contexts: { key: count } } }
   customFoods: [], // alimenti aggiunti manualmente dall'utente
   favoriteFoods: [], // cibi preferiti per i suggerimenti smart alert serali
   foodLog:   {},
@@ -220,6 +221,29 @@ function revealTodaySupplement(id) {
     { className: 'ui-glow', delay: 120, fallbackSelector: '#supp-today' }
   );
 }
+function refreshTodayAlertSurfaces() {
+  const active = document.querySelector('.view.active')?.id;
+  if (active !== 'view-today') return;
+  const dateKey = S.selDate || localDate();
+  renderDashboardAlertSummary(S.day, dateKey);
+  renderSupportAlerts(S.day, dateKey);
+}
+function resolveSupportSupplementAlert(id, triggerEl) {
+  const alertEl = triggerEl?.closest('.today-context-alert');
+  if (!alertEl) {
+    toggleSupp(id);
+    refreshTodayAlertSurfaces();
+    return;
+  }
+  const h = alertEl.offsetHeight;
+  alertEl.style.height = `${h}px`;
+  void alertEl.offsetHeight;
+  alertEl.classList.add('is-resolving');
+  setTimeout(() => {
+    toggleSupp(id);
+    refreshTodayAlertSurfaces();
+  }, 220);
+}
 
 function refreshTodayGreetingOnly() {
   const todayView = document.getElementById('view-today');
@@ -255,6 +279,63 @@ function syncLoggedMealState(dateKey, mealIdx, type = S.day) {
   syncDoneByDate(dateKey, type);
 }
 let _modalConfirmFn = null;
+let _uiScrollLockDepth = 0;
+let _uiScrollLockY = 0;
+let _greetingTransitionTimer = null;
+
+function lockUiScroll() {
+  const body = document.body;
+  if (!body) return;
+  if (_uiScrollLockDepth === 0) {
+    _uiScrollLockY = window.scrollY || window.pageYOffset || 0;
+    body.style.top = `-${_uiScrollLockY}px`;
+    body.classList.add('ui-scroll-locked');
+  }
+  _uiScrollLockDepth += 1;
+}
+
+function unlockUiScroll(force = false) {
+  const body = document.body;
+  if (!body) return;
+  if (force) _uiScrollLockDepth = 0;
+  else _uiScrollLockDepth = Math.max(0, _uiScrollLockDepth - 1);
+  if (_uiScrollLockDepth > 0) return;
+  body.classList.remove('ui-scroll-locked');
+  body.style.top = '';
+  window.scrollTo(0, _uiScrollLockY || 0);
+}
+
+function scrollMealCardIntoView(type, mealIdx, { behavior = 'smooth', focusAdd = false } = {}) {
+  if (typeof mealIdx !== 'number' && typeof mealIdx !== 'string') return;
+  const domKey = typeof mealIdx === 'string' ? `extra-${mealIdx}` : `${type}-${mealIdx}`;
+  const card = document.getElementById(`mc-${domKey}`);
+  if (!card) return;
+  const target = focusAdd ? card.querySelector('.mc-add-btn') || card : card;
+  const rect = target.getBoundingClientRect();
+  const navHeight = document.querySelector('.nav')?.offsetHeight || 56;
+  const tabsHeight = document.querySelector('.nav-tabs')?.offsetHeight || 56;
+  const topOffset = navHeight + tabsHeight + 18;
+  const nextTop = window.scrollY + rect.top - topOffset;
+  window.scrollTo({ top: Math.max(0, nextTop), behavior });
+  pulseTodayElement(`#mc-${domKey}`);
+}
+
+function scheduleGreetingStateTransition(prevType, nextType) {
+  const greetingEl = document.getElementById('today-greeting');
+  if (!greetingEl || !prevType || !nextType || prevType === nextType) return;
+  greetingEl.dataset.prevDayState = prevType;
+  greetingEl.dataset.dayState = nextType;
+  greetingEl.classList.add('is-switching-day', `switching-from-${prevType}`, `switching-to-${nextType}`);
+  if (_greetingTransitionTimer) clearTimeout(_greetingTransitionTimer);
+  _greetingTransitionTimer = setTimeout(() => {
+    greetingEl.classList.remove(
+      'is-switching-day',
+      `switching-from-${prevType}`,
+      `switching-to-${nextType}`
+    );
+  }, 780);
+}
+
 function showDayModal({icon, title, body, onConfirm, danger = false, noButtons = false}) {
   document.getElementById('day-modal-icon').textContent  = icon;
   const titleEl = document.getElementById('day-modal-title');
@@ -270,6 +351,7 @@ function showDayModal({icon, title, body, onConfirm, danger = false, noButtons =
   _modalConfirmFn = onConfirm;
   const ov = document.getElementById('day-modal-ov');
   ov.style.display = 'flex';
+  lockUiScroll();
   confirmBtn.onclick = () => {
     const fn = _modalConfirmFn; // capture before closeDayModal nulls it
     closeDayModal();
@@ -279,6 +361,7 @@ function showDayModal({icon, title, body, onConfirm, danger = false, noButtons =
 function closeDayModal() {
   document.getElementById('day-modal-ov').style.display = 'none';
   _modalConfirmFn = null;
+  unlockUiScroll();
 }
 function syncDoneByDate(dateKey = (S.selDate || localDate()), type = S.day) {
   const info = getDayCompletion(dateKey, type);
@@ -734,6 +817,7 @@ function toggleSupp(id) {
   renderSupplements();
   renderSuppToday(); // always update today supp section (cheap, no full re-render)
   refreshTodayDerivedViews();
+  refreshTodayAlertSurfaces();
 }
 function addWater(delta) {
   const key = S.selDate || localDate();
@@ -1120,28 +1204,44 @@ function onFfSearch(inp) {
   if (_ffSearchTimer) clearTimeout(_ffSearchTimer);
   if (q.length < 2) { if (sr) sr.style.display = 'none'; return; }
   _ffSearchTimer = setTimeout(() => {
-    searchFoods(q, (results) => {
+    searchFoods(q, (results, apiStatus) => {
       _ffSearchResults = results.slice(0, 8);
       if (!sr) return;
       if (!_ffSearchResults.length) {
-        sr.innerHTML = '<div class="ff-search-empty">Nessun risultato</div>';
+        const emptyMsg = apiStatus?.off === 'loading'
+          ? 'Sto ampliando la ricerca...'
+          : 'Nessun risultato';
+        sr.innerHTML = `<div class="ff-search-empty">${emptyMsg}</div>`;
         sr.style.display = 'block';
         return;
       }
-      sr.innerHTML = _ffSearchResults.map((r, i) => `
+      const statusHtml = apiStatus?.off === 'loading'
+        ? `<div class="ff-search-state"><span class="fsr-spinner"></span>Ricerca ampliata su Open Food Facts...</div>`
+        : apiStatus?.off === 'timeout'
+          ? `<div class="ff-search-state is-warn">OFF lento: continuo con i risultati locali</div>`
+          : apiStatus?.off === 'offline'
+            ? `<div class="ff-search-state is-warn">Offline: uso solo risultati locali</div>`
+            : apiStatus?.off === 'provider_error'
+              ? `<div class="ff-search-state is-warn">Open Food Facts non raggiungibile</div>`
+              : '';
+      sr.innerHTML = statusHtml + _ffSearchResults.map((r, i) => `
         <div class="ff-sr-item" onclick="selectFfFood(${i})">
           <div class="ff-sr-name">${htmlEsc ? htmlEsc(r.name) : r.name}</div>
           ${r.brand ? `<div class="ff-sr-brand">${r.brand}</div>` : ''}
           <div class="ff-sr-macros">${r.kcal100} kcal · P ${r.p100}g · C ${r.c100}g · G ${r.f100}g</div>
         </div>`).join('');
       sr.style.display = 'block';
-    });
+    }, { contextKey: 'favorite-foods' });
   }, 400);
 }
 
 function selectFfFood(i) {
   const food = _ffSearchResults[i];
   if (!food) return;
+  if (typeof rememberFoodSelection === 'function') {
+    const q = document.getElementById('ff-search-inp')?.value || food.name || '';
+    rememberFoodSelection(food, typeof buildFoodQueryContext === 'function' ? buildFoodQueryContext(q) : { key: q }, 'favorite-foods');
+  }
   fillFfFromProduct(food);
 }
 
@@ -1228,10 +1328,12 @@ function checkWeeklyCheckin() {
 
   document.getElementById('checkin-body').innerHTML = lines.join('<br>');
   document.getElementById('checkin-modal').style.display = 'flex';
+  lockUiScroll();
 }
 
 function closeCheckin() {
   document.getElementById('checkin-modal').style.display = 'none';
+  unlockUiScroll();
   S.lastCheckin = localDate();
   save();
 }
@@ -1296,6 +1398,7 @@ function openDr(label) {
     }).join('');
   }
   document.getElementById('dov').classList.add('open');
+  lockUiScroll();
 }
 function restoreProf(label, value) {
   const i = S.profilo.findIndex(r=>r.l===label);
@@ -1304,7 +1407,10 @@ function restoreProf(label, value) {
   save(); renderProfilo(); closeDrBtn(); toast(`✅  ${label} ripristinato`);
 }
 function closeDr(e) { if(e.target===document.getElementById('dov')) closeDrBtn(); }
-function closeDrBtn() { document.getElementById('dov').classList.remove('open'); }
+function closeDrBtn() {
+  document.getElementById('dov').classList.remove('open');
+  unlockUiScroll();
+}
 function goView(name) {
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
@@ -1488,6 +1594,7 @@ function updateMealTime(idx) {
 }
 
 function setDay(type) {
+  const prevType = S.day;
   S.day = type;
   S.planTab = type;
   document.getElementById('ds-on').className  = 'ds-btn' + (type==='on' ?' on':'');
@@ -1496,6 +1603,7 @@ function setDay(type) {
   syncDoneByDate();
   save();
   renderToday();
+  requestAnimationFrame(() => scheduleGreetingStateTransition(prevType, type));
 }
 
 // Single rerender ? updates whatever is currently visible + debounced save

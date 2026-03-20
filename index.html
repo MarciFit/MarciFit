@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=56">
+<link rel="stylesheet" href="style.css?v=59">
 </head>
 <body>
 <div class="app">
@@ -48,8 +48,8 @@
         <div class="today-dashboard-sub">Stato di oggi e contesto della settimana in un unico colpo d'occhio.</div>
       </div>
     </div>
-    <div id="today-quick-actions"></div>
     <div id="today-signal-row"></div>
+    <div id="today-alerts-summary"></div>
     <div class="today-dashboard-grid">
       <div class="today-dashboard-block today-summary-card">
         <div class="today-dashboard-block-title">Riepilogo giornata</div>
@@ -357,6 +357,7 @@
     <div id="bc-status" class="bc-status">
       Inquadra il codice a barre del prodotto
     </div>
+    <div id="bc-actions" class="bc-actions" style="display:none"></div>
     <div id="bc-result" class="bc-result">
       <div id="bc-product-name" class="bc-product-name"></div>
       <div id="bc-product-meta" class="bc-product-meta"></div>
@@ -390,11 +391,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.7.4/dist/quagga.min.js"></script>
 <script src="debugTools.js?v=1"></script>
 <script src="storage.js?v=31"></script>
-<script src="nutritionLogic.js?v=45"></script>
+<script src="nutritionLogic.js?v=49"></script>
 <script src="uiComponents.js?v=60"></script>
 <script src="bootstrapTools.js?v=1"></script>
-<script src="app.js?v=60"></script>
-<script src="barcodeTools.js?v=1"></script>
+<script src="app.js?v=62"></script>
+<script src="barcodeTools.js?v=2"></script>
 <script>lucide.createIcons();</script>
 </body>
 </html>

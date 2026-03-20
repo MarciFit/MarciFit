@@ -7,7 +7,346 @@ let _bcItem = null;
 let _bcMode = 'log'; // 'log' | 'ff'
 let _bcLookupController = null;
 let _bcResolvedCode = null;
+let _bcLastDetectedCode = null;
+let _bcScanLoopToken = 0;
 const _bcProductCache = {};
+
+function _setBarcodeStatus(message, tone = 'neutral') {
+  const status = document.getElementById('bc-status');
+  if (!status) return;
+  status.textContent = message;
+  status.className = `bc-status${tone !== 'neutral' ? ` is-${tone}` : ''}`;
+}
+
+function _renderBarcodeActions(actions = []) {
+  const actionsEl = document.getElementById('bc-actions');
+  if (!actionsEl) return;
+  if (!actions.length) {
+    actionsEl.innerHTML = '';
+    actionsEl.style.display = 'none';
+    return;
+  }
+  actionsEl.innerHTML = actions.map(action => `
+    <button class="bc-action-btn${action.tone ? ` ${action.tone}` : ''}" onclick="handleBarcodeAction('${action.id}')">
+      ${action.label}
+    </button>
+  `).join('');
+  actionsEl.style.display = 'flex';
+}
+
+function _resetBarcodeFeedback(message = 'Inquadra il codice a barre del prodotto') {
+  _setBarcodeStatus(message, 'neutral');
+  _renderBarcodeActions([]);
+}
+
+function _startBarcodeDetectorLoop(token) {
+  const v = document.getElementById('bc-video');
+  const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] });
+  let lastCode = null;
+  let codeCount = 0;
+  const confirmNeeded = 2;
+
+  const tick = async () => {
+    if (!_bcScanning || token !== _bcScanLoopToken) return;
+    try {
+      const codes = await detector.detect(v);
+      if (codes.length) {
+        const code = codes[0].rawValue;
+        if (code === lastCode) {
+          codeCount += 1;
+          if (codeCount >= confirmNeeded) {
+            _bcScanning = false;
+            onBarcodeDetected(code);
+            return;
+          }
+        } else {
+          lastCode = code;
+          codeCount = 1;
+        }
+      } else {
+        lastCode = null;
+        codeCount = 0;
+      }
+    } catch(e) {}
+    requestAnimationFrame(tick);
+  };
+
+  requestAnimationFrame(tick);
+}
+
+function _startQuaggaLoop(token) {
+  const v = document.getElementById('bc-video');
+  const cv = document.getElementById('bc-canvas');
+  let lastCode = null;
+  let codeCount = 0;
+  const confirmNeeded = 2;
+  const isConfident = (result) => {
+    const codes = result?.codeResult?.decodedCodes;
+    if (!codes) return false;
+    const errors = codes.filter(code => code.error !== undefined);
+    if (!errors.length) return true;
+    const avgErr = errors.reduce((sum, code) => sum + code.error, 0) / errors.length;
+    return avgErr < 0.25;
+  };
+
+  const scan = () => {
+    if (!_bcScanning || token !== _bcScanLoopToken) return;
+    cv.width = v.videoWidth || 640;
+    cv.height = v.videoHeight || 480;
+    cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
+    Quagga.decodeSingle({
+      src: cv.toDataURL('image/jpeg', 0.9),
+      numOfWorkers: 0,
+      inputStream: { size: 800 },
+      decoder: {
+        readers: ['ean_reader', 'ean_8_reader', 'code_128_reader'],
+        multiple: false
+      },
+      locator: { patchSize: 'medium', halfSample: false },
+    }, result => {
+      if (result?.codeResult?.code && isConfident(result)) {
+        const code = result.codeResult.code;
+        if (code === lastCode) {
+          codeCount += 1;
+          if (codeCount >= confirmNeeded) {
+            _bcScanning = false;
+            onBarcodeDetected(code);
+            return;
+          }
+        } else {
+          lastCode = code;
+          codeCount = 1;
+        }
+      }
+      if (_bcScanning && token === _bcScanLoopToken) setTimeout(scan, 150);
+    });
+  };
+
+  if (v.readyState >= 3) scan();
+  else v.addEventListener('playing', scan, { once: true });
+}
+
+function scanBarcode() {
+  if (!_bcStream || !_bcScanning) return;
+  _bcScanLoopToken += 1;
+  const token = _bcScanLoopToken;
+  if ('BarcodeDetector' in window) {
+    _startBarcodeDetectorLoop(token);
+    return;
+  }
+  if (typeof Quagga !== 'undefined') {
+    _startQuaggaLoop(token);
+    return;
+  }
+  _setBarcodeStatus('⚠️ Libreria scanner non caricata. Usa la ricerca testuale.', 'warn');
+  _renderBarcodeActions([
+    { id: 'open-text-search', label: 'Usa ricerca testuale', tone: 'primary' },
+  ]);
+}
+
+function _barcodeLookupUrl(barcode) {
+  return 'https://world.openfoodfacts.org/api/v0/product/' + barcode + '.json?fields=code,product_name,product_name_it,product_name_en,generic_name,generic_name_it,brands,quantity,nutriments';
+}
+
+function _makeBarcodeLookupError(code, extra = {}) {
+  const error = new Error(extra.message || code);
+  error.code = code;
+  Object.assign(error, extra);
+  return error;
+}
+
+async function _fetchBarcodeProductOnce(barcode, timeoutMs) {
+  let timeoutId = null;
+  try {
+    _bcLookupController = new AbortController();
+    timeoutId = setTimeout(() => {
+      try { _bcLookupController?.abort(); } catch(e) {}
+    }, timeoutMs);
+    const resp = await mfFetch(
+      _barcodeLookupUrl(barcode),
+      { signal: _bcLookupController.signal },
+      { source: 'barcode-lookup', barcode, timeoutMs }
+    );
+    if (!resp.ok) {
+      throw _makeBarcodeLookupError('provider_http', {
+        status: resp.status,
+        message: 'OFF ' + resp.status,
+      });
+    }
+    const data = await resp.json();
+    const product = data.status === 1 ? data.product : null;
+    if (!product) return { status: 'not_found' };
+    const item = _buildFoodItemFromBarcodeProduct(product, barcode);
+    if (!item) {
+      return {
+        status: 'insufficient_data',
+        productName: (
+          product.product_name_it ||
+          product.product_name_en ||
+          product.product_name ||
+          product.generic_name_it ||
+          product.generic_name ||
+          'Prodotto'
+        ).trim(),
+      };
+    }
+    return { status: 'found', item };
+  } catch(e) {
+    if (e.name === 'AbortError') {
+      throw _makeBarcodeLookupError('timeout', { message: 'lookup timeout' });
+    }
+    throw e;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+    _bcLookupController = null;
+  }
+}
+
+async function _lookupBarcodeProduct(barcode) {
+  const retryTimeouts = [4000, 6500];
+  let lastFailure = null;
+
+  for (let attempt = 0; attempt < retryTimeouts.length; attempt += 1) {
+    const timeoutMs = retryTimeouts[attempt];
+    try {
+      return await _fetchBarcodeProductOnce(barcode, timeoutMs);
+    } catch(e) {
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+      const status = e.code === 'timeout'
+        ? 'timeout'
+        : (offline ? 'offline' : 'provider_error');
+      lastFailure = {
+        status,
+        message: e?.message || '',
+        httpStatus: e?.status || null,
+      };
+      const hasRetryLeft = attempt < retryTimeouts.length - 1;
+      if (!hasRetryLeft || status === 'offline') return lastFailure;
+      _setBarcodeStatus('⏳ Servizio lento, provo di nuovo...', 'warn');
+    }
+  }
+
+  return lastFailure || { status: 'provider_error' };
+}
+
+function _showBarcodeLookupFallback(barcode, outcome) {
+  const actions = [
+    { id: 'open-text-search', label: 'Usa ricerca testuale', tone: 'primary' },
+    { id: 'restart-scan', label: 'Nuova scansione' },
+  ];
+
+  if (outcome.status === 'timeout') {
+    _setBarcodeStatus(`⏳ Barcode letto: ${barcode}. Open Food Facts sta rispondendo troppo lentamente.`, 'warn');
+    _renderBarcodeActions([
+      { id: 'retry-lookup', label: 'Riprova lookup', tone: 'warn' },
+      ...actions,
+    ]);
+    return;
+  }
+
+  if (outcome.status === 'offline') {
+    _setBarcodeStatus(`❌ Barcode letto: ${barcode}. Sembra che la connessione non sia disponibile.`, 'error');
+    _renderBarcodeActions(actions);
+    return;
+  }
+
+  if (outcome.status === 'provider_error') {
+    _setBarcodeStatus(`❌ Barcode letto: ${barcode}. Open Food Facts non e raggiungibile in questo momento.`, 'error');
+    _renderBarcodeActions([
+      { id: 'retry-lookup', label: 'Riprova lookup', tone: 'warn' },
+      ...actions,
+    ]);
+    return;
+  }
+
+  if (outcome.status === 'insufficient_data') {
+    _setBarcodeStatus(`⚠️ Barcode letto: ${barcode}. Prodotto trovato, ma i valori nutrizionali non sono sufficienti.`, 'warn');
+    _renderBarcodeActions(actions);
+    return;
+  }
+
+  _setBarcodeStatus(`⚠️ Barcode letto: ${barcode}. Prodotto non trovato su Open Food Facts.`, 'warn');
+  _renderBarcodeActions(actions);
+}
+
+function _focusBarcodeTextFallback() {
+  if (_bcMode === 'ff') {
+    closeBarcode();
+    goView('profilo');
+    setTimeout(() => {
+      const form = document.getElementById('ff-add-form');
+      if (form && (form.style.display === 'none' || form.style.display === '')) _toggleFfForm();
+      const foodsCard = document.getElementById('prof-foods-card');
+      foodsCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const input = document.getElementById('ff-search-inp');
+      if (input) {
+        input.focus();
+        input.select?.();
+      }
+    }, 160);
+    return;
+  }
+
+  if (!_bcCtx) {
+    closeBarcode();
+    return;
+  }
+
+  const { mealIdx } = _bcCtx;
+  const domKey = typeof mealIdx === 'string' ? `extra-${mealIdx}` : `${S.day}-${mealIdx}`;
+  closeBarcode();
+  setTimeout(() => {
+    const card = document.getElementById(`mc-${domKey}`);
+    card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const search = document.getElementById('mls-' + domKey);
+    if (search && search.style.display === 'none') search.style.display = 'block';
+    const input = document.getElementById('mlsi-' + domKey);
+    if (input) {
+      input.focus();
+      input.select?.();
+    }
+  }, 140);
+}
+
+function restartBarcodeScan() {
+  _bcItem = null;
+  _bcResolvedCode = null;
+  _resetBarcodeFeedback();
+  const result = document.getElementById('bc-result');
+  if (result) result.style.display = 'none';
+  if (_bcStream) {
+    _bcScanning = true;
+    scanBarcode();
+    return;
+  }
+  startBcCamera();
+}
+
+async function retryBarcodeLookup() {
+  if (!_bcLastDetectedCode) {
+    restartBarcodeScan();
+    return;
+  }
+  _bcResolvedCode = null;
+  _bcItem = null;
+  _renderBarcodeActions([]);
+  _setBarcodeStatus(`🔄 Barcode letto: ${_bcLastDetectedCode}. Riprovo il lookup prodotto...`);
+  await onBarcodeDetected(_bcLastDetectedCode, { skipCache: true });
+}
+
+function handleBarcodeAction(actionId) {
+  if (actionId === 'retry-lookup') {
+    retryBarcodeLookup();
+    return;
+  }
+  if (actionId === 'restart-scan') {
+    restartBarcodeScan();
+    return;
+  }
+  if (actionId === 'open-text-search') {
+    _focusBarcodeTextFallback();
+  }
+}
 
 function _sanitizeBarcode(raw) {
   return String(raw || '').replace(/\D/g, '');
@@ -82,8 +421,7 @@ function _resumeBarcodeScanning(delay = 1200) {
     setTimeout(() => {
       if (!_bcStream || _bcScanning) return;
       _bcScanning = true;
-      const status = document.getElementById('bc-status');
-      if (status) status.textContent = 'Inquadra il codice a barre del prodotto';
+      _resetBarcodeFeedback();
       scanBarcode();
     }, delay);
   }
@@ -114,7 +452,8 @@ function showBcResult() {
     (_bcItem.brand ? _bcItem.brand + ' · ' : '') +
     (_bcItem.quantity ? _bcItem.quantity + ' · ' : '') +
     _bcItem.kcal100 + ' kcal · P ' + _bcItem.p100 + 'g · C ' + _bcItem.c100 + 'g · G ' + _bcItem.f100 + 'g per 100g';
-  document.getElementById('bc-status').textContent = '✅ Prodotto trovato!';
+  _setBarcodeStatus('✅ Prodotto trovato!', 'success');
+  _renderBarcodeActions([]);
   const gi = document.getElementById('bc-gram-input');
   const gc = document.getElementById('bc-gram-calc');
   gi.value = 100;
@@ -132,6 +471,7 @@ function openBarcode(dateKey, mealIdx) {
   _bcCtx = dateKey != null ? { dateKey, mealIdx } : null;
   _bcItem = null;
   _bcResolvedCode = null;
+  _bcLastDetectedCode = null;
   _bcScanning = false;
   if (_bcLookupController) {
     try { _bcLookupController.abort(); } catch(e) {}
@@ -139,10 +479,10 @@ function openBarcode(dateKey, mealIdx) {
   }
   const modal = document.getElementById('barcode-modal');
   const result = document.getElementById('bc-result');
-  const status = document.getElementById('bc-status');
   result.style.display = 'none';
-  status.textContent = 'Inquadra il codice a barre del prodotto';
+  _resetBarcodeFeedback();
   modal.style.display = 'flex';
+  if (typeof lockUiScroll === 'function') lockUiScroll();
   startBcCamera();
 }
 
@@ -155,99 +495,24 @@ async function startBcCamera() {
     v.srcObject = _bcStream;
     await v.play();
     _bcScanning = true;
-
-    if ('BarcodeDetector' in window) {
-      const det = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] });
-      let _lastCode = null;
-      let _codeCount = 0;
-      const CONFIRM_NEEDED = 2;
-      const tick = async () => {
-        if (!_bcScanning) return;
-        try {
-          const codes = await det.detect(v);
-          if (codes.length) {
-            const code = codes[0].rawValue;
-            if (code === _lastCode) {
-              _codeCount++;
-              if (_codeCount >= CONFIRM_NEEDED) {
-                _bcScanning = false;
-                onBarcodeDetected(code);
-                return;
-              }
-            } else {
-              _lastCode = code;
-              _codeCount = 1;
-            }
-          } else {
-            _lastCode = null;
-            _codeCount = 0;
-          }
-        } catch(e) {}
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    } else if (typeof Quagga !== 'undefined') {
-      const cv = document.getElementById('bc-canvas');
-      let _lastCode = null;
-      let _codeCount = 0;
-      const CONFIRM_NEEDED = 2;
-      const _quaggaConfident = (r) => {
-        const codes = r?.codeResult?.decodedCodes;
-        if (!codes) return false;
-        const errors = codes.filter(c => c.error !== undefined);
-        if (!errors.length) return true;
-        const avgErr = errors.reduce((s, c) => s + c.error, 0) / errors.length;
-        return avgErr < 0.25;
-      };
-
-      const scan = () => {
-        if (!_bcScanning) return;
-        cv.width = v.videoWidth || 640;
-        cv.height = v.videoHeight || 480;
-        cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
-        Quagga.decodeSingle({
-          src: cv.toDataURL('image/jpeg', 0.9),
-          numOfWorkers: 0,
-          inputStream: { size: 800 },
-          decoder: {
-            readers: ['ean_reader', 'ean_8_reader', 'code_128_reader'],
-            multiple: false
-          },
-          locator: { patchSize: 'medium', halfSample: false },
-        }, r => {
-          if (r?.codeResult?.code && _quaggaConfident(r)) {
-            const code = r.codeResult.code;
-            if (code === _lastCode) {
-              _codeCount++;
-              if (_codeCount >= CONFIRM_NEEDED) {
-                _bcScanning = false;
-                onBarcodeDetected(code);
-                return;
-              }
-            } else {
-              _lastCode = code;
-              _codeCount = 1;
-            }
-          }
-          if (_bcScanning) setTimeout(scan, 150);
-        });
-      };
-      v.addEventListener('playing', scan, { once: true });
-      if (v.readyState >= 3) scan();
-    } else {
-      document.getElementById('bc-status').textContent = '⚠️  Libreria scanner non caricata. Usa la ricerca testuale.';
-    }
+    scanBarcode();
   } catch(e) {
-    document.getElementById('bc-status').textContent =
+    _setBarcodeStatus(
       e.name === 'NotAllowedError'
         ? '❌  Permesso fotocamera negato. Abilitalo nelle impostazioni browser.'
-        : '❌  Fotocamera non disponibile: ' + e.message;
+        : '❌  Fotocamera non disponibile: ' + e.message,
+      'error'
+    );
+    _renderBarcodeActions([
+      { id: 'open-text-search', label: 'Usa ricerca testuale', tone: 'primary' },
+    ]);
   }
 }
 
-async function onBarcodeDetected(barcode) {
+async function onBarcodeDetected(barcode, opts = {}) {
   const cleanBarcode = _sanitizeBarcode(barcode);
   if (!cleanBarcode) return;
+  _bcLastDetectedCode = cleanBarcode;
   if (_bcResolvedCode === cleanBarcode && _bcItem) {
     showBcResult();
     return;
@@ -259,55 +524,30 @@ async function onBarcodeDetected(barcode) {
   }
 
   const cached = _bcProductCache[cleanBarcode];
-  if (cached) {
+  if (cached && !opts.skipCache) {
     _bcResolvedCode = cleanBarcode;
     _bcItem = { ...cached };
-    document.getElementById('bc-status').textContent = '⚡ Prodotto riconosciuto dalla cache';
+    _setBarcodeStatus('⚡ Prodotto riconosciuto dalla cache', 'success');
     showBcResult();
     return;
   }
 
-  document.getElementById('bc-status').textContent = '🔍 Codice: ' + cleanBarcode + ' · Cerco su Open Food Facts...';
-  let timeoutId = null;
-  try {
-    _bcLookupController = new AbortController();
-    timeoutId = setTimeout(() => {
-      try { _bcLookupController?.abort(); } catch(e) {}
-    }, 5000);
-    const barcodeUrl = 'https://world.openfoodfacts.org/api/v0/product/' + cleanBarcode + '.json?fields=code,product_name,product_name_it,product_name_en,generic_name,generic_name_it,brands,quantity,nutriments';
-    const resp = await mfFetch(
-      barcodeUrl,
-      { signal: _bcLookupController.signal },
-      { source: 'barcode-lookup', barcode: cleanBarcode }
-    );
-    clearTimeout(timeoutId);
-    const data = await resp.json();
-    const p = data.status === 1 ? data.product : null;
-    const item = _buildFoodItemFromBarcodeProduct(p, cleanBarcode);
-    if (!item) {
-      document.getElementById('bc-status').textContent = '⚠️  Prodotto non trovato (' + cleanBarcode + '). Riprova o usa la ricerca.';
-      _bcResolvedCode = null;
-      _resumeBarcodeScanning(1400);
-      return;
-    }
+  _renderBarcodeActions([]);
+  _setBarcodeStatus('🔍 Codice: ' + cleanBarcode + ' · Cerco su Open Food Facts...');
+  const outcome = await _lookupBarcodeProduct(cleanBarcode);
+  if (outcome.status === 'found') {
     _bcResolvedCode = cleanBarcode;
-    _bcItem = item;
+    _bcItem = outcome.item;
     _cacheBarcodeItem(_bcItem);
     save();
     showBcResult();
-  } catch(e) {
-    if (e.name === 'AbortError') {
-      mfWarn('barcode', 'lookup aborted', { barcode: cleanBarcode });
-      document.getElementById('bc-status').textContent = '⚠️  Ricerca troppo lenta. Riprova o usa la ricerca testuale.';
-      _resumeBarcodeScanning(1200);
-    } else {
-      mfError('barcode', 'lookup failed', { barcode: cleanBarcode, name: e?.name, message: e?.message });
-      document.getElementById('bc-status').textContent = '❌  Errore di rete. Controlla la connessione.';
-    }
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-    _bcLookupController = null;
+    return;
   }
+
+  _bcResolvedCode = null;
+  _bcItem = null;
+  mfWarn('barcode', 'lookup unresolved', { barcode: cleanBarcode, outcome });
+  _showBarcodeLookupFallback(cleanBarcode, outcome);
 }
 
 function confirmBarcodeItem() {
@@ -324,6 +564,11 @@ function confirmBarcodeItem() {
     closeBarcode();
     toast('✅  ' + item.name + ' aggiunto');
     refreshMealCard(S.day, mealIdx);
+    requestAnimationFrame(() => {
+      if (typeof scrollMealCardIntoView === 'function') {
+        scrollMealCardIntoView(S.day, mealIdx, { behavior: 'smooth', focusAdd: true });
+      }
+    });
   } else {
     _tmplFormItems.push(item);
     closeBarcode();
@@ -336,6 +581,8 @@ function closeBarcode() {
   _bcScanning = false;
   _bcMode = 'log';
   _bcResolvedCode = null;
+  _bcLastDetectedCode = null;
+  _bcScanLoopToken += 1;
   if (_bcLookupController) {
     try { _bcLookupController.abort(); } catch(e) {}
     _bcLookupController = null;
@@ -348,6 +595,8 @@ function closeBarcode() {
   document.getElementById('bc-result').style.display = 'none';
   _bcItem = null;
   _bcCtx = null;
+  _renderBarcodeActions([]);
+  if (typeof unlockUiScroll === 'function') unlockUiScroll();
 }
 
 function openBarcodeForFf() {

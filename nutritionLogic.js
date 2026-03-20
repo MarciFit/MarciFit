@@ -601,6 +601,51 @@ const COMPOUND_FOOD_TERMS = new Set([
   'cereali', 'flakes', 'cracker', 'gallette', 'yogurtino', 'budino', 'wafer', 'caramelle',
 ]);
 
+const FOOD_ATTRIBUTE_TOKENS = new Set([
+  'basmati', 'integrale', 'integrali', 'proteico', 'proteica', 'proteici', 'proteiche',
+  'zero', '0', 'percent', 'senza', 'lattosio', 'light', 'magro', 'magra', 'magri', 'magre',
+  'bianco', 'bianca', 'naturale', 'nature', 'greco', 'greca',
+]);
+
+const FOOD_TOKEN_ALIASES = {
+  greek: 'greco',
+  greca: 'greco',
+  greche: 'greco',
+  greci: 'greco',
+  oats: 'avena',
+  oat: 'avena',
+  chicken: 'pollo',
+  turkey: 'tacchino',
+  tuna: 'tonno',
+  salmon: 'salmone',
+  rice: 'riso',
+  proteins: 'proteico',
+  protein: 'proteico',
+  proteine: 'proteico',
+  proteica: 'proteico',
+  proteici: 'proteico',
+  proteiche: 'proteico',
+  integrali: 'integrale',
+  banane: 'banana',
+  mele: 'mela',
+  pere: 'pera',
+  arance: 'arancia',
+  pesche: 'pesca',
+  zucchine: 'zucchina',
+  carote: 'carota',
+  patate: 'patata',
+  uova: 'uovo',
+  yogurti: 'yogurt',
+};
+
+const FOOD_BRAND_HINTS = (() => {
+  const tokens = new Set(['prix', 'lidl', 'coop', 'conad', 'esselunga', 'carrefour', 'eurospin', 'despar', 'pam', 'md']);
+  FOOD_DB.forEach(item => {
+    removeWeakTokens(tokenizeFoodText(item.brand || '')).forEach(token => tokens.add(token));
+  });
+  return tokens;
+})();
+
 function normalizeFoodText(str) {
   return String(str || '')
     .toLowerCase()
@@ -620,14 +665,56 @@ function removeWeakTokens(tokens) {
   return tokens.filter(t => t.length >= 2 && !FOOD_SEARCH_STOPWORDS.has(t));
 }
 
+function canonicalizeFoodToken(token) {
+  return FOOD_TOKEN_ALIASES[token] || token;
+}
+
+function canonicalizeFoodTokens(tokens) {
+  return tokens.map(canonicalizeFoodToken);
+}
+
+function uniqueFoodTerms(values) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function buildFoodQueryVariants(queryCtx) {
+  const variants = [];
+  const pushVariant = (terms) => {
+    const normalizedTerms = normalizeFoodText(Array.isArray(terms) ? terms.join(' ') : terms);
+    if (!normalizedTerms || normalizedTerms.length < 2) return;
+    if (!variants.includes(normalizedTerms)) variants.push(normalizedTerms);
+  };
+
+  pushVariant(queryCtx.raw);
+  pushVariant(queryCtx.canonicalJoined);
+
+  const noBrand = queryCtx.effectiveCanonicalTokens.filter(t => !FOOD_BRAND_HINTS.has(t));
+  if (noBrand.length && noBrand.length !== queryCtx.effectiveCanonicalTokens.length) pushVariant(noBrand);
+
+  const noAttr = queryCtx.effectiveCanonicalTokens.filter(t => !FOOD_ATTRIBUTE_TOKENS.has(t));
+  if (noAttr.length && noAttr.length !== queryCtx.effectiveCanonicalTokens.length) pushVariant(noAttr);
+
+  const core = queryCtx.effectiveCanonicalTokens.filter(t =>
+    !FOOD_BRAND_HINTS.has(t) && !FOOD_ATTRIBUTE_TOKENS.has(t)
+  );
+  if (core.length) pushVariant(core);
+
+  if (core.length > 1) pushVariant(core.slice(0, 2));
+
+  return variants.slice(0, 5);
+}
+
 function buildFoodQueryContext(q) {
   const normalized = normalizeFoodText(q);
   const rawTokens = tokenizeFoodText(q);
   const tokens = removeWeakTokens(rawTokens);
   const strongTokens = tokens.filter(t => t.length >= 3);
   const effectiveTokens = strongTokens.length ? strongTokens : tokens;
+  const canonicalTokens = canonicalizeFoodTokens(tokens);
+  const canonicalStrongTokens = canonicalTokens.filter(t => t.length >= 3);
+  const effectiveCanonicalTokens = canonicalStrongTokens.length ? canonicalStrongTokens : canonicalTokens;
   const wholeFoodTokens = effectiveTokens.filter(t => WHOLE_FOOD_TERMS.has(t));
-  return {
+  const queryCtx = {
     raw: String(q || '').trim(),
     normalized,
     key: normalized,
@@ -635,10 +722,18 @@ function buildFoodQueryContext(q) {
     tokens,
     strongTokens,
     effectiveTokens,
+    canonicalTokens,
+    effectiveCanonicalTokens,
     wholeFoodTokens,
     isWholeFoodQuery: effectiveTokens.length > 0 && wholeFoodTokens.length === effectiveTokens.length,
     joined: effectiveTokens.join(' '),
+    canonicalJoined: effectiveCanonicalTokens.join(' '),
+    brandHintTokens: effectiveCanonicalTokens.filter(t => FOOD_BRAND_HINTS.has(t)),
+    attributeTokens: effectiveCanonicalTokens.filter(t => FOOD_ATTRIBUTE_TOKENS.has(t)),
+    expandedTokens: uniqueFoodTerms([...effectiveTokens, ...effectiveCanonicalTokens]),
   };
+  queryCtx.variants = buildFoodQueryVariants(queryCtx);
+  return queryCtx;
 }
 
 function buildFoodResultContext(item) {
@@ -647,22 +742,47 @@ function buildFoodResultContext(item) {
   const combinedNorm = `${nameNorm} ${brandNorm}`.trim();
   const nameTokens = removeWeakTokens(tokenizeFoodText(item.name || ''));
   const brandTokens = removeWeakTokens(tokenizeFoodText(item.brand || ''));
+  const canonicalNameTokens = canonicalizeFoodTokens(nameTokens);
+  const canonicalBrandTokens = canonicalizeFoodTokens(brandTokens);
   const combinedTokens = Array.from(new Set([...nameTokens, ...brandTokens]));
-  return { nameNorm, brandNorm, combinedNorm, nameTokens, brandTokens, combinedTokens };
+  const canonicalCombinedTokens = Array.from(new Set([...canonicalNameTokens, ...canonicalBrandTokens]));
+  return {
+    nameNorm,
+    brandNorm,
+    combinedNorm,
+    nameTokens,
+    brandTokens,
+    combinedTokens,
+    canonicalNameTokens,
+    canonicalBrandTokens,
+    canonicalCombinedTokens,
+    canonicalNameNorm: canonicalNameTokens.join(' '),
+    canonicalBrandNorm: canonicalBrandTokens.join(' '),
+    canonicalCombinedNorm: canonicalCombinedTokens.join(' '),
+  };
 }
 
 function hasQueryMatch(item, queryCtx) {
   const resultCtx = buildFoodResultContext(item);
-  const tokens = queryCtx.effectiveTokens;
+  const tokens = queryCtx.expandedTokens;
   if (!queryCtx.normalized || !tokens.length) return false;
   if (resultCtx.combinedNorm.includes(queryCtx.normalized)) return true;
-  return tokens.some(t => resultCtx.nameNorm.includes(t) || resultCtx.brandNorm.includes(t));
+  if (queryCtx.canonicalJoined && (
+    resultCtx.canonicalNameNorm.includes(queryCtx.canonicalJoined) ||
+    resultCtx.canonicalCombinedNorm.includes(queryCtx.canonicalJoined)
+  )) return true;
+  return tokens.some(t =>
+    resultCtx.nameNorm.includes(t) ||
+    resultCtx.brandNorm.includes(t) ||
+    resultCtx.canonicalCombinedTokens.includes(canonicalizeFoodToken(t))
+  );
 }
 
 function sourceRank(src) {
-  if (src === 'local') return 4;
-  if (src === 'recent') return 3;
-  if (src === 'cache') return 2;
+  if (src === 'local') return 5;
+  if (src === 'recent') return 4;
+  if (src === 'favorite') return 4;
+  if (src === 'cache') return 3;
   if (src === 'off') return 1;
   return 0;
 }
@@ -701,70 +821,116 @@ function wholeFoodQueryAdjustment(resultCtx, queryCtx) {
   return adj;
 }
 
-function scoreFoodResult(item, queryCtx) {
+function classifyFoodConfidence(score, meta, item) {
+  const source = item.src || 'off';
+  if (source === 'local' || source === 'recent' || source === 'favorite') {
+    if (score >= 85 || meta.fullCanonicalMatch) return 'high';
+    if (score >= 48) return 'medium';
+    return 'low';
+  }
+  if (source === 'cache') {
+    if (score >= 74 || meta.fullCanonicalMatch) return 'high';
+    if (score >= 42) return 'medium';
+    return 'low';
+  }
+  if (meta.exactNameTokenMatches >= Math.max(1, meta.tokenCount - meta.missingStrong) && meta.matchedName > 0 && score >= 68) return 'high';
+  if (meta.matchedName > 0 && score >= 38) return 'medium';
+  return 'low';
+}
+
+function scoreFoodResult(item, queryCtx, opts = {}) {
   const resultCtx = buildFoodResultContext(item);
-  const tokens = queryCtx.effectiveTokens;
+  const tokens = queryCtx.effectiveCanonicalTokens.length ? queryCtx.effectiveCanonicalTokens : queryCtx.effectiveTokens;
   let score = 0;
+  const meta = {
+    tokenCount: tokens.length,
+    matchedName: 0,
+    matchedBrand: 0,
+    missingStrong: 0,
+    exactNameTokenMatches: 0,
+    attributeHits: 0,
+    brandHits: 0,
+    fullCanonicalMatch: false,
+  };
 
   if (queryCtx.normalized && resultCtx.nameNorm === queryCtx.normalized) score += 120;
   if (queryCtx.normalized && resultCtx.combinedNorm === queryCtx.normalized) score += 130;
   if (queryCtx.joined && resultCtx.nameNorm.includes(queryCtx.joined)) score += 48;
   if (queryCtx.joined && resultCtx.combinedNorm.includes(queryCtx.joined)) score += 32;
+  if (queryCtx.canonicalJoined && resultCtx.canonicalNameNorm.includes(queryCtx.canonicalJoined)) score += 34;
+  if (queryCtx.canonicalJoined && resultCtx.canonicalCombinedNorm.includes(queryCtx.canonicalJoined)) score += 22;
+  meta.fullCanonicalMatch = !!(queryCtx.canonicalJoined && (
+    resultCtx.canonicalNameNorm.includes(queryCtx.canonicalJoined) ||
+    resultCtx.canonicalCombinedNorm.includes(queryCtx.canonicalJoined)
+  ));
 
-  let matchedName = 0;
-  let matchedBrand = 0;
-  let missingStrong = 0;
-  let exactNameTokenMatches = 0;
   tokens.forEach(t => {
-    const nameTokenExact = resultCtx.nameTokens.includes(t);
-    const inName = resultCtx.nameNorm.includes(t);
-    const inBrand = resultCtx.brandNorm.includes(t);
+    const nameTokenExact = resultCtx.canonicalNameTokens.includes(t);
+    const inName = resultCtx.nameNorm.includes(t) || resultCtx.canonicalNameTokens.includes(t);
+    const inBrand = resultCtx.brandNorm.includes(t) || resultCtx.canonicalBrandTokens.includes(t);
     if (inName) {
-      matchedName++;
+      meta.matchedName++;
       if (nameTokenExact) {
-        exactNameTokenMatches++;
+        meta.exactNameTokenMatches++;
         score += 18;
       }
       score += 14;
       if (resultCtx.nameNorm.startsWith(t) || resultCtx.nameNorm.includes(' ' + t)) score += 8;
     } else if (inBrand) {
-      matchedBrand++;
+      meta.matchedBrand++;
       score += 6;
     }
-    if (!inName && !inBrand && t.length >= 3) missingStrong++;
+    if (!inName && !inBrand && t.length >= 3) meta.missingStrong++;
   });
 
   if (tokens.length) {
-    const coverage = (matchedName + matchedBrand) / tokens.length;
+    const coverage = (meta.matchedName + meta.matchedBrand) / tokens.length;
     score += Math.round(coverage * 24);
   }
 
   for (let i = 0; i < tokens.length - 1; i++) {
     const bigram = `${tokens[i]} ${tokens[i + 1]}`;
-    if (resultCtx.nameNorm.includes(bigram)) score += 18;
-    else if (resultCtx.combinedNorm.includes(bigram)) score += 10;
+    if (resultCtx.nameNorm.includes(bigram) || resultCtx.canonicalNameNorm.includes(bigram)) score += 18;
+    else if (resultCtx.combinedNorm.includes(bigram) || resultCtx.canonicalCombinedNorm.includes(bigram)) score += 10;
   }
 
-  if (matchedName > 0 && matchedBrand > 0) score += 10;
-  if (matchedBrand > 0 && matchedName === 0) score -= 12;
-  if (missingStrong > 0) score -= missingStrong * 10;
-  if ((item._offHasItLabel || item._hasItLabel) && matchedName > 0) score += 4;
+  if (meta.matchedName > 0 && meta.matchedBrand > 0) score += 10;
+  if (meta.matchedBrand > 0 && meta.matchedName === 0) score -= 12;
+  if (meta.missingStrong > 0) score -= meta.missingStrong * 10;
+  if ((item._offHasItLabel || item._hasItLabel) && meta.matchedName > 0) score += 4;
 
-  if (tokens.length === 1 && exactNameTokenMatches > 0) {
+  if (tokens.length === 1 && meta.exactNameTokenMatches > 0) {
     score += 55;
-    const extraNameTokens = resultCtx.nameTokens.filter(t => t !== tokens[0]).length;
+    const extraNameTokens = resultCtx.canonicalNameTokens.filter(t => t !== tokens[0]).length;
     score -= Math.min(extraNameTokens * 7, 35);
   }
 
-  if (tokens.length <= 2 && exactNameTokenMatches === tokens.length && resultCtx.nameTokens.length === tokens.length) {
+  if (tokens.length <= 2 && meta.exactNameTokenMatches === tokens.length && resultCtx.canonicalNameTokens.length === tokens.length) {
     score += 40;
+  }
+
+  if (queryCtx.attributeTokens.length > 0) {
+    meta.attributeHits = queryCtx.attributeTokens.filter(t =>
+      resultCtx.canonicalNameTokens.includes(t) || resultCtx.canonicalBrandTokens.includes(t)
+    ).length;
+    score += meta.attributeHits * 10;
+  }
+
+  if (queryCtx.brandHintTokens.length > 0) {
+    meta.brandHits = queryCtx.brandHintTokens.filter(t => resultCtx.canonicalBrandTokens.includes(t)).length;
+    score += meta.brandHits * 10;
   }
 
   score += wholeFoodQueryAdjustment(resultCtx, queryCtx);
 
   score += sourceRank(item.src) * 9;
+  score += foodLearningBoost(item, queryCtx, opts.contextKey || 'generic');
   score -= foodQualityPenalty(item);
-  return score;
+  return {
+    score,
+    confidence: classifyFoodConfidence(score, meta, item),
+    meta,
+  };
 }
 
 function getFoodDedupeKey(item) {
@@ -774,18 +940,90 @@ function getFoodDedupeKey(item) {
   return `${resultCtx.nameNorm}|${brandKey}|${kcalKey}`;
 }
 
-function rankFoods(items, queryCtx) {
+function rememberFoodSelection(item, queryCtx, contextKey = 'generic') {
+  if (!item) return;
+  if (!S.foodSearchLearn) S.foodSearchLearn = {};
+  const itemKey = getFoodDedupeKey(item);
+  const record = S.foodSearchLearn[itemKey] || {
+    count: 0,
+    lastPickedAt: null,
+    queries: {},
+    contexts: {},
+  };
+  record.count += 1;
+  record.lastPickedAt = new Date().toISOString();
+  const queryKey = queryCtx?.key || normalizeFoodText(queryCtx?.raw || '');
+  if (queryKey) {
+    record.queries[queryKey] = (record.queries[queryKey] || 0) + 1;
+    if (queryCtx?.canonicalJoined && queryCtx.canonicalJoined !== queryKey) {
+      record.queries[queryCtx.canonicalJoined] = (record.queries[queryCtx.canonicalJoined] || 0) + 1;
+    }
+  }
+  if (contextKey) record.contexts[contextKey] = (record.contexts[contextKey] || 0) + 1;
+  S.foodSearchLearn[itemKey] = record;
+
+  const keys = Object.keys(S.foodSearchLearn);
+  if (keys.length > 450) {
+    keys
+      .sort((a, b) => {
+        const da = new Date(S.foodSearchLearn[a]?.lastPickedAt || 0).getTime();
+        const db = new Date(S.foodSearchLearn[b]?.lastPickedAt || 0).getTime();
+        return da - db;
+      })
+      .slice(0, 120)
+      .forEach(key => delete S.foodSearchLearn[key]);
+  }
+  saveSoon();
+}
+
+function foodLearningBoost(item, queryCtx, contextKey = 'generic') {
+  const itemKey = getFoodDedupeKey(item);
+  const record = S.foodSearchLearn?.[itemKey];
+  if (!record) return 0;
+
+  const queryKey = queryCtx?.key || '';
+  const canonicalQueryKey = queryCtx?.canonicalJoined || '';
+  const queryHits = (queryKey ? (record.queries?.[queryKey] || 0) : 0) +
+    (canonicalQueryKey && canonicalQueryKey !== queryKey ? (record.queries?.[canonicalQueryKey] || 0) : 0);
+  const contextHits = contextKey ? (record.contexts?.[contextKey] || 0) : 0;
+  const totalHits = Number(record.count || 0);
+
+  let boost = Math.min(totalHits * 3, 18);
+  boost += Math.min(queryHits * 9, 30);
+  boost += Math.min(contextHits * 4, 10);
+
+  const lastPickedAt = record.lastPickedAt ? new Date(record.lastPickedAt).getTime() : 0;
+  if (lastPickedAt) {
+    const ageDays = (Date.now() - lastPickedAt) / 86400000;
+    if (ageDays <= 3) boost += 10;
+    else if (ageDays <= 14) boost += 5;
+  }
+
+  return boost;
+}
+
+function rankFoods(items, queryCtx, opts = {}) {
   return items
-    .map(item => ({ ...item, _searchScore: scoreFoodResult(item, queryCtx) }))
+    .map(item => {
+      const evaluation = scoreFoodResult(item, queryCtx, opts);
+      return {
+        ...item,
+        _searchScore: evaluation.score,
+        _searchConfidence: evaluation.confidence,
+        _searchMeta: evaluation.meta,
+      };
+    })
     .sort((a, b) =>
-      (b._searchScore - a._searchScore) ||
       (sourceRank(b.src) - sourceRank(a.src)) ||
+      ((b._searchConfidence === 'high') - (a._searchConfidence === 'high')) ||
+      ((b._searchConfidence === 'medium') - (a._searchConfidence === 'medium')) ||
+      (b._searchScore - a._searchScore) ||
       ((a.name || '').length - (b.name || '').length)
     );
 }
 
-function dedupeFoodResults(items, queryCtx, limit = Infinity) {
-  const ranked = rankFoods(items, queryCtx);
+function dedupeFoodResults(items, queryCtx, limit = Infinity, opts = {}) {
+  const ranked = rankFoods(items, queryCtx, opts);
   const picked = new Map();
   for (const item of ranked) {
     const key = getFoodDedupeKey(item);
@@ -822,24 +1060,42 @@ function getRecentFoods(q) {
   return recents;
 }
 
-// AbortController globale per cancellare fetch OFF precedenti
-let _offAbort = null;
-let _searchVersion = 0;
+// AbortController/versione per contesto di ricerca
+const _offAbortByContext = {};
+const _searchVersionByContext = {};
+
+function _makeFoodSearchError(code, extra = {}) {
+  const error = new Error(extra.message || code);
+  error.code = code;
+  Object.assign(error, extra);
+  return error;
+}
+
+function _classifyFoodSearchError(error) {
+  if (error?.name === 'AbortError') return 'aborted';
+  if (error?.code === 'timeout') return 'timeout';
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
+  return 'provider_error';
+}
 
 // Ricerca unificata a 2 fasi:
 //   1) locale+recenti istantaneo
 //   2) OFF in background (~1s) — aggiunta ai risultati quando arriva
 // callback(results, apiStatus) — chiamata 2 volte: locale, poi locale+OFF
-async function searchFoods(q, callback) {
+async function searchFoods(q, callback, opts = {}) {
   if (!q || q.length < 2) { callback([], null); return; }
   const queryCtx = buildFoodQueryContext(q);
   const key = queryCtx.key;
-  const version = ++_searchVersion;
+  const contextKey = opts.contextKey || 'global';
+  const version = (_searchVersionByContext[contextKey] || 0) + 1;
+  _searchVersionByContext[contextKey] = version;
 
-  // Cancella fetch OFF precedente
-  if (_offAbort) { try { _offAbort.abort(); } catch(e) {} }
-  _offAbort = new AbortController();
-  const signal = _offAbort.signal;
+  // Cancella fetch OFF precedente solo nello stesso contesto
+  if (_offAbortByContext[contextKey]) {
+    try { _offAbortByContext[contextKey].abort(); } catch(e) {}
+  }
+  _offAbortByContext[contextKey] = new AbortController();
+  const signal = _offAbortByContext[contextKey].signal;
 
   // 1. Local: custom + database interno
   const custom = (S.customFoods || [])
@@ -850,22 +1106,27 @@ async function searchFoods(q, callback) {
     .filter(f => hasQueryMatch(f, queryCtx))
     .map(f => ({ ...f, src: 'local' }));
 
-  const allLocal = dedupeFoodResults([...custom, ...local], queryCtx, 8);
+  const allLocal = dedupeFoodResults([...custom, ...local], queryCtx, 8, { contextKey });
+
+  // 1.5 Cache query/sessione: usata davvero come prima sorgente esterna locale
+  const cached = ((S.foodCache && S.foodCache[key]) || [])
+    .map(f => ({ ...f, src: 'cache' }))
+    .filter(f => hasQueryMatch(f, queryCtx));
 
   // 2. Recenti da log effettivo (non cache di ricerca)
-  const recents = dedupeFoodResults([...allLocal, ...getRecentFoods(queryCtx)], queryCtx, 12)
+  const recents = dedupeFoodResults([...allLocal, ...cached, ...getRecentFoods(queryCtx)], queryCtx, 12, { contextKey })
     .filter(r => r.src === 'recent');
 
-  // Callback fase 1 — locale+recenti (nessun apiStatus = "OFF in caricamento")
-  const phaseOneResults = dedupeFoodResults([...allLocal, ...recents], queryCtx, 12);
-  callback(phaseOneResults, null);
+  // Callback fase 1 — locale + cache + recenti
+  const phaseOneResults = dedupeFoodResults([...allLocal, ...cached, ...recents], queryCtx, 12, { contextKey });
+  callback(phaseOneResults, { off: 'loading', hasCache: cached.length > 0 });
 
   // 3. OFF in background
   try {
     const offItems = await fetchOFF(q, signal, queryCtx);
     // Scarta se nel frattempo è partita una nuova ricerca
-    if (version !== _searchVersion) return;
-    const merged = dedupeFoodResults([...phaseOneResults, ...offItems], queryCtx, 32);
+    if (version !== _searchVersionByContext[contextKey]) return;
+    const merged = dedupeFoodResults([...phaseOneResults, ...offItems], queryCtx, 32, { contextKey });
     const filtered = merged.filter(r => r.src === 'off' || r.src === 'cache');
     // Cache OFF per sessione
     if (filtered.length) {
@@ -874,11 +1135,12 @@ async function searchFoods(q, callback) {
       if (ks.length > 300) ks.slice(0, 80).forEach(k => delete S.foodCache[k]);
       save();
     }
-    callback(merged, { off: 'ok' });
+    callback(merged, { off: 'ok', hasCache: cached.length > 0 });
   } catch(e) {
-    if (version !== _searchVersion) return; // ricerca annullata, ignora
-    if (e.name === 'AbortError') return;    // cancellato da nuova ricerca
-    callback(phaseOneResults, { off: 'err' });
+    if (version !== _searchVersionByContext[contextKey]) return; // ricerca annullata, ignora
+    const status = _classifyFoodSearchError(e);
+    if (status === 'aborted') return;    // cancellato da nuova ricerca
+    callback(phaseOneResults, { off: status, hasCache: cached.length > 0 });
   }
 }
 
@@ -889,31 +1151,50 @@ async function searchFoods(q, callback) {
 async function fetchOFF(q, signal, queryCtx) {
   const V1 = 'https://it.openfoodfacts.net/cgi/search.pl';
   const FIELDS = 'product_name,product_name_it,brands,nutriments';
-  const fetchOpts = signal ? { signal } : { signal: AbortSignal.timeout(8000) };
   const localQueryCtx = queryCtx || buildFoodQueryContext(q);
 
   // Ricerca full-text v1 — se 0 risultati, riprova con query più corta
   // (es. "fettine di pollo lidl" → 0 → riprova "fettine di pollo")
   const _fetch = async (terms) => {
     const url = `${V1}?search_terms=${encodeURIComponent(terms)}&search_simple=1&action=process&json=1&page_size=30&fields=${FIELDS}`;
-    const resp = await mfFetch(
-      url,
-      fetchOpts,
-      { source: 'openfoodfacts-search', terms }
-    );
-    if (!resp.ok) throw new Error('OFF ' + resp.status);
-    const data = await resp.json();
-    return (data.products || []).filter(p =>
-      p.product_name && p.nutriments?.['energy-kcal_100g'] > 0
-    );
+    let timeoutId = null;
+    let controller = null;
+    try {
+      controller = signal ? null : new AbortController();
+      const effectiveSignal = signal || controller.signal;
+      timeoutId = setTimeout(() => {
+        try { (controller || { abort() {} }).abort(); } catch(e) {}
+      }, 8000);
+      const resp = await mfFetch(
+        url,
+        { signal: effectiveSignal },
+        { source: 'openfoodfacts-search', terms }
+      );
+      if (!resp.ok) throw _makeFoodSearchError('provider_http', { status: resp.status, message: 'OFF ' + resp.status });
+      const data = await resp.json();
+      return (data.products || []).filter(p =>
+        p.product_name && p.nutriments?.['energy-kcal_100g'] > 0
+      );
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        if (signal?.aborted) throw e;
+        throw _makeFoodSearchError('timeout', { message: 'OFF timeout' });
+      }
+      throw e;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
   };
 
-  let products = await _fetch(q);
+  const variants = (localQueryCtx.variants && localQueryCtx.variants.length)
+    ? localQueryCtx.variants
+    : [q];
+  let products = [];
 
-  // Retry progressivo: se 0 risultati e query ha 3+ parole, rimuovi ultima parola
-  const words = q.trim().split(/\s+/);
-  if (products.length === 0 && words.length >= 3) {
-    products = await _fetch(words.slice(0, -1).join(' '));
+  for (const variant of variants) {
+    const variantProducts = await _fetch(variant);
+    if (variantProducts.length) products = products.concat(variantProducts);
+    if (products.length >= 18) break;
   }
 
   // Ranking a 5 fattori: nome match, posizione parola, brand, copertura query, scheda IT
@@ -931,7 +1212,7 @@ async function fetchOFF(q, signal, queryCtx) {
     };
   }).filter(r => r.name && r.kcal100 > 0 && hasQueryMatch(r, localQueryCtx));
 
-  return dedupeFoodResults(mapped, localQueryCtx, 20);
+  return dedupeFoodResults(mapped, localQueryCtx, 20, { contextKey: 'off-fetch' });
 }
 
 // fetchUSDA rimosso — OFF è la sorgente API primaria
@@ -991,43 +1272,56 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
   // Alert / spinner API status
   let alertsHtml = '';
   if (apiStatus) {
-    if (apiStatus.off === 'err') alertsHtml += '<div class="alert-slim a-err"><span class="alert-dot"></span><span class="alert-txt">Open Food Facts non raggiungibile</span></div>';
-  } else if (results.length) {
-    // Fase intermedia: locale pronto, OFF ancora in caricamento
-    alertsHtml = '<div class="fsr-loading-inline"><span class="fsr-spinner"></span>Open Food Facts in caricamento…</div>';
+    if (apiStatus.off === 'loading' && results.length) {
+      alertsHtml = '<div class="fsr-loading-inline"><span class="fsr-spinner"></span>Ricerca ampliata su Open Food Facts…</div>';
+    }
+    if (apiStatus.off === 'timeout') alertsHtml += '<div class="alert-slim a-warn"><span class="alert-dot"></span><span class="alert-txt">Open Food Facts lento: continuo con i risultati locali</span></div>';
+    if (apiStatus.off === 'offline') alertsHtml += '<div class="alert-slim a-err"><span class="alert-dot"></span><span class="alert-txt">Connessione assente: uso solo risultati locali</span></div>';
+    if (apiStatus.off === 'provider_error') alertsHtml += '<div class="alert-slim a-err"><span class="alert-dot"></span><span class="alert-txt">Open Food Facts non raggiungibile</span></div>';
   }
 
   if (!results.length) {
-    const msg = apiStatus
-      ? 'Nessun risultato — prova un altro termine o aggiungi manualmente'
-      : 'Nessun risultato. Prova un altro termine o usa il barcode.';
+    const msg = apiStatus?.off === 'loading'
+      ? 'Nessun risultato locale. Sto ancora ampliando la ricerca…'
+      : apiStatus
+        ? 'Nessun risultato utile — prova un altro termine o aggiungi manualmente'
+        : 'Nessun risultato. Prova un altro termine o usa il barcode.';
     resEl.innerHTML = alertsHtml + `<div class="fsr-loading">${msg}</div>` + manualHtml + (extraHTML || '');
     _bindManualForm(resEl, onSelectFn);
     return;
   }
 
   // Raggruppa per src — 'cache' → 'off'
-  const groups = { local: [], recent: [], off: [] };
+  const groups = { local: [], recent: [], cache: [], off: [] };
   results.forEach(r => {
-    const g = r.src === 'cache' ? 'off' : (groups[r.src] ? r.src : 'off');
+    const g = groups[r.src] ? r.src : 'off';
     groups[g].push(r);
   });
 
   const srcBadge = {
-    local:  '',
-    recent: '<span class="fsr-recent-icon">🕐</span>',
+    local:  '<span class="fsr-src fsr-src-local">Locale</span>',
+    recent: '<span class="fsr-src fsr-src-recent">Recente</span>',
+    cache:  '<span class="fsr-src fsr-src-cache">Cache</span>',
     off:    '<span class="fsr-src fsr-src-api">OFF</span>',
+  };
+  const confidenceBadge = {
+    high: '<span class="fsr-conf fsr-conf-high">Match forte</span>',
+    medium: '<span class="fsr-conf fsr-conf-medium">Match buono</span>',
+    low: '<span class="fsr-conf fsr-conf-low">Altro risultato</span>',
   };
 
   let html = alertsHtml;
   let idx = 0;
-  const primaryItems = [...groups.local, ...groups.recent];
+  const primaryItems = [...groups.local, ...groups.recent, ...groups.cache]
+    .sort((a, b) => (b._searchScore - a._searchScore));
+  const strongOffItems = groups.off.filter(item => item._searchConfidence !== 'low');
+  const lowConfidenceOffItems = groups.off.filter(item => item._searchConfidence === 'low');
 
   // Sezione locale + recenti: nessun header
   const _renderPrimaryItem = (item) => {
     const k = 'r-' + idx++;
     return '<div class="fsr-item" id="fsri-' + k + '">' +
-      (item.src === 'recent' ? srcBadge.recent : '') +
+      (srcBadge[item.src] || '') +
       '<div class="fsr-info"><div class="fsr-name">' + htmlEsc(item.name) + '</div>' +
       '<div class="fsr-brand">' + htmlEsc(item.brand || '') + '</div></div>' +
       '<div class="fsr-macros"><div class="fsr-kcal">' + item.kcal100 + '</div>' +
@@ -1044,7 +1338,7 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
   }
 
   // Sezione OFF: header + primi 5, poi "mostra più" per i restanti
-  if (groups.off.length) {
+  if (strongOffItems.length) {
     html += '<div class="fsr-section">Open Food Facts</div>';
     const _offItem = (item) => {
       const k = 'r-' + idx++;
@@ -1055,15 +1349,33 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
         '<div class="fsr-macros"><div class="fsr-kcal">' + item.kcal100 + '</div>' +
         '<div class="fsr-per">kcal/100g</div></div></div>';
     };
-    groups.off.slice(0, OFF_VISIBLE).forEach(item => { html += _offItem(item); });
-    if (groups.off.length > OFF_VISIBLE) {
-      const moreCount = groups.off.length - OFF_VISIBLE;
+    strongOffItems.slice(0, OFF_VISIBLE).forEach(item => { html += _offItem(item); });
+    if (strongOffItems.length > OFF_VISIBLE) {
+      const moreCount = strongOffItems.length - OFF_VISIBLE;
       const moreId = 'fsr-more-' + Date.now();
       html += '<div class="fsr-show-more" onclick="document.getElementById(\'' + moreId + '\').style.display=\'block\';this.style.display=\'none\'">Mostra più risultati (' + moreCount + ')</div>';
       html += '<div id="' + moreId + '" style="display:none">';
-      groups.off.slice(OFF_VISIBLE).forEach(item => { html += _offItem(item); });
+      strongOffItems.slice(OFF_VISIBLE).forEach(item => { html += _offItem(item); });
       html += '</div>';
     }
+  }
+
+  if (lowConfidenceOffItems.length) {
+    html += '<div class="fsr-section">Altri risultati</div>';
+    const lowId = 'fsr-low-' + Date.now();
+    html += '<div class="fsr-show-more" onclick="document.getElementById(\'' + lowId + '\').style.display=\'block\';this.style.display=\'none\'">Mostra risultati meno pertinenti (' + lowConfidenceOffItems.length + ')</div>';
+    html += '<div id="' + lowId + '" style="display:none">';
+    lowConfidenceOffItems.forEach(item => {
+      const k = 'r-' + idx++;
+      html += '<div class="fsr-item fsr-item-low" id="fsri-' + k + '">' +
+        srcBadge.off +
+        confidenceBadge.low +
+        '<div class="fsr-info"><div class="fsr-name">' + htmlEsc(item.name) + '</div>' +
+        '<div class="fsr-brand">' + htmlEsc(item.brand || '') + '</div></div>' +
+        '<div class="fsr-macros"><div class="fsr-kcal">' + item.kcal100 + '</div>' +
+        '<div class="fsr-per">kcal/100g</div></div></div>';
+    });
+    html += '</div>';
   }
 
   html += manualHtml;
@@ -1072,7 +1384,7 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
 
   // Bind click su tutti gli item
   let bindIdx = 0;
-  [...groups.local, ...groups.recent, ...groups.off].forEach(item => {
+  [...primaryItems, ...strongOffItems, ...lowConfidenceOffItems].forEach(item => {
     const el = document.getElementById('fsri-r-' + bindIdx++);
     if (el) el.addEventListener('click', () => onSelectFn(item, el));
   });
@@ -1190,6 +1502,7 @@ let   _tmplTimer = null;
 
 function onLogFoodSearch(input, dateKey, mealIdx, domKey) {
   const q = input.value.trim();
+  const queryCtx = buildFoodQueryContext(q);
   const resEl = document.getElementById('mlsr-' + domKey);
   if (!resEl) return;
   clearTimeout(_logTimer[domKey]);
@@ -1201,6 +1514,7 @@ function onLogFoodSearch(input, dateKey, mealIdx, domKey) {
     searchFoods(q, (results, apiStatus) => {
       renderFoodDropdown(results, resEl,
         (item, el) => {
+          rememberFoodSelection(item, queryCtx, 'meal-log');
           resEl.querySelectorAll('.fsr-item').forEach(e => e.classList.remove('sel'));
           el.classList.add('sel');
           showGramPicker(resEl, item, confirmed => {
@@ -1215,16 +1529,22 @@ function onLogFoodSearch(input, dateKey, mealIdx, domKey) {
             if (gp2?.classList?.contains('fsr-gram-row')) gp2.remove();
             toast('✅ ' + confirmed.name + ' aggiunto');
             refreshMealCard(S.day, mealIdx);
+            requestAnimationFrame(() => {
+              if (typeof scrollMealCardIntoView === 'function') {
+                scrollMealCardIntoView(S.day, mealIdx, { behavior: 'smooth', focusAdd: true });
+              }
+            });
           }, { mealIdx, dateKey });
         },
         null, apiStatus
       );
-    });
+    }, { contextKey: `meal-log:${domKey}` });
   }, 400);
 }
 
 function onTmplFoodSearch(input) {
   const q = input.value.trim();
+  const queryCtx = buildFoodQueryContext(q);
   const resEl = document.getElementById('tf-search-results');
   if (!resEl) return;
   clearTimeout(_tmplTimer);
@@ -1236,6 +1556,7 @@ function onTmplFoodSearch(input) {
     searchFoods(q, (results, apiStatus) => {
       renderFoodDropdown(results, resEl,
         (item, el) => {
+          rememberFoodSelection(item, queryCtx, 'template-form');
           resEl.querySelectorAll('.fsr-item').forEach(e => e.classList.remove('sel'));
           el.classList.add('sel');
           showGramPicker(resEl, item, confirmed => {
@@ -1247,12 +1568,13 @@ function onTmplFoodSearch(input) {
         },
         null, apiStatus
       );
-    });
+    }, { contextKey: 'template-form' });
   }, 400);
 }
 
 function onFoodSearch(input, type, mealIdx, domKey) {
   const q = input.value.trim();
+  const queryCtx = buildFoodQueryContext(q);
   const resEl = document.getElementById('fsr-' + domKey);
   if (!resEl) return;
   clearTimeout(_planTimer[domKey]);
@@ -1264,6 +1586,7 @@ function onFoodSearch(input, type, mealIdx, domKey) {
     searchFoods(q, (results, apiStatus) => {
       renderFoodDropdown(results, resEl,
         (item, el) => {
+          rememberFoodSelection(item, queryCtx, 'piano');
           resEl.querySelectorAll('.fsr-item').forEach(e => e.classList.remove('sel'));
           el.classList.add('sel');
           showGramPicker(resEl, item, confirmed => {
@@ -1279,6 +1602,6 @@ function onFoodSearch(input, type, mealIdx, domKey) {
         },
         null, apiStatus
       );
-    });
+    }, { contextKey: `piano:${domKey}` });
   }, 400);
 }
