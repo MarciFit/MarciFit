@@ -20,12 +20,25 @@ const _BC_DETECTION_WEIGHTS = {
   detector: { roi: 1.65, wide: 1.2, full: 0.95 },
   quagga: { roi: 1.3, wide: 1.0, full: 0.8 },
 };
+const _BC_CONFIRM_SCORE = 3.15;
+const _BC_CONFIRM_MARGIN = 0.85;
+const _BC_CONFIRM_MIN_HITS = 2;
+const _BC_STAGE_WIDE_MS = 450;
+const _BC_STAGE_FULL_MS = 1400;
+const _BC_QUAGGA_FALLBACK_MS = 900;
+const _BC_LOOKUP_ATTEMPTS = [
+  { timeoutMs: 4000, slowNoticeMs: 2200 },
+  { timeoutMs: 6000, slowNoticeMs: 3200 },
+];
 
 function _setBarcodeStatus(message, tone = 'neutral') {
   const status = document.getElementById('bc-status');
   if (!status) return;
-  status.textContent = message;
-  status.className = `bc-status${tone !== 'neutral' ? ` is-${tone}` : ''}`;
+  const nextMessage = String(message || '');
+  const nextClass = `bc-status${tone !== 'neutral' ? ` is-${tone}` : ''}`;
+  if (status.textContent === nextMessage && status.className === nextClass) return;
+  status.textContent = nextMessage;
+  status.className = nextClass;
 }
 
 function _renderBarcodeActions(actions = []) {
@@ -58,9 +71,12 @@ function _setBarcodeScanStage(stage) {
     full: '🧭 Cerco su tutta l\'inquadratura',
     quagga: '⚡ Scansione avanzata attiva: prova ad avvicinare il codice',
   };
+  const stageOrder = { roi: 0, wide: 1, full: 2, quagga: 3 };
   const next = messages[stage] || messages.roi;
   const status = document.getElementById('bc-status');
-  if (status?.dataset.scanStage === stage) return;
+  const currentStage = status?.dataset.scanStage || '';
+  if (currentStage === stage) return;
+  if (currentStage && stageOrder[stage] < stageOrder[currentStage]) return;
   if (status) status.dataset.scanStage = stage;
   _setBarcodeStatus(next, 'neutral');
 }
@@ -184,9 +200,9 @@ function _updateBarcodeStabilityState(state, sample) {
   state.lastLeader = leaderCode;
 
   const confirmed = !!leaderCode &&
-    leaderScore >= 4.4 &&
-    (leaderScore - secondScore) >= 1.15 &&
-    (state.hits[leaderCode] || 0) >= 3;
+    leaderScore >= _BC_CONFIRM_SCORE &&
+    (leaderScore - secondScore) >= _BC_CONFIRM_MARGIN &&
+    (state.hits[leaderCode] || 0) >= _BC_CONFIRM_MIN_HITS;
 
   return {
     confirmed,
@@ -198,7 +214,7 @@ function _updateBarcodeStabilityState(state, sample) {
 function _updateBarcodeScanHint(stability) {
   if (!stability?.candidate || stability.confirmed) return;
   if (stability.confidence >= 2.8) {
-    _setBarcodeStatus(`✨ Barcode quasi agganciato: ${stability.candidate}`, 'neutral');
+    _setBarcodeStatus('✨ Barcode quasi agganciato: tienilo fermo ancora un attimo', 'neutral');
   }
 }
 
@@ -214,9 +230,9 @@ function _decodeBarcodeWithQuagga(canvas) {
     Quagga.decodeSingle({
       src: canvas.toDataURL('image/jpeg', 0.92),
       numOfWorkers: 0,
-      inputStream: { size: 960 },
+      inputStream: { size: 800 },
       decoder: {
-        readers: ['ean_reader', 'ean_8_reader', 'code_128_reader'],
+        readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader'],
         multiple: false
       },
       locator: { patchSize: 'medium', halfSample: false },
@@ -238,15 +254,15 @@ async function _detectBarcodeWithQuagga(video, canvas, modeKey) {
 }
 
 function _getScanModesForElapsed(elapsedMs) {
-  if (elapsedMs < 700) return ['roi'];
-  if (elapsedMs < 2200) return ['roi', 'wide'];
+  if (elapsedMs < _BC_STAGE_WIDE_MS) return ['roi'];
+  if (elapsedMs < _BC_STAGE_FULL_MS) return ['roi', 'wide'];
   return ['roi', 'wide', 'full'];
 }
 
 function _startBarcodeDetectorLoop(token) {
   const v = document.getElementById('bc-video');
   const cv = document.getElementById('bc-canvas');
-  const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] });
+  const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
   const stabilityState = _createBarcodeStabilityState();
   const startedAt = Date.now();
 
@@ -266,9 +282,10 @@ function _startBarcodeDetectorLoop(token) {
       if (detectionSample) break;
     }
 
-    if (!detectionSample && elapsedMs >= 2200 && typeof Quagga !== 'undefined') {
+    if (!detectionSample && elapsedMs >= _BC_QUAGGA_FALLBACK_MS && typeof Quagga !== 'undefined') {
       _setBarcodeScanStage('quagga');
-      for (const modeKey of scanModes) {
+      const quaggaModes = scanModes.filter(modeKey => modeKey !== 'full');
+      for (const modeKey of (quaggaModes.length ? quaggaModes : scanModes)) {
         try {
           detectionSample = await _detectBarcodeWithQuagga(v, cv, modeKey);
         } catch(e) {
@@ -349,7 +366,7 @@ function scanBarcode() {
 }
 
 function _barcodeLookupUrl(barcode) {
-  return 'https://world.openfoodfacts.org/api/v0/product/' + barcode + '.json?fields=code,product_name,product_name_it,product_name_en,generic_name,generic_name_it,brands,quantity,nutriments';
+  return 'https://world.openfoodfacts.net/api/v0/product/' + barcode + '.json?fields=code,product_name,product_name_it,product_name_en,generic_name,generic_name_it,brands,quantity,nutriments';
 }
 
 function _makeBarcodeLookupError(code, extra = {}) {
@@ -359,17 +376,45 @@ function _makeBarcodeLookupError(code, extra = {}) {
   return error;
 }
 
-async function _fetchBarcodeProductOnce(barcode, timeoutMs) {
+function _isProbablyOfflineBarcodeError(error) {
+  const offlineFlag = typeof navigator !== 'undefined' && navigator.onLine === false;
+  const message = String(error?.message || '').toLowerCase();
+  const isNetworkish = error?.name === 'TypeError' ||
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('load failed') ||
+    message.includes('network request failed');
+  return offlineFlag && isNetworkish;
+}
+
+function _makeBarcodeLookupOutcomeFromError(error) {
+  return {
+    status: error?.code === 'timeout'
+      ? 'timeout'
+      : (_isProbablyOfflineBarcodeError(error) ? 'offline' : 'provider_error'),
+    message: error?.message || '',
+    httpStatus: error?.status || null,
+    errorName: error?.name || '',
+  };
+}
+
+async function _fetchBarcodeProductOnce(barcode, hardTimeoutMs, slowNoticeMs = 7000) {
   let timeoutId = null;
+  let slowNoticeId = null;
   try {
     _bcLookupController = new AbortController();
     timeoutId = setTimeout(() => {
       try { _bcLookupController?.abort(); } catch(e) {}
-    }, timeoutMs);
+    }, hardTimeoutMs);
+    if (slowNoticeMs > 0) {
+      slowNoticeId = setTimeout(() => {
+        _setBarcodeStatus(`⏳ Barcode letto: ${barcode}. Open Food Facts sta rispondendo lentamente, aspetto ancora qualche secondo...`, 'warn');
+      }, slowNoticeMs);
+    }
     const resp = await mfFetch(
       _barcodeLookupUrl(barcode),
       { signal: _bcLookupController.signal },
-      { source: 'barcode-lookup', barcode, timeoutMs }
+      { source: 'barcode-lookup', barcode, timeoutMs: hardTimeoutMs }
     );
     if (!resp.ok) {
       throw _makeBarcodeLookupError('provider_http', {
@@ -401,36 +446,27 @@ async function _fetchBarcodeProductOnce(barcode, timeoutMs) {
     }
     throw e;
   } finally {
+    if (slowNoticeId) clearTimeout(slowNoticeId);
     if (timeoutId) clearTimeout(timeoutId);
     _bcLookupController = null;
   }
 }
 
 async function _lookupBarcodeProduct(barcode) {
-  const retryTimeouts = [7000, 12000];
-  let lastFailure = null;
-
-  for (let attempt = 0; attempt < retryTimeouts.length; attempt += 1) {
-    const timeoutMs = retryTimeouts[attempt];
+  let lastError = null;
+  for (let i = 0; i < _BC_LOOKUP_ATTEMPTS.length; i++) {
+    const attempt = _BC_LOOKUP_ATTEMPTS[i];
+    if (i > 0) {
+      _setBarcodeStatus(`⏳ Barcode letto: ${barcode}. Open Food Facts e lento, provo ancora una volta...`, 'warn');
+    }
     try {
-      return await _fetchBarcodeProductOnce(barcode, timeoutMs);
+      return await _fetchBarcodeProductOnce(barcode, attempt.timeoutMs, attempt.slowNoticeMs);
     } catch(e) {
-      const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
-      const status = e.code === 'timeout'
-        ? 'timeout'
-        : (offline ? 'offline' : 'provider_error');
-      lastFailure = {
-        status,
-        message: e?.message || '',
-        httpStatus: e?.status || null,
-      };
-      const hasRetryLeft = attempt < retryTimeouts.length - 1;
-      if (!hasRetryLeft || status === 'offline') return lastFailure;
-      _setBarcodeStatus(`⏳ Barcode letto: ${barcode}. Il catalogo e lento, riprovo con una finestra piu ampia...`, 'warn');
+      lastError = e;
+      if (_isProbablyOfflineBarcodeError(e)) return _makeBarcodeLookupOutcomeFromError(e);
     }
   }
-
-  return lastFailure || { status: 'provider_error' };
+  return _makeBarcodeLookupOutcomeFromError(lastError);
 }
 
 function _showBarcodeLookupFallback(barcode, outcome) {
@@ -630,13 +666,76 @@ function _cacheBarcodeItem(item) {
   }
 }
 
+function _normalizeCachedBarcodeItem(item, barcode) {
+  if (!item) return null;
+  const normalized = {
+    barcode: barcode || item.barcode || '',
+    name: String(item.name || '').trim().slice(0, 60),
+    brand: String(item.brand || '').trim().slice(0, 30),
+    quantity: String(item.quantity || '').trim().slice(0, 24),
+    kcal100: Math.round(Number(item.kcal100 || 0)),
+    p100: Math.round(Number(item.p100 || 0) * 10) / 10,
+    c100: Math.round(Number(item.c100 || 0) * 10) / 10,
+    f100: Math.round(Number(item.f100 || 0) * 10) / 10,
+  };
+  if (!normalized.barcode || !normalized.name || !normalized.kcal100) return null;
+  return normalized;
+}
+
+function _findBarcodeItemFromHistory(barcode) {
+  const normalizedBarcode = _sanitizeBarcode(barcode);
+  if (!normalizedBarcode) return null;
+
+  const tryItem = (candidate) => {
+    if (!candidate || _sanitizeBarcode(candidate.barcode) !== normalizedBarcode) return null;
+    return _normalizeCachedBarcodeItem(candidate, normalizedBarcode);
+  };
+
+  const dateKeys = Object.keys(S.foodLog || {}).sort().reverse();
+  for (const dateKey of dateKeys) {
+    const dayLog = S.foodLog?.[dateKey] || {};
+    for (const mealItems of Object.values(dayLog)) {
+      for (const item of (mealItems || [])) {
+        const match = tryItem(item);
+        if (match) return match;
+      }
+    }
+  }
+
+  for (const template of (S.templates || [])) {
+    for (const item of (template.items || [])) {
+      const match = tryItem(item);
+      if (match) return match;
+    }
+  }
+
+  for (const favorite of (S.favoriteFoods || [])) {
+    const match = tryItem(favorite);
+    if (match) return match;
+  }
+
+  for (const custom of (S.customFoods || [])) {
+    const match = tryItem(custom);
+    if (match) return match;
+  }
+
+  return null;
+}
+
 function _readBarcodeCacheItem(barcode) {
   if (!barcode) return null;
   if (_bcProductCache[barcode]) return { ..._bcProductCache[barcode] };
   const persistent = S.barcodeCache?.[barcode];
-  if (!persistent) return null;
-  _bcProductCache[barcode] = { ...persistent };
-  return { ...persistent };
+  if (persistent) {
+    _bcProductCache[barcode] = { ...persistent };
+    return { ...persistent };
+  }
+
+  const historyItem = _findBarcodeItemFromHistory(barcode);
+  if (!historyItem) return null;
+  _cacheBarcodeItem(historyItem);
+  if (typeof saveSoon === 'function') saveSoon();
+  return { ...historyItem };
 }
 
 function _resumeBarcodeScanning(delay = 1200) {

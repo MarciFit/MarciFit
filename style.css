@@ -2717,7 +2717,8 @@ input,textarea{font-family:inherit}
   border:1px dashed rgba(255,255,255,.34);
 }
 .bc-status{
-  padding:11px 16px;font-size:12px;color:#7f776b;text-align:center;min-height:40px;
+  display:flex;align-items:center;justify-content:center;
+  padding:11px 16px;font-size:12px;color:#7f776b;text-align:center;min-height:64px;
   line-height:1.45;background:linear-gradient(180deg,#fbf8f3 0%, #f8f4ee 100%);
 }
 .bc-status.is-success{color:var(--on)}

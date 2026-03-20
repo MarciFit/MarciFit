@@ -45,17 +45,17 @@
 
 ## Stato Attuale
 
-> Ultima modifica: 2026-03-20 (sessione 17)
+> Ultima modifica: 2026-03-20 (sessione 21)
 
 - Progetto funzionante con le 4 view principali operative
-- **Versioni asset correnti**: `style.css?v=56`, `uiComponents.js?v=60`, `app.js?v=60`, `nutritionLogic.js?v=45`, `storage.js?v=31` — incrementare ad ogni cambio significativo
+- **Versioni asset correnti**: `style.css?v=61`, `uiComponents.js?v=60`, `app.js?v=62`, `nutritionLogic.js?v=50`, `storage.js?v=31`, `barcodeTools.js?v=12` — incrementare ad ogni cambio significativo
 - **Navbar**: Lucide SVG icons (calendar-days, utensils, bar-chart-2, user, printer). `.nav` sticky top con brand mobile, `.nav-tabs` bottom su mobile / top centrata su desktop
 - **Layout mobile**: bottom tab bar stile iOS, brand bar in alto (48px sticky), tastiera aperta → `kb-open` nasconde nav-tabs
 - **Greeting**: frase motivazionale quotidiana (Lora italic) + alert engine contestuale con CTA
 - **Macro strip**: card hero kcal + 3 card macro (P/C/F) con barre colorate e resto mancante
 - **Pasti extra**: "Merenda" e "Spuntino" attivabili per-day, visibili anche da log reale; stato UI in `S.extraMealsActive[dateKey]`
 - **Cibi Preferiti**: `S.favoriteFoods[]` persistente, usati per suggerimenti alimentari negli alert serali
-- **Barcode scanner**: BarcodeDetector + Quagga fallback, 3 letture consecutive richieste, camera 1920×1080
+- **Barcode scanner**: BarcodeDetector + Quagga fallback, stabilizzazione rapida con score adattivo, fallback anticipato, camera 1920×1080
 - **Edit grammatura**: matita inline nelle log row, live preview kcal nel modal
 - **Click macro card**: breakdown per pasto del nutriente selezionato
 - **Calorie rimanenti**: mostrate nel gram picker durante l'aggiunta di un alimento
@@ -170,7 +170,7 @@ App accessibile su: `http://localhost:8788`
 ## Ricerca Alimenti — Architettura OFF
 
 - **Endpoint search**: `it.openfoodfacts.net/cgi/search.pl?search_terms=...&search_simple=1&action=process&json=1&page_size=30`
-- **Endpoint barcode**: `world.openfoodfacts.org/api/v0/product/{barcode}.json?fields=code,product_name,product_name_it,product_name_en,generic_name,generic_name_it,brands,quantity,nutriments`
+- **Endpoint barcode**: `world.openfoodfacts.net/api/v0/product/{barcode}.json?fields=code,product_name,product_name_it,product_name_en,generic_name,generic_name_it,brands,quantity,nutriments`
 - **AbortController**: `_offAbort` cancella ricerche precedenti; `_searchVersion` counter scarta callback stale
 - **Normalizzazione query**: `normalizeFoodText()` + `tokenizeFoodText()` + `removeWeakTokens()` + `buildFoodQueryContext()`
 - **Ranking centralizzato**: `scoreFoodResult()` usato per locale, recenti e OFF; segnali principali = exact/contains, coverage token, bigram, brand, qualità nutrizionale, priorità source
@@ -199,6 +199,27 @@ App accessibile su: `http://localhost:8788`
 ---
 
 ## Storico Sessioni
+
+### Sessione 21 — Testi scanner barcode resi stabili (2026-03-20)
+- **Stage barcode monotoni**: `_setBarcodeScanStage()` in `barcodeTools.js` non permette piu regressi di stato (`quagga` non torna a `full`, `full` non torna a `wide`), evitando il continuo alternarsi dei testi nel modal.
+- **Hint meno nervoso**: il messaggio `Barcode quasi agganciato` non mostra piu il codice candidato frame-per-frame, cosi il testo resta stabile anche quando il detector cambia proposta durante l'aggancio.
+- **Cache busting**: aggiornato `index.html` a `barcodeTools.js?v=12` per distribuire subito il fix dei messaggi.
+
+### Sessione 20 — Stabilizzato layout modal barcode (2026-03-20)
+- **Flicker ridotto**: `_setBarcodeStatus()` in `barcodeTools.js` non riscrive piu DOM e classi quando messaggio e tono sono identici, evitando repaint inutili durante il loop di scansione.
+- **Spazio status riservato**: `.bc-status` in `style.css` ora ha altezza minima piu generosa e centratura flex, cosi i messaggi scanner non fanno piu saltare continuamente l'altezza del modal.
+- **Cache busting**: aggiornati `style.css?v=61` e `barcodeTools.js?v=11` in `index.html` per far arrivare subito i fix UI ai client.
+
+### Sessione 19 — Switch dominio OFF per barcode (2026-03-20)
+- **Stesso provider, dominio piu rapido**: il lookup barcode in `barcodeTools.js` passa da `world.openfoodfacts.org` a `world.openfoodfacts.net`, mantenendo invariato il provider Open Food Facts e la forma dell'endpoint `v0`.
+- **Cache busting**: aggiornato `index.html` a `barcodeTools.js?v=10` per forzare il reload del modulo barcode sui client.
+- **Motivazione pratica**: test sul barcode `4056489905783` hanno mostrato circa `12s` su `.org` contro circa `0.5s` su `.net`, a parita di payload utile.
+
+### Sessione 18 — Barcode scanner reso piu reattivo (2026-03-20)
+- **Scanner velocizzato**: ridotta la soglia di conferma del codice in `barcodeTools.js` per tornare a un aggancio rapido quando le letture sono buone, senza eliminare la stabilizzazione.
+- **Fallback anticipato**: Quagga parte prima quando `BarcodeDetector` non aggancia subito; inoltre evita il pass full-frame piu costoso nel loop ibrido e torna a `size:800` con reader focalizzati su EAN/UPC.
+- **Lookup OFF piu corto**: rimosso il singolo timeout lunghissimo (26s). Ora il barcode fa due tentativi brevi (4s + 6s) con messaggio esplicito di retry se Open Food Facts e lento.
+- **Cache busting**: aggiornato `index.html` a `barcodeTools.js?v=9` per evitare che il browser continui a usare la versione lenta del modulo barcode.
 
 ### Sessione 17 — Semplificazione tab Piano + rifiniture Oggi (2026-03-20)
 - **Tab Piano ripensata**: eliminato il toggle ON/OFF dedicato; la vista segue direttamente `S.day` deciso in `Oggi`. `renderPiano()` usa `S.day` come fonte primaria del tipo giorno.
@@ -284,7 +305,7 @@ App accessibile su: `http://localhost:8788`
 - **`.mc-badge-row`**: `justify-content:flex-end` nelle card extra senza badge target
 
 ### Sessione 7 — Barcode scanner + mobile fixes (2026-03-18)
-- **Barcode endpoint corretto**: `world.openfoodfacts.org/api/v0/product/{barcode}.json`, struttura `data.status === 1 ? data.product : null`
+- **Barcode endpoint corretto**: `world.openfoodfacts.net/api/v0/product/{barcode}.json`, struttura `data.status === 1 ? data.product : null`
 - **`showBcResult` fix**: rimossa riga `getElementById('bc-confirm-btn').onclick` — il pulsante usa già `onclick` inline
 - **Barcode multi-read**: 3 letture consecutive identiche richieste prima di accettare
 - **Quagga**: intervallo 150ms, size 800, `halfSample:false`, filtro confidence `avgErr < 0.25`
