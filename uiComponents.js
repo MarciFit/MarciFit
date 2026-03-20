@@ -127,6 +127,19 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
   }, {k:0,p:0,c:0,f:0});
   const _hasLog = _logItems.length > 0;
   const done  = _hasLog;
+  const getMealProgressState = () => {
+    if (mode !== 'today') return { label: '', cls: '' };
+    if (!_hasLog) return { label: 'Vuoto', cls: 'is-empty' };
+    const targetK = Math.max(1, Math.round(m.kcal * (((S.macro?.[type]?.k || 0) > 0 && (S.meals[type] || []).reduce((s, meal) => s + (mealMacros(meal).kcal || 0), 0) > 0)
+      ? (S.macro[type].k / (S.meals[type] || []).reduce((s, meal) => s + (mealMacros(meal).kcal || 0), 0))
+      : 1)));
+    const ratio = _logMac.k / targetK;
+    if (ratio >= 1.02) return { label: 'Oltre', cls: 'is-over' };
+    if (ratio >= 0.9) return { label: 'Completo', cls: 'is-complete' };
+    if (ratio >= 0.45) return { label: 'In corso', cls: 'is-progress' };
+    return { label: 'Avviato', cls: 'is-started' };
+  };
+  const mealProgress = getMealProgressState();
 
   // Target badge (shown in today mode next to meal name)
   // Scale plan kcal proportionally to S.macro[type].k (TDEE-derived target)
@@ -148,9 +161,14 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
     const kcalHTML = `<span class="mc-badge-kcal-cur">${curK}</span><span class="mc-badge-kcal-sep">/</span><span class="mc-badge-kcal-tgt">${dispK} kcal</span>`;
     const macHTML  = `P <span class="mc-badge-mac-cur">${curP}</span><span class="mc-badge-mac-sep">/</span>${dispP}g&thinsp;·&thinsp;C <span class="mc-badge-mac-cur">${curC}</span><span class="mc-badge-mac-sep">/</span>${dispC}g&thinsp;·&thinsp;G <span class="mc-badge-mac-cur">${curF}</span><span class="mc-badge-mac-sep">/</span>${dispF}g`;
     targetBadge = `<div class="mc-target-badge">
-        <div class="mc-badge-label">🎯 OBIETTIVO</div>
-        <div class="mc-badge-kcal">${kcalHTML}</div>
-        <div class="mc-badge-macros">${macHTML}</div>
+        <div class="mc-badge-top">
+          <div class="mc-badge-label">Obiettivo</div>
+          <div class="mc-badge-kicker">Tracking pasto</div>
+        </div>
+        <div class="mc-badge-main">
+          <div class="mc-badge-kcal">${kcalHTML}</div>
+          <div class="mc-badge-macros">${macHTML}</div>
+        </div>
       </div>`;
   }
 
@@ -342,7 +360,7 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
 
   // + button (today mode only) — blue round button
   const addBtn = mode !== 'today' ? '' :
-    `<button class="mc-add-btn" onclick="toggleLogSearch('${domKey}');event.stopPropagation()" title="Aggiungi alimento"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
+    `<button class="mc-add-btn" onclick="toggleLogSearch('${domKey}');event.stopPropagation()" title="Aggiungi alimento" aria-label="Aggiungi alimento"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
 
   const clockSVG = `<svg class="mc-clock-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 15 14"/></svg>`;
 
@@ -356,17 +374,24 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
         ${checkZone}
         <div class="mc-body" style="cursor:default">
           <div class="mc-top">
-            <span class="mc-icon">${base.icon}</span>
-            <span class="mc-name-group">
-              <span class="mc-name">${htmlEsc(base.name)}</span>
-              ${mode === 'today' ? `<button class="mc-rename-btn" onclick="renameMeal('${type}',${i});event.stopPropagation()" title="Rinomina pasto"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>` : ''}
-            </span>
-            <span class="mc-time-wrap">${currentBadge}<span class="mc-time">${clockSVG}${base.time}</span></span>
+            <div class="mc-head-main">
+              <span class="mc-icon">${base.icon}</span>
+              <div class="mc-head-copy">
+                <span class="mc-name-group">
+                  <span class="mc-name">${htmlEsc(base.name)}</span>
+                  ${mode === 'today' ? `<button class="mc-rename-btn" onclick="renameMeal('${type}',${i});event.stopPropagation()" title="Rinomina pasto"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>` : ''}
+                </span>
+                ${mode === 'today' ? `<div class="mc-meta-row">
+                  <span class="mc-status-chip ${mealProgress.cls}">${mealProgress.label}</span>
+                  ${currentBadge}
+                  <span class="mc-time">${clockSVG}${base.time}</span>
+                  ${ai !== undefined && alts[ai] ? `<span class="mc-alt-badge">${alts[ai].label}</span>` : ''}
+                </div>` : ''}
+              </div>
+            </div>
+            ${mode === 'today' ? `<div class="mc-head-side">${addBtn}</div>` : `<span class="mc-time-wrap">${currentBadge}<span class="mc-time">${clockSVG}${base.time}</span></span>`}
           </div>
-          ${mode === 'today' ? `<div class="mc-meta-row">
-            ${ai !== undefined && alts[ai] ? `<span class="mc-alt-badge">${alts[ai].label}</span>` : ''}
-          </div>` : ''}
-          ${mode === 'today' ? `<div class="mc-badge-row">${targetBadge}${addBtn}</div>` : targetBadge}
+          ${mode === 'today' ? `<div class="mc-badge-row">${targetBadge}</div>` : targetBadge}
           ${mode !== 'today' ? `<div class="${ingrCls}">${m.ingr}</div>` : ''}
         </div>
         ${editBtn}

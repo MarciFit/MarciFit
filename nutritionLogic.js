@@ -412,12 +412,12 @@ function calcAdherence(daysBack = 28) {
 
 const FOOD_DB = [
   // Latticini / uova
-  {name:"Yogurt greco 0%",brand:"Fage",kcal100:57,p100:10,c100:3.5,f100:0.2},
+  {name:"Yogurt greco 0%",brand:"Fage",kcal100:57,p100:10,c100:3.5,f100:0.2,verified:true,verifiedAliases:["fage 0","yogurt greco fage"]},
   {name:"Yogurt greco 2%",brand:"Fage Total",kcal100:73,p100:9.7,c100:4,f100:2},
   {name:"Yogurt greco intero",brand:"Generico",kcal100:97,p100:9,c100:3.2,f100:5},
   {name:"Yogurt bianco intero",brand:"Muller",kcal100:61,p100:3.5,c100:4.7,f100:3.2},
   {name:"Yogurt bianco 0%",brand:"Danone",kcal100:36,p100:4.3,c100:4.8,f100:0.1},
-  {name:"Skyr naturale",brand:"Arla",kcal100:63,p100:11,c100:4,f100:0.2},
+  {name:"Skyr naturale",brand:"Arla",kcal100:63,p100:11,c100:4,f100:0.2,verified:true,verifiedAliases:["skyr arla"]},
   {name:"Quark magro",brand:"Exquisa",kcal100:67,p100:12,c100:4,f100:0.3},
   {name:"Fiocchi di latte magri",brand:"Generico",kcal100:86,p100:12,c100:4,f100:2.5},
   {name:"Ricotta vaccina",brand:"Generico",kcal100:146,p100:11,c100:3,f100:10},
@@ -453,7 +453,7 @@ const FOOD_DB = [
   {name:"Bistecca di manzo",brand:"Generico",kcal100:158,p100:26,c100:0,f100:5.8},
   {name:"Straccetti di pollo",brand:"Generico",kcal100:120,p100:22,c100:1,f100:3},
   // Pesce
-  {name:"Tonno al naturale",brand:"Rio Mare",kcal100:103,p100:23,c100:0,f100:1},
+  {name:"Tonno al naturale",brand:"Rio Mare",kcal100:103,p100:23,c100:0,f100:1,verified:true,verifiedAliases:["rio mare tonno naturale"]},
   {name:"Tonno in olio sgocciolato",brand:"Rio Mare",kcal100:198,p100:25,c100:0,f100:11},
   {name:"Salmone atlantico fresco",brand:"Generico",kcal100:208,p100:20,c100:0,f100:13},
   {name:"Merluzzo",brand:"Generico",kcal100:82,p100:18,c100:0,f100:0.7},
@@ -463,10 +463,10 @@ const FOOD_DB = [
   {name:"Sgombro al naturale",brand:"Nostromo",kcal100:189,p100:19,c100:0,f100:12},
   // Cereali / carboidrati
   {name:"Riso bianco secco",brand:"Scotti",kcal100:355,p100:7,c100:79,f100:0.6},
-  {name:"Riso basmati secco",brand:"Scotti",kcal100:355,p100:7.3,c100:78,f100:0.5},
+  {name:"Riso basmati secco",brand:"Scotti",kcal100:355,p100:7.3,c100:78,f100:0.5,verified:true,verifiedAliases:["riso scotti basmati","scotti basmati"]},
   {name:"Riso integrale secco",brand:"Riso Scotti",kcal100:337,p100:7.5,c100:72,f100:2.2},
   {name:"Riso parboiled secco",brand:"Riso Gallo",kcal100:356,p100:8,c100:78,f100:0.6},
-  {name:"Pasta secca penne rigatoni",brand:"Barilla",kcal100:357,p100:13,c100:71,f100:1.5},
+  {name:"Pasta secca penne rigatoni",brand:"Barilla",kcal100:357,p100:13,c100:71,f100:1.5,verified:true,verifiedAliases:["penne barilla","pasta barilla penne"]},
   {name:"Pasta integrale secca",brand:"Barilla",kcal100:337,p100:13,c100:66,f100:2.5},
   {name:"Pasta proteica secca",brand:"Barilla ProteinPLUS",kcal100:340,p100:18,c100:59,f100:3},
   {name:"Spaghetti secchi",brand:"De Cecco",kcal100:357,p100:12,c100:72,f100:1.3},
@@ -541,11 +541,11 @@ const FOOD_DB = [
   {name:"Miele millefiori",brand:"Generico",kcal100:304,p100:0.3,c100:82,f100:0},
   {name:"Sciroppo di acero",brand:"Generico",kcal100:260,p100:0,c100:67,f100:0.1},
   {name:"Zucchero bianco",brand:"Generico",kcal100:387,p100:0,c100:100,f100:0},
-  {name:"Salsa di pomodoro",brand:"Mutti",kcal100:34,p100:1.6,c100:6,f100:0.4},
+  {name:"Salsa di pomodoro",brand:"Mutti",kcal100:34,p100:1.6,c100:6,f100:0.4,verified:true,verifiedAliases:["salsa mutti","pomodoro mutti"]},
   {name:"Passata di pomodoro",brand:"Mutti",kcal100:32,p100:1.4,c100:5.6,f100:0.2},
-  {name:"Ketchup",brand:"Heinz",kcal100:112,p100:1.4,c100:28,f100:0.1},
+  {name:"Ketchup",brand:"Heinz",kcal100:112,p100:1.4,c100:28,f100:0.1,verified:true,verifiedAliases:["ketchup heinz"]},
   {name:"Senape",brand:"Calve",kcal100:66,p100:4.4,c100:6,f100:3.3},
-  {name:"Salsa soia",brand:"Kikkoman",kcal100:60,p100:6,c100:5.6,f100:0},
+  {name:"Salsa soia",brand:"Kikkoman",kcal100:60,p100:6,c100:5.6,f100:0,verified:true,verifiedAliases:["soia kikkoman","salsa di soia kikkoman"]},
   {name:"Sale",brand:"Generico",kcal100:0,p100:0,c100:0,f100:0},
   // Proteine / integratori
   {name:"Whey protein 80%",brand:"MyProtein",kcal100:373,p100:80,c100:6,f100:5},
@@ -560,11 +560,12 @@ const FOOD_DB = [
   {name:"Te verde infuso",brand:"Generico",kcal100:1,p100:0,c100:0.3,f100:0},
   {name:"Succo arancia fresco",brand:"Generico",kcal100:45,p100:0.7,c100:10,f100:0.2},
   {name:"Acqua naturale",brand:"Generico",kcal100:0,p100:0,c100:0,f100:0},
+  {name:"Coca-Cola Zero Zuccheri",brand:"Coca-Cola",kcal100:0.3,p100:0,c100:0,f100:0,verified:true,verifiedAliases:["coca zero","coca cola zero","coke zero","coca zero zuccheri"]},
   // Prodotti da forno / colazione
-  {name:"Corn flakes",brand:"Kelloggs",kcal100:379,p100:7,c100:84,f100:0.9},
+  {name:"Corn flakes",brand:"Kelloggs",kcal100:379,p100:7,c100:84,f100:0.9,verified:true,verifiedAliases:["kelloggs corn flakes","corn flakes kelloggs"]},
   {name:"Muesli senza zucchero",brand:"Jordans",kcal100:364,p100:10,c100:67,f100:7},
-  {name:"Fette biscottate",brand:"Mulino Bianco",kcal100:413,p100:12,c100:74,f100:8},
-  {name:"Wasa fibra",brand:"Wasa",kcal100:334,p100:9.8,c100:67,f100:2},
+  {name:"Fette biscottate",brand:"Mulino Bianco",kcal100:413,p100:12,c100:74,f100:8,verified:true,verifiedAliases:["fette mulino bianco","fette biscottate mulino bianco"]},
+  {name:"Wasa fibra",brand:"Wasa",kcal100:334,p100:9.8,c100:67,f100:2,verified:true,verifiedAliases:["wasa fibre","wasa fibra"]},
   {name:"Barretta proteica Quest",brand:"Quest",kcal100:355,p100:42,c100:29,f100:7},
   {name:"Barretta proteica",brand:"MyProtein",kcal100:370,p100:37,c100:30,f100:10},
   {name:"Uova strapazzate cotte",brand:"Generico",kcal100:149,p100:10,c100:1.6,f100:11},
@@ -740,24 +741,31 @@ function buildFoodResultContext(item) {
   const nameNorm = normalizeFoodText(item.name || '');
   const brandNorm = normalizeFoodText(item.brand || '');
   const combinedNorm = `${nameNorm} ${brandNorm}`.trim();
+  const aliasNorm = normalizeFoodText((item.verifiedAliases || []).join(' '));
   const nameTokens = removeWeakTokens(tokenizeFoodText(item.name || ''));
   const brandTokens = removeWeakTokens(tokenizeFoodText(item.brand || ''));
+  const aliasTokens = removeWeakTokens((item.verifiedAliases || []).flatMap(tokenizeFoodText));
   const canonicalNameTokens = canonicalizeFoodTokens(nameTokens);
   const canonicalBrandTokens = canonicalizeFoodTokens(brandTokens);
-  const combinedTokens = Array.from(new Set([...nameTokens, ...brandTokens]));
-  const canonicalCombinedTokens = Array.from(new Set([...canonicalNameTokens, ...canonicalBrandTokens]));
+  const canonicalAliasTokens = canonicalizeFoodTokens(aliasTokens);
+  const combinedTokens = Array.from(new Set([...nameTokens, ...brandTokens, ...aliasTokens]));
+  const canonicalCombinedTokens = Array.from(new Set([...canonicalNameTokens, ...canonicalBrandTokens, ...canonicalAliasTokens]));
   return {
     nameNorm,
     brandNorm,
     combinedNorm,
+    aliasNorm,
     nameTokens,
     brandTokens,
+    aliasTokens,
     combinedTokens,
     canonicalNameTokens,
     canonicalBrandTokens,
+    canonicalAliasTokens,
     canonicalCombinedTokens,
     canonicalNameNorm: canonicalNameTokens.join(' '),
     canonicalBrandNorm: canonicalBrandTokens.join(' '),
+    canonicalAliasNorm: canonicalAliasTokens.join(' '),
     canonicalCombinedNorm: canonicalCombinedTokens.join(' '),
   };
 }
@@ -767,13 +775,16 @@ function hasQueryMatch(item, queryCtx) {
   const tokens = queryCtx.expandedTokens;
   if (!queryCtx.normalized || !tokens.length) return false;
   if (resultCtx.combinedNorm.includes(queryCtx.normalized)) return true;
+  if (item.verified && resultCtx.aliasNorm.includes(queryCtx.normalized)) return true;
   if (queryCtx.canonicalJoined && (
     resultCtx.canonicalNameNorm.includes(queryCtx.canonicalJoined) ||
-    resultCtx.canonicalCombinedNorm.includes(queryCtx.canonicalJoined)
+    resultCtx.canonicalCombinedNorm.includes(queryCtx.canonicalJoined) ||
+    (item.verified && resultCtx.canonicalAliasNorm.includes(queryCtx.canonicalJoined))
   )) return true;
   return tokens.some(t =>
     resultCtx.nameNorm.includes(t) ||
     resultCtx.brandNorm.includes(t) ||
+    (item.verified && resultCtx.aliasNorm.includes(t)) ||
     resultCtx.canonicalCombinedTokens.includes(canonicalizeFoodToken(t))
   );
 }
@@ -850,7 +861,9 @@ function scoreFoodResult(item, queryCtx, opts = {}) {
     exactNameTokenMatches: 0,
     attributeHits: 0,
     brandHits: 0,
+    aliasHits: 0,
     fullCanonicalMatch: false,
+    verifiedBoost: 0,
   };
 
   if (queryCtx.normalized && resultCtx.nameNorm === queryCtx.normalized) score += 120;
@@ -868,6 +881,9 @@ function scoreFoodResult(item, queryCtx, opts = {}) {
     const nameTokenExact = resultCtx.canonicalNameTokens.includes(t);
     const inName = resultCtx.nameNorm.includes(t) || resultCtx.canonicalNameTokens.includes(t);
     const inBrand = resultCtx.brandNorm.includes(t) || resultCtx.canonicalBrandTokens.includes(t);
+    const inAlias = item.verified && (
+      resultCtx.aliasNorm.includes(t) || resultCtx.canonicalAliasTokens.includes(t)
+    );
     if (inName) {
       meta.matchedName++;
       if (nameTokenExact) {
@@ -879,8 +895,11 @@ function scoreFoodResult(item, queryCtx, opts = {}) {
     } else if (inBrand) {
       meta.matchedBrand++;
       score += 6;
+    } else if (inAlias) {
+      meta.aliasHits++;
+      score += 10;
     }
-    if (!inName && !inBrand && t.length >= 3) meta.missingStrong++;
+    if (!inName && !inBrand && !inAlias && t.length >= 3) meta.missingStrong++;
   });
 
   if (tokens.length) {
@@ -922,6 +941,8 @@ function scoreFoodResult(item, queryCtx, opts = {}) {
   }
 
   score += wholeFoodQueryAdjustment(resultCtx, queryCtx);
+  meta.verifiedBoost = verifiedFoodBoost(item, resultCtx, queryCtx, meta);
+  score += meta.verifiedBoost;
 
   score += sourceRank(item.src) * 9;
   score += foodLearningBoost(item, queryCtx, opts.contextKey || 'generic');
@@ -931,6 +952,25 @@ function scoreFoodResult(item, queryCtx, opts = {}) {
     confidence: classifyFoodConfidence(score, meta, item),
     meta,
   };
+}
+
+function verifiedFoodBoost(item, resultCtx, queryCtx, meta) {
+  if (!item?.verified) return 0;
+
+  let boost = 0;
+  const aliasExact = !!(queryCtx.normalized && resultCtx.aliasNorm && resultCtx.aliasNorm.includes(queryCtx.normalized));
+  const aliasCanonical = !!(queryCtx.canonicalJoined && resultCtx.canonicalAliasNorm && resultCtx.canonicalAliasNorm.includes(queryCtx.canonicalJoined));
+  const strongCoverage = meta.tokenCount > 0 && (meta.matchedName + meta.matchedBrand + meta.aliasHits) >= Math.max(1, meta.tokenCount - meta.missingStrong);
+
+  if (meta.fullCanonicalMatch) boost += 26;
+  if (aliasExact || aliasCanonical) boost += 34;
+  if (meta.matchedName > 0 && (meta.matchedBrand > 0 || meta.brandHits > 0)) boost += 18;
+  if (meta.attributeHits > 0) boost += 10;
+  if (strongCoverage) boost += 16;
+  if (meta.exactNameTokenMatches === meta.tokenCount && meta.tokenCount > 0) boost += 18;
+  if (meta.matchedName > 0 || meta.aliasHits > 0) boost += 8;
+
+  return boost;
 }
 
 function getFoodDedupeKey(item) {
@@ -1309,6 +1349,7 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
     medium: '<span class="fsr-conf fsr-conf-medium">Match buono</span>',
     low: '<span class="fsr-conf fsr-conf-low">Altro risultato</span>',
   };
+  const verifiedBadge = '<span class="fsr-verified" title="Alimento verificato" aria-label="Alimento verificato"><span class="fsr-verified-check">✓</span></span>';
 
   let html = alertsHtml;
   let idx = 0;
@@ -1322,7 +1363,7 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
     const k = 'r-' + idx++;
     return '<div class="fsr-item" id="fsri-' + k + '">' +
       (srcBadge[item.src] || '') +
-      '<div class="fsr-info"><div class="fsr-name">' + htmlEsc(item.name) + '</div>' +
+      '<div class="fsr-info"><div class="fsr-name"><span class="fsr-name-txt">' + htmlEsc(item.name) + '</span>' + (item.verified ? verifiedBadge : '') + '</div>' +
       '<div class="fsr-brand">' + htmlEsc(item.brand || '') + '</div></div>' +
       '<div class="fsr-macros"><div class="fsr-kcal">' + item.kcal100 + '</div>' +
       '<div class="fsr-per">kcal/100g</div></div></div>';
@@ -1344,7 +1385,7 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
       const k = 'r-' + idx++;
       return '<div class="fsr-item" id="fsri-' + k + '">' +
         srcBadge.off +
-        '<div class="fsr-info"><div class="fsr-name">' + htmlEsc(item.name) + '</div>' +
+        '<div class="fsr-info"><div class="fsr-name"><span class="fsr-name-txt">' + htmlEsc(item.name) + '</span>' + (item.verified ? verifiedBadge : '') + '</div>' +
         '<div class="fsr-brand">' + htmlEsc(item.brand || '') + '</div></div>' +
         '<div class="fsr-macros"><div class="fsr-kcal">' + item.kcal100 + '</div>' +
         '<div class="fsr-per">kcal/100g</div></div></div>';
@@ -1370,7 +1411,7 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
       html += '<div class="fsr-item fsr-item-low" id="fsri-' + k + '">' +
         srcBadge.off +
         confidenceBadge.low +
-        '<div class="fsr-info"><div class="fsr-name">' + htmlEsc(item.name) + '</div>' +
+        '<div class="fsr-info"><div class="fsr-name"><span class="fsr-name-txt">' + htmlEsc(item.name) + '</span>' + (item.verified ? verifiedBadge : '') + '</div>' +
         '<div class="fsr-brand">' + htmlEsc(item.brand || '') + '</div></div>' +
         '<div class="fsr-macros"><div class="fsr-kcal">' + item.kcal100 + '</div>' +
         '<div class="fsr-per">kcal/100g</div></div></div>';

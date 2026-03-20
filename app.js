@@ -39,6 +39,7 @@ const S = {
   suppChecked: {},  // {'2026-03-17': ['creatina']}
   water: {},        // {'2026-03-17': 3}  (bicchieri)
   lastCheckin: null,
+  barcodeCache: {}, // { barcode: { barcode,name,brand,quantity,kcal100,p100,c100,f100,cachedAt } }
   foodCache: {},  // {query: [{name,brand,kcal100,p100,c100,f100,src}]}
   foodSearchLearn: {}, // { itemKey: { count, lastPickedAt, queries: { queryKey: count }, contexts: { key: count } } }
   customFoods: [], // alimenti aggiunti manualmente dall'utente

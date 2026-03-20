@@ -381,17 +381,16 @@ Se seguiamo quest'ordine, ogni miglioria successiva costera meno e rendera l'app
 
 ### Stato generale
 
-Rispetto alla valutazione iniziale, l'app e in uno stato sensibilmente piu solido.
+Rispetto alla valutazione iniziale, l'app e uscita dalla fase "prodotto promettente ma fragile".
 
-Non siamo piu nella fase "intuizione forte ma base fragile". Ora abbiamo:
+Oggi il quadro e questo:
 
-- una baseline debug minima ma reale
-- smoke test eseguiti davvero sui flussi critici
-- alcuni moduli gia estratti dai file piu densi
-- un primo pass UX concreto su `Today`
-- un primo pass dashboard concreto su `Stats`
+- la base tecnica e piu credibile
+- i flussi principali sono coperti da smoke test reali
+- `Today` e `Stats` sono state migliorate davvero lato mobile UX
+- barcode e search cibi hanno finalmente un piano tecnico e una prima implementazione concreta
 
-Il progetto resta artigianale e denso in alcune aree, ma il rischio operativo si e abbassato molto.
+Il progetto resta artigianale e ancora denso in alcune aree, ma non e piu appeso quasi solo alla verifica manuale.
 
 ### Stato del piano
 
@@ -402,35 +401,37 @@ Stato: **completato**
 Fatto:
 
 - debug mode attivabile per storage e fetch
-- logging minimo su persistenza e chiamate esterne
+- logging minimo su persistenza, import/export e chiamate esterne
 - checklist operativa in [step-0-baseline-checklist.md](/Users/federicomarci/Desktop/MarciFit/step-0-baseline-checklist.md)
-- smoke test reali:
+- smoke test reali eseguiti:
   - `smoke:core`
   - `smoke:dataflow`
   - `smoke:storage`
 
 Valutazione:
 
-questo e stato il salto piu importante in termini di affidabilita.
+questo e stato il cambio di fase piu importante, perche ha abbassato il rischio di regressioni invisibili.
 
 #### Step 1 - Hardening tecnico minimo
 
-Stato: **molto avanzato**
+Stato: **sostanzialmente completato**
 
 Fatto:
 
-- gestione esplicita di localStorage corrotto
+- gestione piu esplicita di localStorage corrotto
 - validazione import JSON
-- messaggi utente piu chiari in caso di errore dati
-- consolidamento dei punti fragili su barcode/OpenFoodFacts e bootstrap
+- messaggi utente piu chiari sui casi di errore dati
+- hardening dei fetch esterni
+- lock scroll corretto sui modal
+- interazioni locali piu fluide in `Today` senza refresh pesanti della view
 
 Valutazione:
 
-la base e abbastanza solida per continuare a iterare senza ansia da regressione.
+non e ancora "enterprise-grade", ma come base per iterare bene oggi e piu che sufficiente.
 
 #### Step 2 - Snellimento architettura
 
-Stato: **in corso, con buona trazione**
+Stato: **molto avanzato**
 
 Gia estratto:
 
@@ -438,75 +439,149 @@ Gia estratto:
 - [barcodeTools.js](/Users/federicomarci/Desktop/MarciFit/barcodeTools.js)
 - [bootstrapTools.js](/Users/federicomarci/Desktop/MarciFit/bootstrapTools.js)
 
+Migliorie strutturali aggiuntive:
+
+- logica barcode separata dal resto dell'app
+- bootstrap e recovery stato piu leggibili
+- responsabilita di debug/storage piu chiare
+
 Ancora da fare:
 
-- alleggerire altri blocchi UI ad alta densita
-- ridurre ulteriormente la responsabilita di `app.js`
-- iniziare a sostituire gradualmente alcuni handler inline
+- ridurre ulteriormente la densita di `app.js`
+- alleggerire alcuni blocchi UI ancora molto concentrati
+- iniziare a ridurre in modo sistematico gli `onclick` inline
 
 Valutazione:
 
-questa priorita non e chiusa, ma non e piu ferma.
+il refactor non e concluso, ma non siamo piu in una codebase bloccata.
 
 #### Step 3 - UX pass principale
 
-Stato: **avviato bene**
+Stato: **molto avanzato**
 
 Fatto su `Today`:
 
 - support panel meno dominante
 - acqua + integratori piu compatti
-- note rese piu secondarie e piu leggibili
+- note piu quiet e meno invasive
 - `Focus del momento` rafforzato come CTA primaria
-- signal row piu compatta e meno rumorosa
+- alert ridisegnati e resi piu chiari
+- card `avvisi da leggere` dentro dashboard
+- `Salti rapidi` rimossi
+- interazioni su alert e add-food rese piu fluide
+- ritorno automatico al meal card corretto dopo inserimento cibo
 
 Valutazione:
 
-`Today` adesso comunica meglio la sequenza della giornata e respira di piu, soprattutto su mobile.
+`Today` oggi e una tab molto piu leggibile, molto piu mobile-first e piu coerente con l'uso quotidiano.
 
 #### Step 4 - Stats redesign
 
-Stato: **avviato**
+Stato: **molto avanzato**
 
 Fatto:
 
-- toolbar periodo piu chiara
-- hero piu orientata alla lettura del periodo
-- metadati range/streak resi piu leggibili
-- azioni rapide spostate visivamente in una zona di supporto
-- pattern introdotti con tono piu narrativo
+- gerarchia piu chiara nella lettura del periodo
+- forte riduzione della verticalita su mobile
+- uso molto migliore dello spazio orizzontale nelle card interne
+- `Misure`, `Aderenza`, `Pattern utili`, `Azioni rapide` e `Andamento peso` compattate
+- migliore distinzione tra insight principali e azioni secondarie
 
 Valutazione:
 
-`Stats` non e ancora il traguardo finale descritto nel piano, ma e gia meno "raccolta di moduli" e piu dashboard.
+`Stats` non e piu una raccolta di moduli impilati, ma una dashboard mobile-first molto piu matura.
 
 #### Step 5 - Accessibility e polish
 
-Stato: **non ancora affrontato davvero**
+Stato: **parzialmente avviato, ma ancora aperto**
 
-Nota:
+Gia migliorato:
 
-resta il fronte piu scoperto insieme alla riduzione degli `onclick` inline.
+- diversi flussi mobile-first e modal hanno comportamento piu corretto
+- alcuni stati visivi e transizioni sono piu puliti e coerenti
+
+Ancora debole:
+
+- audit tastiera reale
+- audit screen reader
+- semantica e focus management sistematici
+- riduzione seria degli handler inline
+
+Valutazione:
+
+resta il fronte piu scoperto dell'app, insieme alla rifinitura finale del barcode camera.
+
+### Nuove aree strategiche aperte
+
+#### Barcode
+
+Stato: **step 1 completato, step 2 ancora aperto**
+
+Fatto:
+
+- lookup piu robusto
+- distinzione tra `timeout`, `offline`, `provider_error`, `not found`
+- fallback UX immediati
+- retry breve e messaggistica piu corretta
+
+Restante principale:
+
+- ROI reale
+- scan multi-pass
+- stabilizzazione migliore della lettura camera
+
+Documento di riferimento:
+
+- [barcode-improvement-plan.md](/Users/federicomarci/Desktop/MarciFit/barcode-improvement-plan.md)
+
+#### Search cibi
+
+Stato: **fortemente avanzata**
+
+Fatto:
+
+- cache query realmente usata
+- abort per contesto
+- gestione piu pulita degli esiti OFF
+- query rewriting
+- sinonimi minimi
+- ranking v2 con confidence
+- apprendimento locale dalle scelte utente
+
+Restante principale:
+
+- taratura reale dei pesi sulle query quotidiane dell'utente
+- ulteriore affinamento dell'intent parsing nei casi piu ambigui
+
+Documento di riferimento:
+
+- [food-search-improvement-plan.md](/Users/federicomarci/Desktop/MarciFit/food-search-improvement-plan.md)
 
 ### Priorita raccomandate da qui
 
 Ordine consigliato adesso:
 
-1. completare il pass su `Stats`, soprattutto su empty states, cronologie comprimibili e narrativa insight
-2. continuare il refactor dei blocchi UI ancora molto densi
+1. completare bene il barcode lato detection camera
+2. fare tuning reale della search cibi con una shortlist di query quotidiane
 3. aprire il primo ciclo serio di accessibilita
-4. solo dopo, valutare nuove feature piu ampie
+4. continuare il refactor delle zone ancora troppo dense
+5. solo dopo, valutare nuove feature piu ampie
 
 ### Giudizio aggiornato
 
-All'inizio il prodotto aveva gia una buona identita ma dipendeva troppo da verifica manuale e da file molto concentrati.
+All'inizio il prodotto aveva gia identita e valore, ma dipendeva ancora troppo da:
+
+- verifica manuale
+- file molto concentrati
+- flussi esterni fragili
 
 Ora il quadro e questo:
 
-- **debug/affidabilita: da fragile a sufficiente-buono**
-- **UI: da buona ma disomogenea a piu coerente**
-- **UX: da ricca ma affollata a piu leggibile nei punti chiave**
+- **debug/affidabilita: da fragile a buono**
+- **UI: da buona ma disomogenea a molto piu coerente**
+- **UX: da ricca ma affollata a chiaramente piu leggibile e mobile-first**
+- **motori fragili (barcode/search): da punti deboli opachi a aree tecnicamente governate**
 
 In sintesi:
 
-la direzione del piano scritto in questo documento era corretta, e i lavori fatti fin qui la stanno confermando quasi passo per passo.
+la direzione del piano scritto in questo documento era corretta, e oggi possiamo dire che le priorita principali sono state rispettate quasi nell'ordine giusto.

@@ -218,7 +218,10 @@ input,textarea{font-family:inherit}
 .mc.checked .mc-circle{background:var(--on);border-color:var(--on);color:#fff}
 
 .mc-body{flex:1;padding:13px 14px 12px;cursor:pointer;min-width:0}
-.mc-top{display:flex;align-items:flex-start;gap:9px}
+.mc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.mc-head-main{display:flex;align-items:flex-start;gap:9px;flex:1;min-width:0}
+.mc-head-copy{flex:1;min-width:0}
+.mc-head-side{display:flex;align-items:center;justify-content:flex-end;flex-shrink:0;padding-top:2px}
 .mc-icon{
   font-size:17px;flex-shrink:0;line-height:1;
   font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif;
@@ -230,9 +233,19 @@ input,textarea{font-family:inherit}
 .mc-rename-btn:focus{opacity:1}
 .mc-rename-btn:hover{color:var(--ink2);background:#f5efe7}
 .mc-time-wrap{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;margin-left:4px}
-.mc-meta-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;padding-left:24px}
+.mc-meta-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
 .mc-time{display:inline-flex;align-items:center;font-size:10px;color:#8e867a;font-family:'JetBrains Mono',monospace;flex-shrink:0;margin-left:0;padding:2px 0}
 .mc-alt-badge{display:inline-flex;align-items:center;font-size:9px;font-weight:800;color:var(--on);background:#eef7f1;padding:2px 8px;border-radius:999px;border:1px solid var(--on-b);white-space:nowrap}
+.mc-status-chip{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:20px;padding:2px 8px;border-radius:999px;border:1px solid transparent;
+  font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;
+}
+.mc-status-chip.is-empty{background:#f5f1ea;color:#84796d;border-color:#e4dacf}
+.mc-status-chip.is-started{background:#eef8f0;color:#1d7649;border-color:#bbddc4}
+.mc-status-chip.is-progress{background:#edf4ff;color:#285ea8;border-color:#c6dafd}
+.mc-status-chip.is-complete{background:#edf8f0;color:#13633b;border-color:#b8dfc6}
+.mc-status-chip.is-over{background:#fff4e8;color:#a86108;border-color:#edd1a6}
 .mc-ingr{font-size:11px;color:#938a7d;margin-top:5px;line-height:1.45;padding-left:24px}
 .mc-ingr.clamp{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
 
@@ -2347,26 +2360,34 @@ input,textarea{font-family:inherit}
 .prof-title{font-family:'Lora',serif;font-size:18px;font-weight:600;margin-bottom:14px}
 
 /* Target badge — centered OBIETTIVO block */
-.mc-badge-row{display:flex;align-items:stretch;gap:0;margin:5px 0 3px}
+.mc-badge-row{display:flex;align-items:stretch;gap:0;margin:8px 0 2px}
 .mc-badge-row .mc-target-badge{flex:1;margin:0}
-.mc-badge-row .mc-add-btn{margin-left:10px;align-self:center}
 .mc-target-badge{
-  display:flex;flex-direction:column;align-items:center;
-  font-family:'JetBrains Mono',monospace;color:#7c4a03;background:linear-gradient(180deg,#fff9ef 0%,#fdf2d8 100%);
-  border:1.5px solid #f3d39b;border-radius:12px;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.65);
-  padding:7px 12px;margin:5px 0 3px;
+  display:flex;flex-direction:column;
+  color:#7c4a03;background:linear-gradient(180deg,#fffaf1 0%,#fff3dd 100%);
+  border:1.5px solid #f1d2a1;border-radius:14px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.72);
+  padding:8px 10px 7px;margin:0;
   width:100%;
+}
+.mc-badge-top{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;
 }
 .mc-badge-label{
   font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;
-  color:#a16207;margin-bottom:3px;
+  color:#a16207;margin-bottom:0;
 }
-.mc-badge-kcal{font-size:16px;font-weight:700;color:#7c4a03;line-height:1}
+.mc-badge-kicker{
+  font-size:8px;font-weight:700;color:#b27a27;letter-spacing:.04em;text-transform:uppercase;
+}
+.mc-badge-main{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:10px;
+}
+.mc-badge-kcal{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:#7c4a03;line-height:1;white-space:nowrap}
 .mc-badge-kcal-cur{color:#7c4a03}
 .mc-badge-kcal-sep{color:#b45309;opacity:.5;font-weight:400;font-size:13px;margin:0 2px}
 .mc-badge-kcal-tgt{color:#c27b14;font-size:12px;font-weight:600}
-.mc-badge-macros{font-size:9.5px;font-weight:600;color:#a86614;margin-top:3px;white-space:nowrap}
+.mc-badge-macros{font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:600;color:#a86614;white-space:nowrap;text-align:right}
 .mc-badge-mac-cur{color:#7c4a03}
 .mc-badge-mac-sep{opacity:.45;font-size:8px;margin:0 1px}
 /* Apporto reale sotto gli ingredienti */
@@ -2386,7 +2407,7 @@ input,textarea{font-family:inherit}
 .mc-real-sep{color:var(--b2);font-size:10px}
 .mc-clock-icon{vertical-align:middle;margin-right:2px;opacity:.6}
 .mc-add-btn{
-  width:38px;height:38px;display:flex;align-items:center;justify-content:center;
+  width:40px;height:40px;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(180deg,#f2f7ff 0%,#e6f0ff 100%);color:#285ea8;border-radius:50%;border:1.5px solid #c6dafd;
   box-shadow:0 4px 10px rgba(37,99,235,.10), inset 0 1px 0 rgba(255,255,255,.75);
   flex-shrink:0;align-self:center;
@@ -2521,8 +2542,19 @@ input,textarea{font-family:inherit}
 .fsr-conf-low{background:#f5f1eb;color:#867c70;border-color:#e0d7cb}
 .fsr-info{flex:1;min-width:0}
 .fsr-name{
-  font-size:12px;font-weight:700;color:var(--ink);line-height:1.3;
+  display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ink);line-height:1.3;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.fsr-name-txt{
+  min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.fsr-verified{
+  width:16px;height:16px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
+  flex-shrink:0;background:linear-gradient(180deg,#31bf67 0%, #239a51 100%);color:#fff;
+  box-shadow:0 6px 14px rgba(35,154,81,.2);border:1px solid rgba(20,117,59,.16);
+}
+.fsr-verified-check{
+  font-size:10px;font-weight:900;line-height:1;transform:translateY(-.5px);
 }
 .fsr-brand{
   font-size:10px;color:#8f8679;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -2786,7 +2818,7 @@ input,textarea{font-family:inherit}
   }
 
   /* meal card: badge già width:100% e centrato, nessun override necessario */
-  .mc-add-btn{ width:34px;height:34px }
+  .mc-add-btn{ width:36px;height:36px }
 
   /* BUG FIX — iOS zooma su input con font-size < 16px */
   .food-search-input{ font-size:16px }
@@ -2853,10 +2885,20 @@ input,textarea{font-family:inherit}
   .ms-macro-rem{font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   .mc-body{padding:10px 12px}
-  .mc-meta-row{padding-left:20px;margin-top:6px;gap:5px}
+  .mc-meta-row{margin-top:5px;gap:5px}
   .mc-pills{padding:0 12px 8px;padding-left:calc(12px + 20px)}
   .mc-items{padding-left:calc(12px + 20px)}
   .mc-alts{padding:0 12px 8px;padding-left:calc(12px + 20px)}
+  .mc-top{gap:8px}
+  .mc-head-main{gap:8px}
+  .mc-name{font-size:12.5px;line-height:1.22}
+  .mc-status-chip{font-size:7.5px;padding:2px 7px}
+  .mc-badge-row{margin-top:7px}
+  .mc-target-badge{padding:7px 9px 6px}
+  .mc-badge-main{align-items:flex-start;flex-direction:column;gap:3px}
+  .mc-badge-kicker{display:none}
+  .mc-badge-kcal{font-size:15px}
+  .mc-badge-macros{text-align:left;font-size:9px}
 
   /* --- WEEK CALENDAR --- */
   .week-cal{gap:3px;margin-bottom:12px}

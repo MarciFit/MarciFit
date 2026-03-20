@@ -10,6 +10,16 @@ let _bcResolvedCode = null;
 let _bcLastDetectedCode = null;
 let _bcScanLoopToken = 0;
 const _bcProductCache = {};
+const _BC_FRAME_ASPECT = 220 / 84;
+const _BC_SCAN_MODES = {
+  roi: { widthRatio: 0.68, maxHeightRatio: 0.28 },
+  wide: { widthRatio: 0.88, maxHeightRatio: 0.4 },
+  full: { widthRatio: 1, maxHeightRatio: 1 },
+};
+const _BC_DETECTION_WEIGHTS = {
+  detector: { roi: 1.65, wide: 1.2, full: 0.95 },
+  quagga: { roi: 1.3, wide: 1.0, full: 0.8 },
+};
 
 function _setBarcodeStatus(message, tone = 'neutral') {
   const status = document.getElementById('bc-status');
@@ -35,39 +45,247 @@ function _renderBarcodeActions(actions = []) {
 }
 
 function _resetBarcodeFeedback(message = 'Inquadra il codice a barre del prodotto') {
+  const status = document.getElementById('bc-status');
+  if (status) delete status.dataset.scanStage;
   _setBarcodeStatus(message, 'neutral');
   _renderBarcodeActions([]);
 }
 
+function _setBarcodeScanStage(stage) {
+  const messages = {
+    roi: '🎯 Allinea il barcode nel riquadro centrale',
+    wide: '🔎 Allargo la ricerca attorno al riquadro',
+    full: '🧭 Cerco su tutta l\'inquadratura',
+    quagga: '⚡ Scansione avanzata attiva: prova ad avvicinare il codice',
+  };
+  const next = messages[stage] || messages.roi;
+  const status = document.getElementById('bc-status');
+  if (status?.dataset.scanStage === stage) return;
+  if (status) status.dataset.scanStage = stage;
+  _setBarcodeStatus(next, 'neutral');
+}
+
+function _isValidEan8(barcode) {
+  if (!/^\d{8}$/.test(barcode)) return false;
+  const digits = barcode.split('').map(Number);
+  const check = digits.pop();
+  const sum = digits.reduce((acc, digit, idx) => acc + digit * (idx % 2 === 0 ? 3 : 1), 0);
+  return ((10 - (sum % 10)) % 10) === check;
+}
+
+function _isValidUpcA(barcode) {
+  if (!/^\d{12}$/.test(barcode)) return false;
+  const digits = barcode.split('').map(Number);
+  const check = digits.pop();
+  const sum = digits.reduce((acc, digit, idx) => acc + digit * (idx % 2 === 0 ? 3 : 1), 0);
+  return ((10 - (sum % 10)) % 10) === check;
+}
+
+function _isValidEan13(barcode) {
+  if (!/^\d{13}$/.test(barcode)) return false;
+  const digits = barcode.split('').map(Number);
+  const check = digits.pop();
+  const sum = digits.reduce((acc, digit, idx) => acc + digit * (idx % 2 === 0 ? 1 : 3), 0);
+  return ((10 - (sum % 10)) % 10) === check;
+}
+
+function _isLikelyFoodBarcode(barcode) {
+  if (!barcode) return false;
+  if (barcode.length === 8) return _isValidEan8(barcode);
+  if (barcode.length === 12) return _isValidUpcA(barcode);
+  if (barcode.length === 13) return _isValidEan13(barcode);
+  return false;
+}
+
+function _normalizeDetectedBarcode(raw) {
+  const barcode = String(raw || '').replace(/\D/g, '');
+  if (!_isLikelyFoodBarcode(barcode)) return null;
+  return barcode;
+}
+
+function _getBarcodeScanRect(video, modeKey) {
+  const vw = video.videoWidth || 1280;
+  const vh = video.videoHeight || 720;
+  if (modeKey === 'full') {
+    return { sx: 0, sy: 0, sw: vw, sh: vh };
+  }
+  const mode = _BC_SCAN_MODES[modeKey] || _BC_SCAN_MODES.roi;
+  let sw = Math.round(vw * mode.widthRatio);
+  let sh = Math.round(sw / _BC_FRAME_ASPECT);
+  const maxHeight = Math.round(vh * mode.maxHeightRatio);
+  if (sh > maxHeight) {
+    sh = maxHeight;
+    sw = Math.round(sh * _BC_FRAME_ASPECT);
+  }
+  sw = Math.max(220, Math.min(sw, vw));
+  sh = Math.max(84, Math.min(sh, vh));
+  const sx = Math.max(0, Math.round((vw - sw) / 2));
+  const sy = Math.max(0, Math.round((vh - sh) / 2));
+  return { sx, sy, sw, sh };
+}
+
+function _drawBarcodeScanRegion(video, canvas, modeKey) {
+  const { sx, sy, sw, sh } = _getBarcodeScanRect(video, modeKey);
+  canvas.width = sw;
+  canvas.height = sh;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return false;
+  ctx.clearRect(0, 0, sw, sh);
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+  return true;
+}
+
+function _createBarcodeStabilityState() {
+  return {
+    scores: {},
+    hits: {},
+    lastLeader: null,
+  };
+}
+
+function _decayBarcodeScores(state, factor) {
+  Object.keys(state.scores).forEach(code => {
+    state.scores[code] *= factor;
+    if (state.scores[code] < 0.25) {
+      delete state.scores[code];
+      delete state.hits[code];
+    }
+  });
+}
+
+function _getBarcodeDetectionWeight(sample) {
+  const byEngine = _BC_DETECTION_WEIGHTS[sample.engine] || _BC_DETECTION_WEIGHTS.detector;
+  return byEngine[sample.mode] || 1;
+}
+
+function _updateBarcodeStabilityState(state, sample) {
+  if (!sample?.code) {
+    _decayBarcodeScores(state, 0.82);
+    if (!Object.keys(state.scores).length) state.lastLeader = null;
+    return { confirmed: false, candidate: null, confidence: 0 };
+  }
+
+  const normalizedCode = _normalizeDetectedBarcode(sample.code);
+  if (!normalizedCode) {
+    _decayBarcodeScores(state, 0.86);
+    return { confirmed: false, candidate: null, confidence: 0 };
+  }
+
+  _decayBarcodeScores(state, 0.92);
+  const weight = _getBarcodeDetectionWeight(sample);
+  const code = normalizedCode;
+  state.scores[code] = (state.scores[code] || 0) + weight;
+  state.hits[code] = (state.hits[code] || 0) + 1;
+
+  const ranked = Object.entries(state.scores)
+    .sort((a, b) => b[1] - a[1]);
+  const [leaderCode, leaderScore] = ranked[0] || [null, 0];
+  const secondScore = ranked[1]?.[1] || 0;
+  state.lastLeader = leaderCode;
+
+  const confirmed = !!leaderCode &&
+    leaderScore >= 4.4 &&
+    (leaderScore - secondScore) >= 1.15 &&
+    (state.hits[leaderCode] || 0) >= 3;
+
+  return {
+    confirmed,
+    candidate: leaderCode,
+    confidence: leaderScore,
+  };
+}
+
+function _updateBarcodeScanHint(stability) {
+  if (!stability?.candidate || stability.confirmed) return;
+  if (stability.confidence >= 2.8) {
+    _setBarcodeStatus(`✨ Barcode quasi agganciato: ${stability.candidate}`, 'neutral');
+  }
+}
+
+async function _detectBarcodeWithDetector(detector, video, canvas, modeKey) {
+  if (!_drawBarcodeScanRegion(video, canvas, modeKey)) return null;
+  const codes = await detector.detect(canvas);
+  const code = codes?.[0]?.rawValue || null;
+  return code ? { code, engine: 'detector', mode: modeKey } : null;
+}
+
+function _decodeBarcodeWithQuagga(canvas) {
+  return new Promise(resolve => {
+    Quagga.decodeSingle({
+      src: canvas.toDataURL('image/jpeg', 0.92),
+      numOfWorkers: 0,
+      inputStream: { size: 960 },
+      decoder: {
+        readers: ['ean_reader', 'ean_8_reader', 'code_128_reader'],
+        multiple: false
+      },
+      locator: { patchSize: 'medium', halfSample: false },
+    }, result => resolve(result || null));
+  });
+}
+
+async function _detectBarcodeWithQuagga(video, canvas, modeKey) {
+  if (!_drawBarcodeScanRegion(video, canvas, modeKey)) return null;
+  const result = await _decodeBarcodeWithQuagga(canvas);
+  const decodedCodes = result?.codeResult?.decodedCodes;
+  const errors = decodedCodes?.filter(code => code.error !== undefined) || [];
+  if (errors.length) {
+    const avgErr = errors.reduce((sum, code) => sum + code.error, 0) / errors.length;
+    if (avgErr >= 0.25) return null;
+  }
+  const code = result?.codeResult?.code || null;
+  return code ? { code, engine: 'quagga', mode: modeKey } : null;
+}
+
+function _getScanModesForElapsed(elapsedMs) {
+  if (elapsedMs < 700) return ['roi'];
+  if (elapsedMs < 2200) return ['roi', 'wide'];
+  return ['roi', 'wide', 'full'];
+}
+
 function _startBarcodeDetectorLoop(token) {
   const v = document.getElementById('bc-video');
+  const cv = document.getElementById('bc-canvas');
   const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] });
-  let lastCode = null;
-  let codeCount = 0;
-  const confirmNeeded = 2;
+  const stabilityState = _createBarcodeStabilityState();
+  const startedAt = Date.now();
 
   const tick = async () => {
     if (!_bcScanning || token !== _bcScanLoopToken) return;
-    try {
-      const codes = await detector.detect(v);
-      if (codes.length) {
-        const code = codes[0].rawValue;
-        if (code === lastCode) {
-          codeCount += 1;
-          if (codeCount >= confirmNeeded) {
-            _bcScanning = false;
-            onBarcodeDetected(code);
-            return;
-          }
-        } else {
-          lastCode = code;
-          codeCount = 1;
-        }
-      } else {
-        lastCode = null;
-        codeCount = 0;
+    const elapsedMs = Date.now() - startedAt;
+    const scanModes = _getScanModesForElapsed(elapsedMs);
+    _setBarcodeScanStage(scanModes[scanModes.length - 1]);
+    let detectionSample = null;
+
+    for (const modeKey of scanModes) {
+      try {
+        detectionSample = await _detectBarcodeWithDetector(detector, v, cv, modeKey);
+      } catch(e) {
+        detectionSample = null;
       }
-    } catch(e) {}
+      if (detectionSample) break;
+    }
+
+    if (!detectionSample && elapsedMs >= 2200 && typeof Quagga !== 'undefined') {
+      _setBarcodeScanStage('quagga');
+      for (const modeKey of scanModes) {
+        try {
+          detectionSample = await _detectBarcodeWithQuagga(v, cv, modeKey);
+        } catch(e) {
+          detectionSample = null;
+        }
+        if (detectionSample) break;
+      }
+    }
+
+    const stability = _updateBarcodeStabilityState(stabilityState, detectionSample);
+    _updateBarcodeScanHint(stability);
+    if (stability.confirmed) {
+      _bcScanning = false;
+      onBarcodeDetected(stability.candidate);
+      return;
+    }
+
     requestAnimationFrame(tick);
   };
 
@@ -77,49 +295,34 @@ function _startBarcodeDetectorLoop(token) {
 function _startQuaggaLoop(token) {
   const v = document.getElementById('bc-video');
   const cv = document.getElementById('bc-canvas');
-  let lastCode = null;
-  let codeCount = 0;
-  const confirmNeeded = 2;
-  const isConfident = (result) => {
-    const codes = result?.codeResult?.decodedCodes;
-    if (!codes) return false;
-    const errors = codes.filter(code => code.error !== undefined);
-    if (!errors.length) return true;
-    const avgErr = errors.reduce((sum, code) => sum + code.error, 0) / errors.length;
-    return avgErr < 0.25;
-  };
+  const stabilityState = _createBarcodeStabilityState();
+  const startedAt = Date.now();
 
-  const scan = () => {
+  const scan = async () => {
     if (!_bcScanning || token !== _bcScanLoopToken) return;
-    cv.width = v.videoWidth || 640;
-    cv.height = v.videoHeight || 480;
-    cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
-    Quagga.decodeSingle({
-      src: cv.toDataURL('image/jpeg', 0.9),
-      numOfWorkers: 0,
-      inputStream: { size: 800 },
-      decoder: {
-        readers: ['ean_reader', 'ean_8_reader', 'code_128_reader'],
-        multiple: false
-      },
-      locator: { patchSize: 'medium', halfSample: false },
-    }, result => {
-      if (result?.codeResult?.code && isConfident(result)) {
-        const code = result.codeResult.code;
-        if (code === lastCode) {
-          codeCount += 1;
-          if (codeCount >= confirmNeeded) {
-            _bcScanning = false;
-            onBarcodeDetected(code);
-            return;
-          }
-        } else {
-          lastCode = code;
-          codeCount = 1;
-        }
+    const elapsedMs = Date.now() - startedAt;
+    const scanModes = _getScanModesForElapsed(elapsedMs);
+    _setBarcodeScanStage(scanModes[scanModes.length - 1]);
+    let detectionSample = null;
+
+    for (const modeKey of scanModes) {
+      try {
+        detectionSample = await _detectBarcodeWithQuagga(v, cv, modeKey);
+      } catch(e) {
+        detectionSample = null;
       }
-      if (_bcScanning && token === _bcScanLoopToken) setTimeout(scan, 150);
-    });
+      if (detectionSample) break;
+    }
+
+    const stability = _updateBarcodeStabilityState(stabilityState, detectionSample);
+    _updateBarcodeScanHint(stability);
+    if (stability.confirmed) {
+      _bcScanning = false;
+      onBarcodeDetected(stability.candidate);
+      return;
+    }
+
+    if (_bcScanning && token === _bcScanLoopToken) setTimeout(scan, 140);
   };
 
   if (v.readyState >= 3) scan();
@@ -130,6 +333,7 @@ function scanBarcode() {
   if (!_bcStream || !_bcScanning) return;
   _bcScanLoopToken += 1;
   const token = _bcScanLoopToken;
+  _setBarcodeScanStage('roi');
   if ('BarcodeDetector' in window) {
     _startBarcodeDetectorLoop(token);
     return;
@@ -203,7 +407,7 @@ async function _fetchBarcodeProductOnce(barcode, timeoutMs) {
 }
 
 async function _lookupBarcodeProduct(barcode) {
-  const retryTimeouts = [4000, 6500];
+  const retryTimeouts = [7000, 12000];
   let lastFailure = null;
 
   for (let attempt = 0; attempt < retryTimeouts.length; attempt += 1) {
@@ -222,7 +426,7 @@ async function _lookupBarcodeProduct(barcode) {
       };
       const hasRetryLeft = attempt < retryTimeouts.length - 1;
       if (!hasRetryLeft || status === 'offline') return lastFailure;
-      _setBarcodeStatus('⏳ Servizio lento, provo di nuovo...', 'warn');
+      _setBarcodeStatus(`⏳ Barcode letto: ${barcode}. Il catalogo e lento, riprovo con una finestra piu ampia...`, 'warn');
     }
   }
 
@@ -236,7 +440,7 @@ function _showBarcodeLookupFallback(barcode, outcome) {
   ];
 
   if (outcome.status === 'timeout') {
-    _setBarcodeStatus(`⏳ Barcode letto: ${barcode}. Open Food Facts sta rispondendo troppo lentamente.`, 'warn');
+    _setBarcodeStatus(`⏳ Barcode letto: ${barcode}. Open Food Facts e molto lento o non restituisce il prodotto in tempo utile.`, 'warn');
     _renderBarcodeActions([
       { id: 'retry-lookup', label: 'Riprova lookup', tone: 'warn' },
       ...actions,
@@ -400,7 +604,17 @@ function _buildFoodItemFromBarcodeProduct(product, barcode) {
 
 function _cacheBarcodeItem(item) {
   if (!item?.barcode) return;
-  _bcProductCache[item.barcode] = { ...item };
+  const cachedItem = { ...item, cachedAt: new Date().toISOString() };
+  _bcProductCache[item.barcode] = { ...cachedItem };
+  if (!S.barcodeCache) S.barcodeCache = {};
+  S.barcodeCache[item.barcode] = { ...cachedItem };
+  const barcodeKeys = Object.keys(S.barcodeCache);
+  if (barcodeKeys.length > 250) {
+    barcodeKeys
+      .sort((a, b) => new Date(S.barcodeCache[a]?.cachedAt || 0).getTime() - new Date(S.barcodeCache[b]?.cachedAt || 0).getTime())
+      .slice(0, 60)
+      .forEach(key => delete S.barcodeCache[key]);
+  }
   const ck = item.name.toLowerCase().slice(0, 20);
   if (!S.foodCache[ck]) S.foodCache[ck] = [];
   if (!S.foodCache[ck].find(x => x.name === item.name && x.brand === item.brand)) {
@@ -414,6 +628,15 @@ function _cacheBarcodeItem(item) {
       src: 'cache',
     });
   }
+}
+
+function _readBarcodeCacheItem(barcode) {
+  if (!barcode) return null;
+  if (_bcProductCache[barcode]) return { ..._bcProductCache[barcode] };
+  const persistent = S.barcodeCache?.[barcode];
+  if (!persistent) return null;
+  _bcProductCache[barcode] = { ...persistent };
+  return { ...persistent };
 }
 
 function _resumeBarcodeScanning(delay = 1200) {
@@ -510,8 +733,12 @@ async function startBcCamera() {
 }
 
 async function onBarcodeDetected(barcode, opts = {}) {
-  const cleanBarcode = _sanitizeBarcode(barcode);
-  if (!cleanBarcode) return;
+  const cleanBarcode = _normalizeDetectedBarcode(barcode) || _sanitizeBarcode(barcode);
+  if (!cleanBarcode || !_isLikelyFoodBarcode(cleanBarcode)) {
+    _setBarcodeStatus('⚠️ Lettura incerta del barcode. Riprovo automaticamente...', 'warn');
+    _resumeBarcodeScanning(500);
+    return;
+  }
   _bcLastDetectedCode = cleanBarcode;
   if (_bcResolvedCode === cleanBarcode && _bcItem) {
     showBcResult();
@@ -523,11 +750,11 @@ async function onBarcodeDetected(barcode, opts = {}) {
     try { _bcLookupController.abort(); } catch(e) {}
   }
 
-  const cached = _bcProductCache[cleanBarcode];
+  const cached = _readBarcodeCacheItem(cleanBarcode);
   if (cached && !opts.skipCache) {
     _bcResolvedCode = cleanBarcode;
     _bcItem = { ...cached };
-    _setBarcodeStatus('⚡ Prodotto riconosciuto dalla cache', 'success');
+    _setBarcodeStatus('⚡ Prodotto riconosciuto dalla cache locale', 'success');
     showBcResult();
     return;
   }

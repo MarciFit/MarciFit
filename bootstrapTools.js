@@ -48,6 +48,7 @@ function ensureBootstrapDefaults(state) {
   if (!state.suppChecked) state.suppChecked = {};
   if (!state.doneByDate) state.doneByDate = {};
   if (!['7d', '30d', '8w', 'all'].includes(state.statsRange)) state.statsRange = '30d';
+  if (!state.barcodeCache) state.barcodeCache = {};
   if (!state.foodCache) state.foodCache = {};
   if (!state.foodSearchLearn) state.foodSearchLearn = {};
   if (!state.foodLog) state.foodLog = {};
