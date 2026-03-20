@@ -45,20 +45,24 @@
 
 ## Stato Attuale
 
-> Ultima modifica: 2026-03-19 (sessione 13)
+> Ultima modifica: 2026-03-20 (sessione 15)
 
 - Progetto funzionante con le 4 view principali operative
-- **Versioni asset correnti**: `style.css?v=53`, `uiComponents.js?v=60`, `app.js?v=60`, `nutritionLogic.js?v=45` — incrementare ad ogni cambio significativo
+- **Versioni asset correnti**: `style.css?v=56`, `uiComponents.js?v=60`, `app.js?v=60`, `nutritionLogic.js?v=45`, `storage.js?v=31` — incrementare ad ogni cambio significativo
 - **Navbar**: Lucide SVG icons (calendar-days, utensils, bar-chart-2, user, printer). `.nav` sticky top con brand mobile, `.nav-tabs` bottom su mobile / top centrata su desktop
 - **Layout mobile**: bottom tab bar stile iOS, brand bar in alto (48px sticky), tastiera aperta → `kb-open` nasconde nav-tabs
-- **Greeting**: frase motivazionale quotidiana (Lora italic) + alert engine condizionale (supplementi/mezzogiorno/serali)
+- **Greeting**: frase motivazionale quotidiana (Lora italic) + alert engine contestuale con CTA
 - **Macro strip**: card hero kcal + 3 card macro (P/C/F) con barre colorate e resto mancante
-- **Pasti extra**: "Merenda" e "Spuntino" attivabili per-day, salvati in `S.extraMeals[dateKey]`
+- **Pasti extra**: "Merenda" e "Spuntino" attivabili per-day, visibili anche da log reale; stato UI in `S.extraMealsActive[dateKey]`
 - **Cibi Preferiti**: `S.favoriteFoods[]` persistente, usati per suggerimenti alimentari negli alert serali
 - **Barcode scanner**: BarcodeDetector + Quagga fallback, 3 letture consecutive richieste, camera 1920×1080
 - **Edit grammatura**: matita inline nelle log row, live preview kcal nel modal
 - **Click macro card**: breakdown per pasto del nutriente selezionato
 - **Calorie rimanenti**: mostrate nel gram picker durante l'aggiunta di un alimento
+- **Completion model unificato**: giorno compilato solo con attività reali (`foodLog`, acqua, integratori). Checkbox pasti deprecated e non più fonte di verità
+- **Focus del momento**: card singola con un solo CTA verso il pasto e insight sintetico su stato/log del pasto
+- **Stato vuoto premium rimosso**: non esiste più la card "Oggi è ancora da accendere"
+- **Preview live locale**: `live-preview.html` con watch file-based, memoria di tab/scroll e toggle opzionale per `preview-state.json`
 
 ---
 
@@ -94,13 +98,18 @@ _Nessun bug noto documentato al momento._
 - Hard reload JS se `window.location.reload()` non basta: `location.href = location.href.split('?')[0] + '?bust=' + Date.now()`
 
 ### Preview System (Claude Code)
-- **Problema macOS sandbox**: `preview_start` lancia Python in un processo sandboxed che non può leggere da `~/Desktop`. Soluzione: il server serve da `/tmp/marcifit/` (accessibile al sandbox).
-- **Server script**: `/tmp/marcifit_server.py` — serve da `/tmp/marcifit/` con `functools.partial(SimpleHTTPRequestHandler, directory='/tmp/marcifit')` (NON usare `os.chdir` + `os.getcwd`, causerebbe PermissionError nel sandbox).
-- **Sync obbligatorio prima di ogni screenshot**: eseguire sempre questo comando Bash prima di `preview_screenshot`:
+- **Live preview principale**: aprire `http://127.0.0.1:8788/live-preview.html`
+- **Server locale**: `python3 server.py` dalla root del progetto
+- **Watch-based refresh**: la preview non ricarica a intervalli fissi; interroga `/__preview_status` e refresha solo quando cambiano file rilevanti (`.html`, `.css`, `.js`, `.json`, `.mjs`)
+- **Preservazione stato preview**: la pagina live tenta di mantenere tab corrente e scroll dopo il refresh; mette in pausa il watch mentre l'utente interagisce
+- **Preview state opzionale**: creare `preview-state.json` in root per simulare scenari dedicati; `preview-state.example.json` contiene uno scheletro iniziale
+- **Screenshot Playwright**: `npm run preview:today` genera `.codex-previews/today-desktop.png` e `.codex-previews/today-mobile.png`
+- **Script utili**:
   ```bash
-  rsync -a --delete /Users/federicomarci/Desktop/MarciFit/ /tmp/marcifit/ --exclude='.git' --exclude='.claude'
+  npm run preview:serve
+  npm run preview:today
   ```
-- **Avvio sessione**: se `preview_start` fallisce per porta occupata → `kill $(lsof -ti :8788)` poi riprovare.
+- **Nota sandbox macOS**: browser headless e bind socket locale possono richiedere esecuzione con permessi estesi dall'ambiente Codex
 
 ---
 
@@ -119,7 +128,9 @@ _Nessun bug noto documentato al momento._
 - Tutto persiste in `localStorage` — nessuna chiamata server per i dati utente
 - Misurazioni corporee: append-only (mai sovrascritte)
 - Template pasti separati dal log giornaliero
-- `S.checked` è globale (chiavi `on-0`, `on-1`...) — non è date-scoped. Il fallback "pasto spuntato senza log → usa piano come stima" in `renderMacroStrip()` è protetto da `isToday`
+- Storage key locale: `piano_federico_v2`
+- `doneByDate` è derivato dal completion model reale e può contenere anche `hasTypeOverride` per override ON/OFF senza attività
+- `S.checked` / checkbox pasti sono da considerare deprecate: non usarle per progress, streak, calendario o alert
 
 ### File `start.html`
 - Versione alternativa con tutto inline — non è il file principale di sviluppo
@@ -131,10 +142,16 @@ _Nessun bug noto documentato al momento._
 
 ```bash
 # Avviare il server di sviluppo
-python3 -m http.server 8788
+python3 server.py
 
-# Oppure tramite il launch.json Claude
-# Server configurato in .claude/launch.json su porta 8788
+# Live preview watch-based
+open http://127.0.0.1:8788/live-preview.html
+
+# Screenshot desktop/mobile della tab Oggi
+npm run preview:today
+
+# Screenshot desktop/mobile della tab Stats
+npm run preview:stats
 ```
 
 App accessibile su: `http://localhost:8788`
@@ -163,14 +180,39 @@ App accessibile su: `http://localhost:8788`
 
 > Solo note pendenti, non storico. Rimuovere quando risolte.
 
-- CSS: sezione `/* NOTES */` duplicata rimossa (c'erano due blocchi — uno ~riga 587, uno ~riga 837. Il secondo è stato rimosso.)
-- `.stat-i` (icona info "i") non è nested in `.tg-stat` — usare `.stat-i` come selettore diretto
-- I tooltips BMI/BMR/TDEE usano `showTip()`/`hideTip()` con `onmouseenter`/`onmouseleave` sui `.tg-stat-card`
+- **Tab Oggi — prossima priorità**: le meal card nella `Timeline pasti` sono ancora molto simili tra loro. Sprint successivo consigliato = differenziare meglio `active / started / idle` mantenendo l'ordine temporale invariato.
+- **Alert dashboard cliccabili**: i chip nella `Dashboard del giorno` ora possono avere `onclick`; se aggiungi nuovi alert, pensa sempre a una `resolve action` contestuale in `splitTodayAlerts()`.
+- **Integratori**: non stanno più nella tab `Piano`; gestione quotidiana + aggiunta nuovi integratori vive ora in `Supporto giornata` (`renderSuppToday()`). `renderSupplements()` resta usato nel `Profilo`, non in `Piano`.
+- **Stats preview**: esiste `scripts/preview-stats.mjs` con stato demo ricco; usare `npm run preview:stats` prima di toccare layout/gerarchia della tab `Stats`.
 - **Logo PNG gotcha**: PNG con sfondo opaco — `mix-blend-mode:screen/multiply` non funziona su sfondo beige. Per logo immagine: esportare **sempre PNG con sfondo trasparente**.
 
 ---
 
 ## Storico Sessioni
+
+### Sessione 16 — Redesign tab Stats, redesign tab Oggi e alert contestuali (2026-03-20)
+- **Tab Stats rifatta per gerarchia**: introdotti `statsRange` persistente, toolbar `7d/30d/8w/all`, hero insight, nuova sezione peso e blocchi separati per `Misure e composizione`, `Aderenza e costanza`, `Pattern utili`, `Azioni rapide`.
+- **Range data centralizzato**: in `uiComponents.js` aggiunti helper per bounds periodo, trend peso, medie mobili, confronto col periodo precedente, misure nel range, breakdown aderenza (`mealRate`, `hydrationRate`, `supplementRate`, `weekendAdherenceRate`) e pattern automatici.
+- **Weight chart pulito**: rimossa la proiezione aggressiva dal grafico peso; ora mostra linea reale, rolling average e target. Cronologia pesate collassabile.
+- **Heatmap Stats allineata al range**: `renderHeatmap(data)` non usa più una finestra fissa separata; ora segue il range selezionato (con limite max sul caso `all`).
+- **Stats preview dedicata**: aggiunti `scripts/preview-stats.mjs` e script `npm run preview:stats` per screenshot Playwright desktop/mobile della tab `Stats`.
+- **Tab Oggi ridisegnata**: unificati `Riepilogo giornata` + `Settimana` in `Dashboard del giorno`; aggiunti `Timeline pasti` e `Supporto giornata`; mantenuto esplicitamente l'ordine temporale dei pasti.
+- **Greeting definitivo**: ridotte dimensioni e spazi del blocco hero (`tg-hello`, meta row, chip ON/OFF, streak, quote) per renderlo più editoriale e meno dominante rispetto alla dashboard.
+- **Alert fuori dal greeting**: gli alert non vivono più nella hero. Nuovo modello: `signal row` nella dashboard, `context alert` dentro `Focus del momento`, `support alert` dentro `Supporto giornata`.
+- **Alert cliccabili**: i segnali nella dashboard possono portare al punto di risoluzione; esempio integratori → `revealTodaySupplement(id)` evidenzia il blocco corretto nel support panel.
+- **Integratori spostati da Piano a Oggi**: rimossa la sezione Integratori dalla tab `Piano`; `Supporto giornata` ora contiene mini manager completo per segnare, aggiungere e disattivare integratori (`renderSuppToday()` + form inline `supp-form`).
+- **Preview-first workflow confermato**: per redesign su `Today` e `Stats` è stato usato sistematicamente Playwright (`preview:today` / `preview:stats`) prima di considerare chiuso ogni sprint.
+
+### Sessione 15 — Completion model, preview live e cleanup tab Oggi (2026-03-20)
+- **Completion model reale**: giorno compilato solo con attività concrete (`foodLog`, acqua, integratori). `S.checked`/checkbox pasti non guidano più streak, calendario, progress o alert
+- **`getDayCompletion()` introdotta**: fonte unica per progress della giornata, calendario e streak. `doneByDate` salva anche `activityCount`, `hasActivity`, `suppDone`, `waterCount`, `hasTypeOverride`
+- **Extra meals robuste**: `merenda/spuntino` contano anche quando presenti solo nel log reale, non solo in `extraMealsActive`
+- **Override ON/OFF persistente**: il cambio ON/OFF resta salvato anche senza attività; il calendario mostra il dot arancione di override senza contare il giorno come completato
+- **Score rimosso**: eliminati `calcWeekScore()`, tooltip score e riferimenti UI correlati
+- **Alert engine rivisto**: fasi temporali (`early/morning/midday/late/end`), supplementi due/overdue, alert combinato "piu fronti", CTA integrate nel greeting
+- **Focus del momento**: include extra meals, ora ha un solo CTA verso il pasto e un insight stateful sul pasto; rimosse shortcut acqua/creatina
+- **Card vuota rimossa**: eliminato lo stato vuoto "Oggi e ancora da accendere"
+- **Preview live**: aggiunti `live-preview.html`, `preview-state.example.json`, watch endpoint `/__preview_status` in `server.py`, memoria di tab/scroll e refresh solo su file change
 
 ### Sessione 14 — Ricerca cibi: ranking, whole-food, UI e barcode polish (2026-03-19)
 - **Greeting tab Oggi compattato**: data spostata accanto ai badge nel `tg-head-row` e spacing ridotto per evitare vuoti tra data e saluto.
@@ -198,7 +240,7 @@ App accessibile su: `http://localhost:8788`
 
 ### Sessione 3 — Breathing room & UX (2026-03-18)
 - **Card calendario+macro**: `.today-section-card` wrappa `.cal-nav` + `.week-cal` + `.macro-strip`
-- **Alert slim**: `alert_()` produce `.alert-slim` con `.alert-dot`. Alert SOLO dopo le 20:00 o date passate
+- **Alert slim**: rimossi dalla view Oggi perché ridondanti rispetto agli alert già presenti nel greeting
 - **BMI pill inline**: BMI/BMR/TDEE in unica pill `.tg-bmi-pill` nella riga `.tg-extras`. Mini-card row rimossa
 - `.nav` diventa `position:sticky;top:0` — non serve più `margin-top` su `.view`
 - Meal card in today mode: `.mc-pills` non renderizzate (ridondanti). In edit mode restano

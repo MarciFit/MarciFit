@@ -17,13 +17,13 @@ window.onerror = function(msg, src, line, col, err) {
 const S = {
   day: 'on',
   planTab: 'on',
-  checked: {},
   altSel: {},
   weightLog: [],
   notes: {},
   noteSearch: '',
   profHist: {},
   doneByDate: {},
+  statsRange: '30d',
   calOffset: 0,
   selDate: null,
   onDays: [1, 3, 5],
@@ -44,6 +44,10 @@ const S = {
   favoriteFoods: [], // cibi preferiti per i suggerimenti smart alert serali
   foodLog:   {},
   extraMealsActive: {},  // { 'dateKey': { merenda: true, spuntino: true } } — per-day, not persistent
+  mealPlanner: {
+    on: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
+    off:{ mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
+  },
   templates: [
     {id:'t1',name:'Colazione standard',tag:'colazione',mealType:'colazione',items:[
       {name:'Yogurt greco 0%',brand:'Fage',grams:200,kcal100:57,p100:10,c100:3.5,f100:0.2},
@@ -159,45 +163,96 @@ const S = {
     ],
   },
 };
-function toggleCheck(key) {
-  // key format: 'on-0' or 'off-0'
-  const keyType = key.startsWith('on-') ? 'on' : 'off';
-  const ON_SET  = new Set(S.onDays);
-  const selDow  = S.selDate ? new Date(S.selDate + 'T12:00:00').getDay() : new Date().getDay();
-  const scheduledType = ON_SET.has(selDow) ? 'on' : 'off';
+const TODAY_GREETING_REFRESH_MS = 30000;
+let _todayGreetingTimer = null;
 
-  // Mismatch: trying to check a meal type that differs from scheduled day type
-  if (keyType !== scheduledType) {
-    const mealTypeLabel = keyType === 'on' ? 'ON (allenamento)' : 'OFF (riposo)';
-    const dayTypeLabel  = scheduledType === 'on' ? 'ON (allenamento)' : 'OFF (riposo)';
-    const dateLabel     = S.selDate
-      ? new Date(S.selDate + 'T12:00:00').toLocaleDateString('it-IT', {weekday:'long', day:'numeric', month:'long'})
-      : 'oggi';
-    showDayModal({
-      icon: keyType === 'on' ? '🟢 ' : '🟡 ',
-      title: `Piano ${mealTypeLabel} su giorno ${dayTypeLabel}`,
-      body:  `Stai spuntando un pasto del piano <strong>${mealTypeLabel}</strong>, ma <strong>${dateLabel}</strong> · programmato come giorno <strong>${dayTypeLabel}</strong>.<br><br>Puoi procedere comunque · il calendario aggiornerà questo giorno come <strong>${mealTypeLabel}</strong>.`,
-      onConfirm: () => {
-        // Switch to the meal's type so syncDoneByDate counts the right plan
-        S.day = keyType;
-        S.planTab = keyType;
-        document.getElementById('ds-on').className  = 'ds-btn' + (keyType==='on' ?' on':'');
-        document.getElementById('ds-off').className = 'ds-btn' + (keyType==='off'?' off':'');
-        document.getElementById('pt-on').className  = 'pt on'  + (keyType==='on' ?' active':'');
-        document.getElementById('pt-off').className = 'pt off' + (keyType==='off'?' active':'');
-        S.checked[key] = !S.checked[key];
-        syncDoneByDate();
-        save();
-        renderToday();
-      }
-    });
+function pulseTodayElement(selector, className = 'ui-bump') {
+  requestAnimationFrame(() => {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    el.classList.remove(className);
+    void el.offsetWidth;
+    el.classList.add(className);
+    setTimeout(() => el.classList.remove(className), 700);
+  });
+}
+function revealTodayElement(selector, className = 'ui-glow') {
+  requestAnimationFrame(() => {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    pulseTodayElement(selector, className);
+  });
+}
+function performAfterReveal(selector, action, { className = 'ui-glow', delay = 360, fallbackSelector = null } = {}) {
+  requestAnimationFrame(() => {
+    const el = document.querySelector(selector) || (fallbackSelector ? document.querySelector(fallbackSelector) : null);
+    if (!el) {
+      action?.();
+      return;
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => {
+      action?.();
+      pulseTodayElement(selector, className);
+      if (fallbackSelector) pulseTodayElement(fallbackSelector, className);
+    }, delay);
+  });
+}
+function addWaterAndReveal(delta = 1) {
+  if (delta <= 0) {
+    addWater(delta);
     return;
   }
+  performAfterReveal('#water-widget .water-widget', () => addWater(delta), { className: 'ui-glow', delay: 430 });
+}
+function toggleSuppAndReveal(id) {
+  performAfterReveal(
+    `[data-supp-id="${id}"]`,
+    () => toggleSupp(id),
+    { className: 'ui-glow', delay: 320, fallbackSelector: '#current-meal-focus .current-meal-focus' }
+  );
+}
+function revealTodaySupplement(id) {
+  performAfterReveal(
+    `[data-supp-id="${id}"]`,
+    null,
+    { className: 'ui-glow', delay: 120, fallbackSelector: '#supp-today' }
+  );
+}
 
-  S.checked[key] = !S.checked[key];
-  syncDoneByDate();
-  save();
-  renderToday();
+function refreshTodayGreetingOnly() {
+  const todayView = document.getElementById('view-today');
+  if (!todayView || !todayView.classList.contains('active')) return;
+  if (typeof renderGreeting !== 'function') return;
+  renderGreeting(S.day, new Date());
+}
+function stopTodayGreetingAutoRefresh() {
+  if (_todayGreetingTimer) {
+    clearInterval(_todayGreetingTimer);
+    _todayGreetingTimer = null;
+  }
+}
+function startTodayGreetingAutoRefresh() {
+  stopTodayGreetingAutoRefresh();
+  const todayView = document.getElementById('view-today');
+  if (!todayView || !todayView.classList.contains('active')) return;
+  if (document.visibilityState === 'hidden') return;
+  _todayGreetingTimer = setInterval(() => {
+    refreshTodayGreetingOnly();
+  }, TODAY_GREETING_REFRESH_MS);
+}
+function syncTodayGreetingAutoRefresh() {
+  if (document.visibilityState === 'hidden') {
+    stopTodayGreetingAutoRefresh();
+    return;
+  }
+  startTodayGreetingAutoRefresh();
+}
+function syncLoggedMealState(dateKey, mealIdx, type = S.day) {
+  const isMealIndex = typeof mealIdx === 'number' || typeof mealIdx === 'string';
+  if (!isMealIndex) return;
+  syncDoneByDate(dateKey, type);
 }
 let _modalConfirmFn = null;
 function showDayModal({icon, title, body, onConfirm, danger = false, noButtons = false}) {
@@ -225,35 +280,37 @@ function closeDayModal() {
   document.getElementById('day-modal-ov').style.display = 'none';
   _modalConfirmFn = null;
 }
-function clearChecks() {
-  const type = S.day;
-  S.meals[type].forEach((_,i) => { delete S.checked[`${type}-${i}`]; });
-  syncDoneByDate();
-  save();
-  renderToday();
-}
-function syncDoneByDate() {
-  const dateKey = S.selDate || localDate();
-  const todayKey = localDate();
-  const type = S.day;
-  const total = S.meals[type].length;
+function syncDoneByDate(dateKey = (S.selDate || localDate()), type = S.day) {
+  const info = getDayCompletion(dateKey, type);
+  const scheduledType = getScheduledDayType(dateKey);
+  const resolvedType = type || getTrackedDayType(dateKey, scheduledType);
+  const hasTypeOverride = resolvedType !== scheduledType;
 
-  // S.checked is global (not date-scoped) — only valid for today.
-  // For other dates use foodLog to count actually logged meals.
-  const n = (dateKey === todayKey)
-    ? S.meals[type].filter((_,i) => S.checked[`${type}-${i}`]).length
-    : Object.keys(S.foodLog[dateKey] || {}).filter(k => (S.foodLog[dateKey][k]||[]).length > 0).length;
-
-  const dow = new Set(S.onDays);
-  const scheduledType = dow.has(new Date(dateKey + 'T12:00:00').getDay()) ? 'on' : 'off';
-
-  if (n === 0) {
-    // Persist override (done:0) only when type was manually changed vs schedule
-    if (type !== scheduledType) S.doneByDate[dateKey] = { done: 0, total, type };
-    else delete S.doneByDate[dateKey];
-  } else {
-    S.doneByDate[dateKey] = { done: n, total, type };
+  if (!info.hasActivity && !hasTypeOverride) {
+    delete S.doneByDate[dateKey];
+    return;
   }
+
+  S.doneByDate[dateKey] = {
+    done: info.done,
+    total: info.total,
+    type: resolvedType,
+    mealDone: info.mealDone,
+    extraDone: info.extraDone,
+    suppDone: info.suppDone,
+    waterCount: info.waterCount,
+    activityCount: info.activityCount,
+    hasActivity: info.hasActivity,
+    hasTypeOverride,
+  };
+}
+function refreshTodayDerivedViews({ greeting = true, calendar = true, stats = true } = {}) {
+  const active = document.querySelector('.view.active')?.id;
+  if (active === 'view-today') {
+    if (greeting) renderGreeting(S.day, new Date());
+    if (calendar) renderWeekCal(new Date());
+  }
+  if (stats && active === 'view-stats') renderStats();
 }
 function toggleExtraMeal(key) {
   const dateKey = S.selDate || localDate();
@@ -265,7 +322,10 @@ function toggleExtraMeal(key) {
   } else {
     S.extraMealsActive[dateKey][key] = true;
   }
-  save(); renderTodayLog();
+  syncDoneByDate(dateKey, S.day);
+  save();
+  renderTodayLog();
+  refreshTodayDerivedViews();
 }
 function toggleAlts(key) { const el = document.getElementById(`alts-${key}`); if(el) el.classList.toggle('open'); }
 function selAlt(altKey, idx) {
@@ -281,6 +341,136 @@ let _tmplMealType = '';
 function setTmplFilter(tag) { _tmplFilter = tag; renderPiano(); }
 function toggleTmplItems(id) { const el=document.getElementById('ti-'+id); if(el) el.style.display=el.style.display==='none'?'block':'none'; }
 function setPlanTab() {}
+
+function getDefaultPlannerMealIdx(type) {
+  const mealState = getCurrentMealState(type, S.selDate || localDate());
+  if (typeof mealState?.key === 'number') return mealState.key;
+  return 0;
+}
+
+function ensureMealPlannerState(type = S.planTab || 'on') {
+  if (!S.mealPlanner) {
+    S.mealPlanner = {
+      on: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
+      off:{ mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
+    };
+  }
+  if (!S.mealPlanner[type]) {
+    S.mealPlanner[type] = { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] };
+  }
+  const state = S.mealPlanner[type];
+  if (typeof state.mealIdx !== 'number' || !S.meals[type]?.[state.mealIdx]) {
+    state.mealIdx = getDefaultPlannerMealIdx(type);
+  }
+  if (typeof state.prompt !== 'string') state.prompt = '';
+  if (typeof state.useFavorites !== 'boolean') state.useFavorites = true;
+  if (typeof state.useTemplates !== 'boolean') state.useTemplates = true;
+  if (!Array.isArray(state.results)) state.results = [];
+  return state;
+}
+
+function setMealPlannerMeal(type, mealIdx) {
+  const state = ensureMealPlannerState(type);
+  state.mealIdx = Math.max(0, Math.min((S.meals[type] || []).length - 1, parseInt(mealIdx, 10) || 0));
+  save();
+  renderPiano();
+}
+
+function setMealPlannerPrompt(type, value) {
+  const state = ensureMealPlannerState(type);
+  state.prompt = value;
+  saveSoon();
+}
+
+function toggleMealPlannerOption(type, key) {
+  const state = ensureMealPlannerState(type);
+  state[key] = !state[key];
+  save();
+  renderPiano();
+}
+
+function appendMealPlannerPrompt(type, value) {
+  const state = ensureMealPlannerState(type);
+  const clean = String(value || '').trim();
+  if (!clean) return;
+  const parts = state.prompt.split(',').map(x => x.trim()).filter(Boolean);
+  if (!parts.some(p => p.toLowerCase() === clean.toLowerCase())) parts.push(clean);
+  state.prompt = parts.join(', ');
+  save();
+  renderPiano();
+}
+
+function resetMealPlanner(type = S.planTab || 'on') {
+  const state = ensureMealPlannerState(type);
+  state.prompt = '';
+  state.results = [];
+  state.mealIdx = getDefaultPlannerMealIdx(type);
+  save();
+  renderPiano();
+}
+
+function generateMealPlanner() {
+  const type = S.planTab || 'on';
+  const state = ensureMealPlannerState(type);
+  state.results = buildMealPlannerSuggestions(type, state.mealIdx, state.prompt, {
+    useFavorites: state.useFavorites,
+    useTemplates: state.useTemplates,
+  });
+  save();
+  renderPiano();
+}
+
+function applyMealPlannerSuggestion(type, resultIdx) {
+  const state = ensureMealPlannerState(type);
+  const result = state.results?.[resultIdx];
+  const meal = S.meals[type]?.[state.mealIdx];
+  if (!result || !meal) return;
+  meal.items = result.items.map(it => ({ ...it }));
+  save();
+  renderPiano();
+  if ((S.selDate || localDate()) === localDate() && S.day === type) {
+    renderTodayLog();
+  }
+  toast('✅ Pasto aggiornato dal planner');
+}
+
+function loadMealPlannerSuggestionToToday(type, resultIdx) {
+  const state = ensureMealPlannerState(type);
+  const result = state.results?.[resultIdx];
+  const mealIdx = state.mealIdx;
+  const dateKey = localDate();
+  if (!result || typeof mealIdx !== 'number') return;
+  if (S.day !== type) {
+    toast(`⚠️ Oggi è impostato su ${S.day.toUpperCase()}. Passa a ${type.toUpperCase()} per caricare questo suggerimento.`);
+    return;
+  }
+  if (!S.foodLog[dateKey]) S.foodLog[dateKey] = {};
+  if (S.foodLog[dateKey][mealIdx]?.length && !confirm('Sostituire il log attuale di questo pasto con il suggerimento?')) return;
+  S.foodLog[dateKey][mealIdx] = result.items.map(it => ({ ...it }));
+  syncLoggedMealState(dateKey, mealIdx, type);
+  save();
+  goView('today');
+  setTimeout(() => refreshMealCard(type, mealIdx), 60);
+  toast('✅ Suggerimento caricato in Oggi');
+}
+
+function plannerSuggestionToTemplate(type, resultIdx) {
+  const state = ensureMealPlannerState(type);
+  const result = state.results?.[resultIdx];
+  const meal = S.meals[type]?.[state.mealIdx];
+  if (!result || !meal?.name) return;
+  const mealType = getMealTypeFromName(meal.name) || 'altro';
+  S.templates.push({
+    id: 't' + Date.now(),
+    name: `${meal.name} smart`,
+    tag: mealType,
+    mealType,
+    items: result.items.map(it => ({ ...it })),
+  });
+  save();
+  renderPiano();
+  toast('✅ Suggerimento salvato come template');
+}
 
 function setTmplMealType(type) {
   _tmplMealType = type;
@@ -395,6 +585,7 @@ function loadTemplateToLog(tmplId) {
   if (S.foodLog[dateKey][idx]?.length && !confirm('Aggiungere al log esistente?')) return;
   if (!S.foodLog[dateKey][idx]) S.foodLog[dateKey][idx] = [];
   S.foodLog[dateKey][idx].push(...t.items.map(it=>({...it})));
+  syncLoggedMealState(dateKey, idx, type);
   save(); goView('today'); toast(`✅ ${t.name} caricato`);
 }
 function loadTemplateToMeal(tmplId, dateKey, mealIdx) {
@@ -404,6 +595,7 @@ function loadTemplateToMeal(tmplId, dateKey, mealIdx) {
   const existing = S.foodLog[dateKey][mealIdx];
   if (existing.length && !confirm(`Aggiungere "${t.name}" al log esistente?`)) return;
   S.foodLog[dateKey][mealIdx].push(...t.items.map(it=>({...it})));
+  syncLoggedMealState(dateKey, mealIdx, S.day);
   save();
   refreshMealCard(S.day, mealIdx);
   renderMacroStrip(S.day, S.meals[S.day], S.macro[S.day]);
@@ -532,22 +724,26 @@ function setGoalPhase(phase) {
   }
 }
 function toggleSupp(id) {
-  const key = localDate();
+  const key = S.selDate || localDate();
   if (!S.suppChecked[key]) S.suppChecked[key] = [];
   const arr = S.suppChecked[key];
   const idx = arr.indexOf(id);
   if (idx>=0) arr.splice(idx,1); else arr.push(id);
+  syncDoneByDate(key, getTrackedDayType(key));
   save();
   renderSupplements();
   renderSuppToday(); // always update today supp section (cheap, no full re-render)
+  refreshTodayDerivedViews();
 }
 function addWater(delta) {
   const key = S.selDate || localDate();
   if (!S.water) S.water = {};
   const cur = S.water[key] || 0;
   S.water[key] = Math.max(0, Math.min(12, cur + delta));
+  syncDoneByDate(key, getTrackedDayType(key));
   save();
   renderWater();
+  refreshTodayDerivedViews();
 }
 function toggleSuppActive(i) {
   S.supplements[i].active = !S.supplements[i].active;
@@ -602,13 +798,20 @@ function updateLogGramPreview(domKey) {
 
 // Partial update: refresh only a single meal card + macro strip (no full re-render)
 function refreshMealCard(type, mealIdx) {
-  if (typeof mealIdx !== 'number') { renderTodayLog(); return; }
-  const domKey = `${type}-${mealIdx}`;
+  if (typeof mealIdx !== 'number' && typeof mealIdx !== 'string') { renderTodayLog(); return; }
+  const domKey = typeof mealIdx === 'string' ? `extra-${mealIdx}` : `${type}-${mealIdx}`;
   const card   = document.getElementById(`mc-${domKey}`);
-  if (!card) { renderTodayLog(); return; }
+  if (!card) {
+    renderTodayLog();
+    pulseTodayElement(`#mc-${domKey}`);
+    pulseTodayElement('#macro-strip .ms-kcal-card', 'ui-glow');
+    return;
+  }
 
   const tmp = document.createElement('div');
-  tmp.innerHTML = mealCardHTML(type, mealIdx, 'today');
+  tmp.innerHTML = typeof mealIdx === 'string'
+    ? extraMealCardHTML(mealIdx, S.selDate || localDate())
+    : mealCardHTML(type, mealIdx, 'today');
   card.replaceWith(tmp.firstElementChild);
 
   // Update macro strip + progress
@@ -616,21 +819,26 @@ function refreshMealCard(type, mealIdx) {
   const tgt     = S.macro[type];
   renderMacroStrip(type, meals, tgt);
 
-  const dateKey    = S.selDate || localDate();
-  const dayLog     = S.foodLog[dateKey] || {};
-  const loggedCount = meals.filter((_,i) => (dayLog[i]||[]).length > 0).length;
+  const dateKey = S.selDate || localDate();
+  const completion = getDayCompletion(dateKey, type);
+  const mealState = getCurrentMealState(type, dateKey);
+  renderCurrentMealFocus(type, mealState, dateKey);
   const dpLabel = document.getElementById('dp-label');
   const dpFill  = document.getElementById('dp-fill');
-  if (dpLabel) dpLabel.textContent = `${loggedCount} / ${meals.length} pasti`;
-  if (dpFill)  dpFill.style.width  = `${(loggedCount/meals.length)*100}%`;
+  if (dpLabel) dpLabel.textContent = `${completion.done} / ${completion.total} pasti`;
+  if (dpFill)  dpFill.style.width  = `${completion.total ? (completion.done/completion.total)*100 : 0}%`;
+
+  refreshTodayDerivedViews({ greeting: true, calendar: true, stats: true });
+  pulseTodayElement(`#mc-${domKey}`);
+  pulseTodayElement('#macro-strip .ms-kcal-card', 'ui-glow');
 }
 
 function removeLogItem(dateKey, mealIdx, itemIdx) {
   S.foodLog[dateKey]?.[mealIdx]?.splice(itemIdx,1);
   if (!S.foodLog[dateKey]?.[mealIdx]?.length) {
     delete S.foodLog[dateKey]?.[mealIdx];
-    if (typeof mealIdx === 'number') { delete S.checked[S.day + '-' + mealIdx]; syncDoneByDate(); }
   }
+  syncDoneByDate(dateKey, S.day);
   save(); refreshMealCard(S.day, mealIdx);
 }
 
@@ -739,24 +947,43 @@ function _toggleFfForm() {
   form.style.display = hidden ? 'block' : 'none';
   if (btn) btn.style.display = hidden ? 'none' : '';
 }
+function openProfileFavoriteFoods() {
+  closeDayModal();
+  goView('profilo');
+  setTimeout(() => {
+    const foodsCard = document.getElementById('prof-foods-card');
+    const scrollTarget = foodsCard?.closest('.stat-section') || foodsCard;
+    if (scrollTarget) {
+      scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, 80);
+}
 
 function openFoodSuggestion(remK, remP, remC, remF) {
   const suggestion = suggestFood(+remK, +remP, +remC, +remF);
   let bodyHTML = '';
   if (!suggestion || !suggestion.picks.length) {
-    bodyHTML = `<div style="font-size:12px;color:var(--muted);text-align:center;padding:12px 0">
-      Aggiungi <strong>Cibi Preferiti</strong> nel Profilo per ricevere suggerimenti personalizzati.
+    bodyHTML = `<div class="sug-empty-state">
+      <div class="sug-empty-icon">☆</div>
+      <div class="sug-empty-title">Aggiungi cibi preferiti</div>
+      <div class="sug-empty-text">
+        Inserisci nel Profilo alcuni alimenti che mangi spesso e useremo quelli per suggerirti come chiudere i gap di calorie e macro.
+      </div>
+      <button class="sug-empty-cta" onclick="openProfileFavoriteFoods()">Apri Profilo</button>
     </div>`;
   } else {
     const { picks, totalK, totalP, totalC } = suggestion;
     bodyHTML = `
-      <div style="font-size:12px;color:var(--ink2);margin-bottom:12px">
+      <div class="sug-intro">
         Ti mancano circa <strong>${Math.round(+remK)} kcal</strong>${+remP > 10 ? ` e <strong>${(+remP).toFixed(0)}g di proteine</strong>` : ''}.
       </div>
       ${picks.map(p => `
         <div class="sug-food-card">
-          <div class="sug-food-name">${htmlEsc(p.name)}</div>
-          <div class="sug-food-amount">${p.grams}g · porzione suggerita</div>
+          <div class="sug-food-top">
+            <div class="sug-food-name">${htmlEsc(p.name)}</div>
+            <div class="sug-food-chip">${p.grams}g</div>
+          </div>
+          <div class="sug-food-amount">Porzione suggerita</div>
           <div class="sug-food-macros">${p.k} kcal &nbsp;·&nbsp; P ${p.p}g &nbsp;·&nbsp; C ${p.c}g</div>
         </div>`).join('')}
       <div class="sug-total">Totale: ${totalK} kcal &nbsp;·&nbsp; P ${totalP}g &nbsp;·&nbsp; C ${totalC}g</div>`;
@@ -766,7 +993,7 @@ function openFoodSuggestion(remK, remP, remC, remF) {
 
 function clearLogMeal(dateKey, mealIdx) {
   if (S.foodLog[dateKey]) delete S.foodLog[dateKey][mealIdx];
-  if (typeof mealIdx === 'number') { delete S.checked[S.day + '-' + mealIdx]; syncDoneByDate(); }
+  syncDoneByDate(dateKey, S.day);
   save(); refreshMealCard(S.day, mealIdx);
 }
 
@@ -851,6 +1078,7 @@ function loadPlanToLog(dateKey, mealIdx, type) {
   if (!items.length) { toast('⚠️  Piano vuoto'); return; }
   if (!S.foodLog[dateKey]) S.foodLog[dateKey]={};
   S.foodLog[dateKey][mealIdx] = items.map(it=>({...it}));
+  syncLoggedMealState(dateKey, mealIdx, type);
   save(); refreshMealCard(type, mealIdx);
   toast('✅  Piano caricato');
 }
@@ -1447,7 +1675,11 @@ function confirmBarcodeItem() {
     if (!S.foodLog[dateKey]) S.foodLog[dateKey]={};
     if (!S.foodLog[dateKey][mealIdx]) S.foodLog[dateKey][mealIdx]=[];
     S.foodLog[dateKey][mealIdx].push(item);
-    save(); closeBarcode(); toast('✅  '+item.name+' aggiunto'); renderToday();
+    syncLoggedMealState(dateKey, mealIdx, S.day);
+    save();
+    closeBarcode();
+    toast('✅  '+item.name+' aggiunto');
+    refreshMealCard(S.day, mealIdx);
   } else {
     // Template form
     _tmplFormItems.push(item);
@@ -1538,7 +1770,7 @@ function confirmAddSupp() {
   const dose = document.getElementById('sf-dose')?.value.trim() || '---';
   const when = document.getElementById('sf-when')?.value.trim() || 'mattina';
   S.supplements.push({ id:'supp_'+Date.now(), name, dose, when, active:true });
-  save(); renderSupplements(); toggleSuppForm();
+  save(); renderSupplements(); renderSuppToday(); toggleSuppForm();
   toast('✅  Integratore aggiunto');
 }
 function renderMeasCompare() {
@@ -1585,7 +1817,6 @@ function checkWeeklyCheckin() {
   if (S.lastCheckin === todayStr) return;
 
   const streak = calcStreak();
-  const score  = calcWeekScore();
   const lastW  = S.weightLog.length ? S.weightLog[S.weightLog.length-1].val : null;
   const startW = S.weightLog.length ? S.weightLog[0].val : null;
   const delta  = (lastW&&startW) ? (lastW-startW).toFixed(1) : null;
@@ -1598,7 +1829,6 @@ function checkWeeklyCheckin() {
     : 'Settimana completata!';
 
   const lines = [];
-  if (score > 0) lines.push(`Score settimana: <strong>${score}/100</strong>`);
   if (streak > 0) lines.push(`Streak attuale: <strong>${streak} giorni</strong> consecutivi`);
   if (delta !== null) lines.push(`Peso: <strong>${+delta>0?'+':''}${delta} kg</strong> dall'inizio`);
   lines.push('Vuoi registrare il peso di questa settimana?');
@@ -1692,14 +1922,23 @@ function goView(name) {
   if (name==='stats')   renderStats();
   if (name==='profilo') renderProfile();
   if (name==='today')   renderToday();
+  syncTodayGreetingAutoRefresh();
 }
 
 function setPianoDay(type) {
   S.planTab = type;
+  ensureMealPlannerState(type);
   document.getElementById('pt-on').className  = 'pt on'  + (type==='on' ?' active':'');
   document.getElementById('pt-off').className = 'pt off' + (type==='off'?' active':'');
   save();
   renderPiano();
+}
+
+function setStatsRange(range) {
+  const allowed = new Set(['7d', '30d', '8w', 'all']);
+  S.statsRange = allowed.has(range) ? range : '30d';
+  save();
+  if (document.querySelector('.view.active')?.id === 'view-stats') renderStats();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2132,10 +2371,16 @@ function initAll() {
   ];
   if (!S.suppChecked) S.suppChecked = {};
   if (!S.doneByDate)  S.doneByDate  = {};
+  if (!['7d', '30d', '8w', 'all'].includes(S.statsRange)) S.statsRange = '30d';
   if (!S.foodCache)   S.foodCache   = {};
   if (!S.foodLog)     S.foodLog     = {};
   if (!S.templates)   S.templates   = [];
+  if (!S.mealPlanner) S.mealPlanner = {
+    on: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
+    off:{ mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
+  };
   if (!S.foodLog)     S.foodLog     = {};
+  if (S.checked) delete S.checked;
   // Migrazione: backfill mealType da tag per template salvati in precedenza
   S.templates.forEach(t => {
     if (!t.mealType && t.tag) {
@@ -2205,6 +2450,8 @@ function initAll() {
   save(); // salva subito con le icone aggiornate
 
   S.planTab = S.day;
+  ensureMealPlannerState('on');
+  ensureMealPlannerState('off');
   document.getElementById('pt-on').className  = 'pt on'  + (S.day==='on' ?' active':'');
   document.getElementById('pt-off').className = 'pt off' + (S.day==='off'?' active':'');
   setDay(S.day);
@@ -2214,6 +2461,8 @@ function initAll() {
   if (hadSaved) toast('✅  Dati ripristinati');
 }
 initAll();
+syncTodayGreetingAutoRefresh();
+document.addEventListener('visibilitychange', syncTodayGreetingAutoRefresh);
 
 // ── Keyboard detection: nasconde la bottom tab bar quando la tastiera è aperta ──
 // Usa visualViewport (più affidabile su iOS Safari rispetto a focusin/focusout)

@@ -28,9 +28,9 @@ function loadSaved() {
     const USER_KEYS = [
       'checked','altSel','weightLog','notes','noteSearch','profHist',
       'profilo','anagrafica','macro','meals','alts','onDays','calOffset','selDate',
-      'doneByDate','measurements','goal','supplements','suppChecked',
+      'doneByDate','measurements','goal','supplements','suppChecked','statsRange',
       'lastCheckin','foodCache','foodLog','templates','customFoods','water',
-      'favoriteFoods'
+      'favoriteFoods','mealPlanner'
     ];
     USER_KEYS.forEach(k => { if (k in saved) S[k] = saved[k]; });
 

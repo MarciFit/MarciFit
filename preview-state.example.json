@@ -1,0 +1,26 @@
+{
+  "day": "on",
+  "planTab": "on",
+  "selDate": null,
+  "suppChecked": {
+    "2026-03-20": []
+  },
+  "water": {
+    "2026-03-20": 2
+  },
+  "foodLog": {
+    "2026-03-20": {
+      "0": [
+        {
+          "name": "Yogurt greco",
+          "brand": "Fage",
+          "grams": 200,
+          "kcal100": 57,
+          "p100": 10,
+          "c100": 3.5,
+          "f100": 0.2
+        }
+      ]
+    }
+  }
+}

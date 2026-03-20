@@ -110,6 +110,71 @@ function localDate(d) {
   return `${y}-${m}-${dd}`;
 }
 
+function getScheduledDayType(dateKey) {
+  const ON_SET = new Set(S.onDays || []);
+  const baseDate = dateKey ? new Date(dateKey + 'T12:00:00') : new Date();
+  return ON_SET.has(baseDate.getDay()) ? 'on' : 'off';
+}
+
+function getTrackedDayType(dateKey, fallbackType) {
+  return S.doneByDate?.[dateKey]?.type || fallbackType || getScheduledDayType(dateKey);
+}
+
+function getDayCompletion(dateKey, type) {
+  const key = dateKey || localDate();
+  const dayType = getTrackedDayType(key, type);
+  const meals = S.meals?.[dayType] || [];
+  const dayLog = S.foodLog?.[key] || {};
+  const extraActive = S.extraMealsActive?.[key] || {};
+  const extraLogKeys = Object.keys(dayLog).filter(logKey => Number.isNaN(Number(logKey)));
+  const extraKeys = Array.from(new Set([...Object.keys(extraActive), ...extraLogKeys]));
+
+  const mealDone = meals.filter((_, i) => (dayLog[i] || []).length > 0).length;
+  const extraDone = extraKeys.filter(extraKey => (dayLog[extraKey] || []).length > 0).length;
+  const done = mealDone + extraDone;
+  const total = meals.length + extraKeys.length;
+  const suppDone = ((S.suppChecked && S.suppChecked[key]) || []).length;
+  const waterCount = (S.water && S.water[key]) || 0;
+  const activityCount = done + (suppDone > 0 ? 1 : 0) + (waterCount > 0 ? 1 : 0);
+
+  return {
+    key,
+    type: dayType,
+    mealDone,
+    extraDone,
+    done,
+    total,
+    suppDone,
+    waterCount,
+    activityCount,
+    hasMealsLogged: done > 0,
+    hasActivity: activityCount > 0,
+  };
+}
+
+function getMealPlannerTarget(type, mealIdx) {
+  const meals = S.meals?.[type] || [];
+  const meal = meals[mealIdx];
+  const daily = S.macro?.[type];
+  if (!meal || !daily) return null;
+  const totals = meals.reduce((acc, currentMeal) => {
+    const mm = mealMacros(currentMeal);
+    acc.k += mm.kcal;
+    acc.p += mm.p;
+    acc.c += mm.c;
+    acc.f += mm.f;
+    return acc;
+  }, { k: 0, p: 0, c: 0, f: 0 });
+  const mealMac = mealMacros(meal);
+  const ratio = totals.k > 0 ? daily.k / totals.k : 1;
+  return {
+    k: Math.round(mealMac.kcal * ratio),
+    p: Math.round(mealMac.p * ratio * 10) / 10,
+    c: Math.round(mealMac.c * ratio * 10) / 10,
+    f: Math.round(mealMac.f * ratio * 10) / 10,
+  };
+}
+
 function htmlEsc(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
@@ -149,6 +214,147 @@ function mealIngrText(meal) {
   return meal?.ingr || '–';
 }
 
+function normalizePlannerName(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function plannerCloneItem(item, grams) {
+  return {
+    name: item.name,
+    brand: item.brand || '',
+    grams,
+    kcal100: item.kcal100,
+    p100: item.p100 || 0,
+    c100: item.c100 || 0,
+    f100: item.f100 || 0,
+  };
+}
+
+function plannerGapScore(target, macros) {
+  if (!target) return 9999;
+  return (
+    Math.abs((target.k || 0) - (macros.kcal || 0)) * 1.2 +
+    Math.abs((target.p || 0) - (macros.p || 0)) * 10 +
+    Math.abs((target.c || 0) - (macros.c || 0)) * 7 +
+    Math.abs((target.f || 0) - (macros.f || 0)) * 9
+  );
+}
+
+function plannerDelta(target, macros) {
+  return {
+    k: Math.round(((macros.kcal || 0) - (target.k || 0)) * 10) / 10,
+    p: Math.round(((macros.p || 0) - (target.p || 0)) * 10) / 10,
+    c: Math.round(((macros.c || 0) - (target.c || 0)) * 10) / 10,
+    f: Math.round(((macros.f || 0) - (target.f || 0)) * 10) / 10,
+  };
+}
+
+function plannerFindFoodsByPrompt(prompt) {
+  const parts = String(prompt || '')
+    .split(',')
+    .map(x => x.trim())
+    .filter(Boolean)
+    .slice(0, 6);
+  if (!parts.length) return [];
+  const picked = new Map();
+  parts.forEach(part => {
+    const queryCtx = buildFoodQueryContext(part);
+    const matches = dedupeFoodResults([
+      ...(S.favoriteFoods || []).map(f => ({ ...f, src: 'favorite' })),
+      ...(S.customFoods || []).map(f => ({ ...f, src: 'local' })),
+      ...FOOD_DB.map(f => ({ ...f, src: 'local' })),
+      ...getRecentFoods(queryCtx),
+    ].filter(item => hasQueryMatch(item, queryCtx)), queryCtx, 4);
+    matches.forEach(match => {
+      const key = `${normalizePlannerName(match.name)}|${Math.round(match.kcal100 || 0)}`;
+      if (!picked.has(key)) picked.set(key, match);
+    });
+  });
+  return Array.from(picked.values());
+}
+
+function plannerSuggestPortion(food, target, existingItems) {
+  const options = Array.from(new Set([
+    food.typicalGrams || food.grams || 100,
+    40, 60, 80, 100, 120, 150, 180, 200, 250, 300,
+  ])).filter(g => g >= 20 && g <= 400);
+  let best = { grams: 100, score: Infinity };
+  options.forEach(grams => {
+    const macros = mealMacros({ items: [...existingItems, plannerCloneItem(food, grams)] });
+    const score = plannerGapScore(target, macros);
+    if (score < best.score) best = { grams, score };
+  });
+  return best.grams;
+}
+
+function plannerBuildFromFoods(target, foods, title, summary, baseItems = []) {
+  const items = baseItems.map(it => ({ ...it }));
+  const used = new Set(items.map(it => normalizePlannerName(it.name)));
+  const pool = foods.filter(food => !used.has(normalizePlannerName(food.name)));
+  for (let i = 0; i < pool.length && items.length < 5; i++) {
+    const food = pool[i];
+    const grams = plannerSuggestPortion(food, target, items);
+    if (grams < 20) continue;
+    const candidate = plannerCloneItem(food, grams);
+    const before = plannerGapScore(target, mealMacros({ items }));
+    const afterItems = [...items, candidate];
+    const after = plannerGapScore(target, mealMacros({ items: afterItems }));
+    if (after < before || items.length === 0) {
+      items.push(candidate);
+      used.add(normalizePlannerName(food.name));
+    }
+    if (plannerGapScore(target, mealMacros({ items })) < 85) break;
+  }
+  const macros = mealMacros({ items });
+  return {
+    title,
+    summary,
+    items,
+    macros,
+    delta: plannerDelta(target, macros),
+    score: Math.max(1, Math.round(100 - plannerGapScore(target, macros) / 18)),
+  };
+}
+
+function buildMealPlannerSuggestions(type, mealIdx, prompt, opts = {}) {
+  const target = getMealPlannerTarget(type, mealIdx);
+  const meal = S.meals?.[type]?.[mealIdx];
+  if (!target || !meal) return [];
+  const mealType = getMealTypeFromName(meal.name || '');
+  const queryText = String(prompt || '').trim();
+  const queryCtx = buildFoodQueryContext(queryText || meal.name || '');
+  const promptFoods = plannerFindFoodsByPrompt(queryText);
+  const favoriteFoods = (opts.useFavorites ? (S.favoriteFoods || []) : []).map(f => ({ ...f, src: 'favorite' }));
+  const pool = dedupeFoodResults([
+    ...promptFoods,
+    ...favoriteFoods,
+    ...getRecentFoods(queryCtx),
+  ], queryCtx, 12);
+
+  const templateResults = (opts.useTemplates ? (S.templates || []) : [])
+    .filter(t => {
+      if (!mealType) return true;
+      return String(t.mealType || t.tag || '').toLowerCase().includes(mealType);
+    })
+    .slice(0, 3)
+    .map(t => plannerBuildFromFoods(
+      target,
+      pool,
+      t.name,
+      'Base template rifinita sul target del pasto',
+      (t.items || []).map(it => ({ ...it }))
+    ));
+
+  const promptResult = pool.length
+    ? [plannerBuildFromFoods(target, pool, 'Combinazione smart', 'Costruita da input utente, preferiti e alimenti recenti')]
+    : [];
+
+  return [...templateResults, ...promptResult]
+    .filter(result => result.items.length)
+    .sort((a, b) => plannerGapScore(target, a.macros) - plannerGapScore(target, b.macros))
+    .slice(0, 3);
+}
+
 // Risolve il pasto effettivo (con alternativa selezionata se presente)
 // key è sempre String(i) – condivisa tra ON e OFF
 function effMeal(type, i) {
@@ -173,7 +379,8 @@ function calcStreak() {
   const d = new Date();
   for (let i = 0; i < 365; i++) {
     const key = localDate(d);
-    if (S.doneByDate[key] && S.doneByDate[key].done > 0) {
+    const info = S.doneByDate[key];
+    if (info && (info.activityCount || 0) > 0) {
       streak++;
       d.setDate(d.getDate() - 1);
     } else if (i === 0) {
@@ -184,32 +391,6 @@ function calcStreak() {
   return streak;
 }
 
-function calcWeekScore() {
-  // Score 0-100: pasti completati 50%, ON rispettati 30%, note inserite 20%
-  const now = new Date();
-  const dow = now.getDay();
-  const mondayOff = dow === 0 ? -6 : 1 - dow;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + mondayOff);
-  monday.setHours(0, 0, 0, 0);
-  const ON_SET = new Set(S.onDays);
-  let mealPts = 0, onPts = 0, notePts = 0, days = 0;
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    if (d > now) break;
-    const key = localDate(d);
-    days++;
-    const info = S.doneByDate[key];
-    if (info) { mealPts += info.done / info.total; }
-    const scheduled = ON_SET.has(d.getDay()) ? 'on' : 'off';
-    if (info && info.type === scheduled) onPts++;
-    if (S.notes[key]) notePts++;
-  }
-  if (!days) return 0;
-  return Math.round((mealPts / days) * 50 + (onPts / days) * 30 + (notePts / days) * 20);
-}
-
 function calcAdherence(daysBack = 28) {
   let count = 0, total = 0;
   const d = new Date();
@@ -218,7 +399,7 @@ function calcAdherence(daysBack = 28) {
     if (new Date(key + 'T12:00:00') <= new Date()) {
       total++;
       const info = S.doneByDate[key];
-      if (info && info.done >= Math.ceil(info.total * 0.75)) count++;
+      if (info && info.total > 0 && info.done >= Math.ceil(info.total * 0.75)) count++;
     }
     d.setDate(d.getDate() - 1);
   }
@@ -1024,11 +1205,7 @@ function onLogFoodSearch(input, dateKey, mealIdx, domKey) {
             if (!S.foodLog[dateKey]) S.foodLog[dateKey] = {};
             if (!S.foodLog[dateKey][mealIdx]) S.foodLog[dateKey][mealIdx] = [];
             S.foodLog[dateKey][mealIdx].push(confirmed);
-            // Auto-check: primo alimento loggato → pasto completato (solo pasti regolari)
-            if (typeof mealIdx === 'number') {
-              const autoKey = S.day + '-' + mealIdx;
-              if (!S.checked[autoKey]) { S.checked[autoKey] = true; syncDoneByDate(); }
-            }
+            syncLoggedMealState(dateKey, mealIdx, S.day);
             save();
             input.value = '';
             resEl.innerHTML = '';

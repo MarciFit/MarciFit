@@ -1,0 +1,20 @@
+{
+  "name": "marcifit",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "preview:serve": "python3 server.py",
+    "preview:live": "python3 server.py",
+    "preview:today": "node scripts/preview-today.mjs",
+    "preview:stats": "node scripts/preview-stats.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "playwright": "^1.58.2"
+  }
+}

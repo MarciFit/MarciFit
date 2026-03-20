@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>MarciFit Live Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f4efe7;
+    --panel:#fffdf8;
+    --panel-2:#f8f3ea;
+    --line:#dccfbd;
+    --line-strong:#cbb69f;
+    --text:#2f2419;
+    --muted:#7a6655;
+    --accent:#1f6f5f;
+    --accent-soft:#e1f0eb;
+    --shadow:0 18px 50px rgba(63,42,21,.12);
+    --radius:22px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    min-height:100vh;
+    font-family:'Manrope',sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(circle at top left, rgba(255,255,255,.85), rgba(255,255,255,0) 35%),
+      linear-gradient(160deg, #efe7dc 0%, #f6f1e9 52%, #ece4d7 100%);
+  }
+  .shell{
+    display:grid;
+    grid-template-columns:340px minmax(0,1fr);
+    gap:22px;
+    padding:24px;
+    min-height:100vh;
+  }
+  .panel,
+  .stage{
+    background:rgba(255,253,248,.88);
+    border:1px solid rgba(203,182,159,.7);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    backdrop-filter:blur(10px);
+  }
+  .panel{
+    padding:24px 22px;
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+  }
+  .stage{
+    padding:18px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .eyebrow{
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--accent);
+  }
+  h1{
+    margin:6px 0 8px;
+    font:600 30px/1.05 'Lora',serif;
+  }
+  .lede{
+    margin:0;
+    color:var(--muted);
+    font-size:13px;
+    line-height:1.65;
+  }
+  .group{
+    display:grid;
+    gap:10px;
+  }
+  .group-title{
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .segmented{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .segmented button,
+  .btn{
+    border:none;
+    border-radius:999px;
+    background:var(--panel-2);
+    color:var(--text);
+    padding:10px 14px;
+    font:700 12px/1 'Manrope',sans-serif;
+    cursor:pointer;
+    transition:transform .18s ease, box-shadow .18s ease, background .18s ease, color .18s ease;
+  }
+  .segmented button:hover,
+  .btn:hover{
+    transform:translateY(-1px);
+  }
+  .segmented button.active,
+  .btn.primary{
+    background:linear-gradient(135deg, #235a4e 0%, #2f7d6a 100%);
+    color:#fff;
+    box-shadow:0 10px 24px rgba(33,96,82,.22);
+  }
+  .btn.secondary{
+    background:#f1e9dd;
+    border:1px solid var(--line);
+  }
+  .control-row{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .status-card{
+    padding:14px 16px;
+    border:1px solid var(--line);
+    border-radius:18px;
+    background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(248,243,234,.92));
+  }
+  .status-line{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    font-size:12px;
+    margin-bottom:8px;
+  }
+  .status-line:last-child{margin-bottom:0}
+  .status-label{color:var(--muted);font-weight:700}
+  .status-value{
+    font-weight:800;
+    text-align:right;
+  }
+  .code{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+  }
+  .tick{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:12px 14px;
+    border-radius:16px;
+    border:1px solid var(--line);
+    background:#fffcf6;
+  }
+  .tick input{
+    width:16px;
+    height:16px;
+    accent-color:var(--accent);
+  }
+  .tick span{
+    font-size:12px;
+    font-weight:700;
+  }
+  .hint{
+    margin:0;
+    padding:12px 14px;
+    border-radius:16px;
+    background:var(--accent-soft);
+    color:#28574c;
+    font-size:12px;
+    line-height:1.6;
+  }
+  .viewport-shell{
+    margin:0 auto;
+    width:min(100%, 1500px);
+    transition:max-width .25s ease;
+  }
+  .viewport-shell.desktop{max-width:1440px}
+  .viewport-shell.tablet{max-width:900px}
+  .viewport-shell.mobile{max-width:430px}
+  .frame-topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:12px 14px;
+    background:#f8f3ea;
+    border:1px solid var(--line);
+    border-radius:18px;
+  }
+  .frame-dots{
+    display:flex;
+    gap:8px;
+  }
+  .frame-dots span{
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    background:#d7c4af;
+  }
+  .frame-title{
+    color:var(--muted);
+    font-size:12px;
+    font-weight:700;
+  }
+  iframe{
+    width:100%;
+    height:calc(100vh - 110px);
+    border:none;
+    border-radius:24px;
+    background:#fff;
+    box-shadow:0 14px 40px rgba(54,37,17,.14);
+  }
+  @media (max-width: 1080px){
+    .shell{grid-template-columns:1fr}
+    .panel{order:2}
+    .stage{order:1}
+  }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="panel">
+      <div>
+        <div class="eyebrow">Realtime Preview</div>
+        <h1>Live preview della app</h1>
+        <p class="lede">Tieni aperta questa pagina mentre lavoro: l’iframe ricarica automaticamente l’app e puoi vedere subito refresh, check estetici e modifiche CSS senza aspettare screenshot manuali.</p>
+      </div>
+
+      <div class="group">
+        <div class="group-title">Viewport</div>
+        <div class="segmented" id="viewport-controls">
+          <button type="button" data-viewport="desktop" class="active">Desktop</button>
+          <button type="button" data-viewport="tablet">Tablet</button>
+          <button type="button" data-viewport="mobile">Mobile</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">Refresh</div>
+        <div class="control-row">
+          <button type="button" class="btn primary" id="refresh-now">Refresh ora</button>
+          <button type="button" class="btn secondary" id="toggle-auto">Watch attivo</button>
+        </div>
+        <label class="tick">
+          <input type="checkbox" id="pause-on-interact" checked>
+          <span>Metti in pausa mentre interagisco con la preview</span>
+        </label>
+        <label class="tick">
+          <input type="checkbox" id="use-preview-state">
+          <span>Usa <span class="code">preview-state.json</span> se presente</span>
+        </label>
+      </div>
+
+      <div class="status-card">
+        <div class="status-line">
+          <span class="status-label">Ultimo refresh</span>
+          <span class="status-value" id="last-refresh">Mai</span>
+        </div>
+        <div class="status-line">
+          <span class="status-label">Stato preview</span>
+          <span class="status-value code" id="preview-state-status">Live localStorage</span>
+        </div>
+        <div class="status-line">
+          <span class="status-label">Watch</span>
+          <span class="status-value code" id="watch-status">In ascolto file</span>
+        </div>
+        <div class="status-line">
+          <span class="status-label">URL</span>
+          <span class="status-value code" id="frame-url">/index.html</span>
+        </div>
+      </div>
+
+      <p class="hint">Se vuoi provare scenari specifici, crea <span class="code">preview-state.json</span> nella root del progetto. Quando l’opzione sopra è attiva, la preview carica quello stato nel localStorage dell’app prima di aprire l’iframe.</p>
+    </aside>
+
+    <main class="stage">
+      <div class="frame-topbar">
+        <div class="frame-dots"><span></span><span></span><span></span></div>
+        <div class="frame-title">MarciFit live preview</div>
+      </div>
+      <div class="viewport-shell desktop" id="viewport-shell">
+        <iframe id="preview-frame" title="Live preview MarciFit"></iframe>
+      </div>
+    </main>
+  </div>
+
+<script>
+  const LS_KEY = 'piano_federico_v2';
+  const iframe = document.getElementById('preview-frame');
+  const viewportShell = document.getElementById('viewport-shell');
+  const viewportControls = document.getElementById('viewport-controls');
+  const lastRefresh = document.getElementById('last-refresh');
+  const previewStateStatus = document.getElementById('preview-state-status');
+  const watchStatus = document.getElementById('watch-status');
+  const frameUrl = document.getElementById('frame-url');
+  const usePreviewState = document.getElementById('use-preview-state');
+  const pauseOnInteract = document.getElementById('pause-on-interact');
+  const toggleAuto = document.getElementById('toggle-auto');
+  const refreshNow = document.getElementById('refresh-now');
+
+  let watchEnabled = true;
+  let watchTimer = null;
+  let pausedForInteraction = false;
+  let lastSeenVersion = null;
+  let frameState = {
+    view: 'today',
+    scrollY: 0,
+  };
+
+  function timestampLabel() {
+    return new Date().toLocaleTimeString('it-IT', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }
+
+  function setViewport(mode) {
+    viewportShell.className = 'viewport-shell ' + mode;
+    [...viewportControls.querySelectorAll('button')].forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.viewport === mode);
+    });
+  }
+
+  function captureFrameState() {
+    try {
+      const win = iframe.contentWindow;
+      const doc = iframe.contentDocument;
+      if (!win || !doc) return;
+      const activeView = doc.querySelector('.view.active');
+      frameState = {
+        view: activeView ? activeView.id.replace('view-', '') : frameState.view,
+        scrollY: typeof win.scrollY === 'number' ? win.scrollY : frameState.scrollY,
+      };
+    } catch (err) {}
+  }
+
+  function restoreFrameState() {
+    try {
+      const win = iframe.contentWindow;
+      if (!win) return;
+      if (typeof win.goView === 'function' && frameState.view) {
+        win.goView(frameState.view);
+      }
+      requestAnimationFrame(() => {
+        try {
+          win.scrollTo({ top: frameState.scrollY || 0, behavior: 'auto' });
+        } catch (err) {
+          win.scrollTo(0, frameState.scrollY || 0);
+        }
+      });
+    } catch (err) {}
+  }
+
+  async function applyPreviewState() {
+    if (!usePreviewState.checked) {
+      previewStateStatus.textContent = 'Live localStorage';
+      return;
+    }
+
+    try {
+      const response = await fetch('/preview-state.json?ts=' + Date.now(), { cache: 'no-store' });
+      if (!response.ok) throw new Error('missing');
+      const state = await response.json();
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      previewStateStatus.textContent = 'preview-state.json caricato';
+    } catch (err) {
+      previewStateStatus.textContent = 'preview-state.json non trovato';
+    }
+  }
+
+  async function loadFrame() {
+    captureFrameState();
+    await applyPreviewState();
+    const url = '/index.html?preview=' + Date.now();
+    frameUrl.textContent = url;
+    iframe.src = url;
+    lastRefresh.textContent = timestampLabel();
+  }
+
+  async function checkForChanges() {
+    if (!watchEnabled || pausedForInteraction) return;
+    try {
+      const response = await fetch('/__preview_status?ts=' + Date.now(), { cache: 'no-store' });
+      if (!response.ok) throw new Error('status');
+      const data = await response.json();
+      if (!lastSeenVersion) {
+        lastSeenVersion = data.version;
+        watchStatus.textContent = 'In ascolto file';
+        return;
+      }
+      if (data.version !== lastSeenVersion) {
+        lastSeenVersion = data.version;
+        watchStatus.textContent = data.changed && data.changed.length ? 'Aggiornato: ' + data.changed[0] : 'Aggiornamento rilevato';
+        await loadFrame();
+        return;
+      }
+      watchStatus.textContent = 'In ascolto file';
+    } catch (err) {
+      watchStatus.textContent = 'Watch non disponibile';
+    }
+  }
+
+  function syncWatcher() {
+    clearInterval(watchTimer);
+    if (!watchEnabled || pausedForInteraction) {
+      toggleAuto.textContent = 'Watch fermo';
+      toggleAuto.classList.remove('primary');
+      toggleAuto.classList.add('secondary');
+      watchStatus.textContent = pausedForInteraction ? 'In pausa durante interazione' : 'Watch fermo';
+      return;
+    }
+    toggleAuto.textContent = 'Watch attivo';
+    toggleAuto.classList.remove('secondary');
+    toggleAuto.classList.add('primary');
+    watchStatus.textContent = 'In ascolto file';
+    watchTimer = setInterval(checkForChanges, 1200);
+  }
+
+  viewportControls.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-viewport]');
+    if (!btn) return;
+    setViewport(btn.dataset.viewport);
+  });
+
+  refreshNow.addEventListener('click', () => {
+    loadFrame();
+  });
+
+  toggleAuto.addEventListener('click', () => {
+    watchEnabled = !watchEnabled;
+    syncWatcher();
+  });
+
+  usePreviewState.addEventListener('change', () => {
+    loadFrame();
+  });
+
+  iframe.addEventListener('load', () => {
+    restoreFrameState();
+    try {
+      const frameDoc = iframe.contentDocument;
+      if (!frameDoc) return;
+      frameDoc.addEventListener('pointerdown', () => {
+        if (!pauseOnInteract.checked) return;
+        pausedForInteraction = true;
+        syncWatcher();
+      }, { passive: true });
+      frameDoc.addEventListener('focusin', () => {
+        if (!pauseOnInteract.checked) return;
+        pausedForInteraction = true;
+        syncWatcher();
+      });
+    } catch (err) {}
+  });
+
+  pauseOnInteract.addEventListener('change', () => {
+    if (!pauseOnInteract.checked) {
+      pausedForInteraction = false;
+    }
+    syncWatcher();
+  });
+
+  window.addEventListener('pointermove', () => {
+    if (!pauseOnInteract.checked || !pausedForInteraction) return;
+    pausedForInteraction = false;
+    syncWatcher();
+  }, { passive: true });
+
+  setViewport('desktop');
+  syncWatcher();
+  loadFrame();
+</script>
+</body>
+</html>
