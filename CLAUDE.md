@@ -20,14 +20,16 @@
 
 | File | Righe | Ruolo |
 |---|---|---|
-| `app.js` | ~1725 | State globale (`const S`), event handlers, navigazione, modal, template pasti, food logging, barcode scanner |
-| `uiComponents.js` | ~1295 | Rendering UI, generazione HTML componenti, form helpers |
-| `nutritionLogic.js` | ~565 | Calcolo macro, statistiche, helpers date, database alimenti, integrazione API ricerca OFF |
-| `storage.js` | ~129 | Persistenza localStorage, serializzazione, debouncing save |
-| `style.css` | ~1119 | Design tokens, layout responsive, stili componenti |
-| `index.html` | ~320 | Struttura HTML principale, nav bar, container view |
-| `start.html` | ~4865 | Versione alternativa/completa con stili inline |
-| `diagnostic.html` | — | Tool di debug |
+| `app.js` | ~1875 | State globale (`const S`), event handlers, navigazione, modal, template pasti, meal planner, food logging, barcode scanner |
+| `uiComponents.js` | ~3539 | Rendering UI, componenti HTML, card Today/Piano/Stats/Profilo, form helpers |
+| `nutritionLogic.js` | ~1648 | Calcolo macro, statistiche, helper date, planner pasti, database alimenti, ranking ricerca |
+| `storage.js` | ~174 | Persistenza `localStorage`, import/export JSON/Python, recovery stato |
+| `style.css` | ~3854 | Design tokens, layout responsive, stili completi dell'app |
+| `index.html` | ~401 | Shell principale dell'app, view container, modal, script includes |
+| `barcodeTools.js` | ~931 | Scanner barcode, lookup OFF, integrazione con log/template |
+| `bootstrapTools.js` | ~141 | Migrazioni e normalizzazione stato in bootstrap |
+| `debugTools.js` | ~115 | Debug mode, wrapper fetch, validazione import/storage status |
+| `diagnostic.html` | ~39 | Tool minimale di caricamento script / init |
 
 ### Funzionalità principali
 
@@ -45,7 +47,7 @@
 
 ## Stato Attuale
 
-> Ultima modifica: 2026-03-20 (sessione 21)
+> Ultima modifica: 2026-03-21 (sessione 24)
 
 - Progetto funzionante con le 4 view principali operative
 - **Versioni asset correnti**: `style.css?v=61`, `uiComponents.js?v=60`, `app.js?v=62`, `nutritionLogic.js?v=50`, `storage.js?v=31`, `barcodeTools.js?v=12` — incrementare ad ogni cambio significativo
@@ -70,6 +72,9 @@
 - **Quick actions in Oggi**: blocco azioni rapide sotto la dashboard (`Pasto attuale/prossimo`, `+ Acqua`, `Routine`, `Note`) con micro-contesto utile
 - **Acqua premium animation**: la progress bar della card acqua anima davvero dal valore precedente al successivo con sheen/glow quando si preme `+`
 - **Tooltip piano reali**: gli info button del `Quadro giornaliero` usano `showTip()` con `tip-piano-summary`, non solo il `title` nativo
+- **Smoke suite disponibile**: `smoke:core`, `smoke:dataflow`, `smoke:storage` presenti e tutti verdi in sessione 24
+- **Nota struttura**: `start.html` non è più presente in root; lo sviluppo attuale passa da `index.html` + preview/smoke scripts
+- **Profilo integratori ripristinato**: la tab `Profilo` ha di nuovo il mount `supps-card` e mostra la card dedicata agli integratori
 
 ---
 
@@ -142,8 +147,8 @@ _Nessun bug noto documentato al momento._
 - `S.checked` / checkbox pasti sono da considerare deprecate: non usarle per progress, streak, calendario o alert
 
 ### File `start.html`
-- Versione alternativa con tutto inline — non è il file principale di sviluppo
-- Il file principale è `index.html`
+- Riferimento legacy: il file non è più presente in root
+- Il file principale di sviluppo resta `index.html`
 
 ---
 
@@ -161,6 +166,11 @@ npm run preview:today
 
 # Screenshot desktop/mobile della tab Stats
 npm run preview:stats
+
+# Smoke test principali
+npm run smoke:core
+npm run smoke:dataflow
+npm run smoke:storage
 ```
 
 App accessibile su: `http://localhost:8788`
@@ -189,16 +199,47 @@ App accessibile su: `http://localhost:8788`
 
 > Solo note pendenti, non storico. Rimuovere quando risolte.
 
-- **Tab Oggi — prossima priorità**: le meal card nella `Timeline pasti` sono ancora molto simili tra loro. Sprint successivo consigliato = differenziare meglio `active / started / idle` mantenendo l'ordine temporale invariato.
-- **Tab Piano — prossima priorità**: verificare se `Quadro giornaliero` può essere compattato ancora o ridotto a sola reference + mini-stat, senza reintrodurre ridondanza col planner.
-- **Alert dashboard cliccabili**: i chip nella `Dashboard del giorno` ora possono avere `onclick`; se aggiungi nuovi alert, pensa sempre a una `resolve action` contestuale in `splitTodayAlerts()`.
-- **Integratori**: non stanno più nella tab `Piano`; gestione quotidiana + aggiunta nuovi integratori vive ora in `Supporto giornata` (`renderSuppToday()`). `renderSupplements()` resta usato nel `Profilo`, non in `Piano`.
+- **Smoke integratori/import/edit**: `smoke:core` ora copre mount + add da `Profilo`, coerenza data per `renderSuppToday()` e preview live del modal `edit grammatura`; `smoke:storage` copre anche import con shape `macro` invalida.
 - **Stats preview**: esiste `scripts/preview-stats.mjs` con stato demo ricco; usare `npm run preview:stats` prima di toccare layout/gerarchia della tab `Stats`.
 - **Logo PNG gotcha**: PNG con sfondo opaco — `mix-blend-mode:screen/multiply` non funziona su sfondo beige. Per logo immagine: esportare **sempre PNG con sfondo trasparente**.
 
 ---
 
 ## Storico Sessioni
+
+### Sessione 27 — Rifinitura gram picker + chiusura UX inserimento cibi (2026-03-21)
+- **Gram picker rifatto**: separata visivamente la parte informativa del cibo dalla parte operativa di input grammatura. Ora il pannello mostra brand, badge sorgente/verifica, macro per `100g`, riepilogo live della quantita scelta e area input piu chiara.
+- **UX piu leggibile**: aggiunte emoji anche alle macro del picker, titolo esplicito `Valori nutrizionali per 100g` e gerarchia visiva piu user friendly senza spostare le chips porzione.
+- **Mobile ottimizzato**: ridotti padding e altezza complessiva, macro grid resa piu densa e riga `grammi + kcal + Aggiungi` compressa per recuperare spazio verticale.
+- **Stato finale**: il lavoro sul gram picker e considerato chiuso; eventuali ritocchi futuri sono solo cosmetici minori.
+
+### Sessione 26 — Sgarro controllato settimanale (2026-03-21)
+- **Offset kcal dedicato**: introdotti `cheatMealsByDate` e `cheatConfig` nello stato. Lo sgarro non entra nel `foodLog`, ma alza solo il target kcal del giorno, lasciando invariati i macro target.
+- **Formula automatica**: default a `+12%` del target kcal del giorno, arrotondato a step da 25 kcal e limitato tra `250` e `450` kcal. Limite settimanale iniziale: `2`, con hard cap tecnico `3`.
+- **UI Today + calendario**: aggiunta card `Sgarro controllato` nella sezione supporto, mostrata solo quando lo sgarro e attivo. Il calendario settimanale mostra ora un marker rosso sui giorni con sgarro, riposizionato lontano dalla label `OGGI`.
+- **Attivazione automatica**: se l intake reale supera il target kcal base del giorno di almeno `250 kcal`, lo sgarro si attiva da solo (`source: auto_surplus`) e la card compare nel support panel con spiegazione del trigger.
+- **Persistenza e test**: storage/import validano e persistono i nuovi nodi; `smoke:core` copre add/rimozione sgarro, aggiornamento target kcal, marker calendario e blocco del terzo sgarro nella stessa settimana.
+
+### Sessione 25 — Cache-bust preview + smoke fallback barcode (2026-03-21)
+- **Preview forzata**: bumpati i version tag in `index.html` per `debugTools.js`, `storage.js`, `uiComponents.js`, `app.js` e `barcodeTools.js`, cosi le preview locali ricaricano con certezza gli asset aggiornati dopo gli ultimi fix.
+- **Barcode fallback coperto in smoke**: `smoke:core` ora verifica il caso `NotAllowedError` su `getUserMedia()`, controlla che compaiano testo errore e CTA "Usa ricerca testuale", poi conferma apertura e focus della search inline sul pasto corretto.
+
+### Sessione 24 — Hardening day-type ops + fix edit grammatura (2026-03-21)
+- **Azioni su pasti rese piu consistenti**: aggiunto `resolveDayTypeForDate(dateKey)` in `app.js` e usato per log food, barcode, clear/remove/edit item e caricamento template, cosi sync/rerender non dipendono piu ciecamente da `S.day` quando l'azione nasce da una `dateKey` esplicita.
+- **Edit grammatura davvero live**: rimosso lo script inline dal body del modal `showDayModal()`; la preview kcal usa ora un binder document-level (`bindEditGramPreview()`), compatibile con contenuti inseriti via `innerHTML`.
+- **Smoke core esteso**: aggiunti check sul modal di edit grammatura (`#edit-gram-calc` si aggiorna davvero) oltre ai test gia presenti su integratori.
+
+### Sessione 23 — Fix integratori + hardening import (2026-03-21)
+- **Integratori stabilizzati**: ripristinato il mount `supps-card` in `Profilo`, eliminati gli id duplicati dei form tra `Oggi` e `Profilo`, introdotti scope separati (`today` / `profile`) per apertura e submit.
+- **Data selezionata rispettata**: `renderSuppToday()` legge ora `S.selDate || localDate()`, quindi il support panel resta coerente con il giorno in vista.
+- **Alert macro corretti**: `macroAlerts()` usa finalmente `type` invece di `S.planTab` per i confronti ON/OFF.
+- **Import più sicuro**: validazione JSON estesa a `anagrafica`, `macro`, `goal`, `mealPlanner`, `foodLog`, `supplements` e altri nodi; l'import applica solo chiavi utente note tramite helper condiviso, senza più `Object.assign(S, parsed)` indiscriminato.
+- **Test aggiornati**: `smoke:core`, `smoke:dataflow`, `smoke:storage` verdi; aggiunti check su integratori da `Profilo`, coerenza `S.selDate` e import strutturalmente invalido.
+
+### Sessione 22 — Audit CLAUDE + debugging generico (2026-03-21)
+- **`CLAUDE.md` riallineato**: aggiornati file principali, conteggi indicativi, script utili e nota sul fatto che `start.html` non è più presente in root.
+- **Smoke test confermati**: `npm run smoke:core`, `npm run smoke:dataflow` e `npm run smoke:storage` eseguiti con esito positivo.
+- **Bug documentati**: emersi 4 problemi attuali da prioritizzare subito: form integratori con id duplicati tra `Oggi` e `Profilo`, `Routine integratori` non agganciata a `S.selDate`, `macroAlerts()` che usa `S.planTab` al posto del `type` iterato, validazione import JSON troppo permissiva.
 
 ### Sessione 21 — Testi scanner barcode resi stabili (2026-03-20)
 - **Stage barcode monotoni**: `_setBarcodeScanStage()` in `barcodeTools.js` non permette piu regressi di stato (`quagga` non torna a `full`, `full` non torna a `wide`), evitando il continuo alternarsi dei testi nel modal.

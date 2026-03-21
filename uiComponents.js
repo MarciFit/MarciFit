@@ -51,19 +51,7 @@ function extraMealCardHTML(key, dateKey) {
     </div>`;
   }).join('');
 
-  const logSummary = hasLog ? `<div class="mc-real-intake">
-    <span class="mc-real-label">Apporto reale:</span>
-    <span class="mc-real-values">
-      <span class="mc-real-kcal">${logMacros.kcal} kcal</span>
-      <span class="mc-real-sep">·</span>
-      <span class="mc-real-p">P ${logMacros.p.toFixed(1)}g</span>
-      <span class="mc-real-sep">·</span>
-      <span class="mc-real-c">C ${logMacros.c.toFixed(1)}g</span>
-      <span class="mc-real-sep">·</span>
-      <span class="mc-real-f">G ${logMacros.f.toFixed(1)}g</span>
-    </span>
-  </div>
-  <div class="mc-log-clear-row">
+  const logSummary = hasLog ? `<div class="mc-log-clear-row">
     <button class="mc-log-clear" onclick="clearLogMeal('${dateKey}','${key}');event.stopPropagation()" title="Azzera tutti gli alimenti del pasto" aria-label="Azzera tutti gli alimenti del pasto">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
       <span>Azzera</span>
@@ -157,6 +145,12 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
     const curP = Math.round(_logMac.p);
     const curC = Math.round(_logMac.c);
     const curF = Math.round(_logMac.f);
+    const kcalDelta = curK - dispK;
+    const kcalDeltaAbs = Math.abs(kcalDelta);
+    const kcalDeltaLabel = kcalDelta === 0
+      ? 'in target'
+      : `${kcalDelta > 0 ? '+' : '-'}${kcalDeltaAbs} kcal`;
+    const kcalDeltaCls = kcalDelta > 0 ? 'is-over' : kcalDelta < 0 ? 'is-under' : 'is-even';
     // Always show cur / tgt so every meal card has the same format
     const kcalHTML = `<span class="mc-badge-kcal-cur">${curK}</span><span class="mc-badge-kcal-sep">/</span><span class="mc-badge-kcal-tgt">${dispK} kcal</span>`;
     const macHTML  = `P <span class="mc-badge-mac-cur">${curP}</span><span class="mc-badge-mac-sep">/</span>${dispP}g&thinsp;·&thinsp;C <span class="mc-badge-mac-cur">${curC}</span><span class="mc-badge-mac-sep">/</span>${dispC}g&thinsp;·&thinsp;G <span class="mc-badge-mac-cur">${curF}</span><span class="mc-badge-mac-sep">/</span>${dispF}g`;
@@ -166,7 +160,10 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
           <div class="mc-badge-kicker">Tracking pasto</div>
         </div>
         <div class="mc-badge-main">
-          <div class="mc-badge-kcal">${kcalHTML}</div>
+          <div class="mc-badge-kcal-row">
+            <div class="mc-badge-kcal">${kcalHTML}</div>
+            <div class="mc-badge-delta ${kcalDeltaCls}">${kcalDeltaLabel}</div>
+          </div>
           <div class="mc-badge-macros">${macHTML}</div>
         </div>
       </div>`;
@@ -262,10 +259,6 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
   const todayLogHTML = mode !== 'today' ? '' : (() => {
     const dateKey = S.selDate || localDate();
     const logItems = S.foodLog[dateKey]?.[i] || [];
-    const logMacros = logItems.reduce((acc, it) => {
-      const g = it.grams / 100;
-      return { kcal: acc.kcal + Math.round(it.kcal100*g), p: acc.p + it.p100*g, c: acc.c + it.c100*g, f: acc.f + it.f100*g };
-    }, {kcal:0, p:0, c:0, f:0});
     const hasLog = logItems.length > 0;
 
     const logRows = logItems.map((it, ii) => {
@@ -281,29 +274,12 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
     }).join('');
 
     const logSummary = hasLog
-      ? `<div class="mc-real-intake">
-          <span class="mc-real-label">Apporto reale:</span>
-          <span class="mc-real-values">
-            <span class="mc-real-kcal">${logMacros.kcal} kcal</span>
-            <span class="mc-real-sep">·</span>
-            <span class="mc-real-p">P ${logMacros.p.toFixed(1)}g</span>
-            <span class="mc-real-sep">·</span>
-            <span class="mc-real-c">C ${logMacros.c.toFixed(1)}g</span>
-            <span class="mc-real-sep">·</span>
-            <span class="mc-real-f">G ${logMacros.f.toFixed(1)}g</span>
-          </span>
-        </div>
-        <div class="mc-log-clear-row">
+      ? `<div class="mc-log-clear-row">
           <button class="mc-log-clear" onclick="clearLogMeal('${dateKey}',${i});event.stopPropagation()" title="Azzera tutti gli alimenti del pasto" aria-label="Azzera tutti gli alimenti del pasto">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
             <span>Azzera</span>
           </button>
         </div>` : '';
-    const emptyStateHTML = hasLog ? '' : `<div class="mc-empty-state">
-      <span class="mc-empty-dot"></span>
-      <span class="mc-empty-text">Nessun alimento loggato per questo pasto</span>
-    </div>`;
-
     // Template picker: filter templates matching this meal type
     const mealType = getMealTypeFromName(base.name);
     const matchingTmpls = (S.templates || []).filter(t => {
@@ -313,7 +289,7 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
     });
     const tmplPickerHTML = matchingTmpls.length ? `
       <div class="mc-tmpl-picker">
-        <div class="mc-tmpl-title">📋 Da template</div>
+        <div class="mc-tmpl-title">Template consigliati</div>
         ${matchingTmpls.map(t => {
           const mk = t.items.reduce((s,it) => s + Math.round(it.kcal100*it.grams/100), 0);
           const mp = t.items.reduce((s,it) => s + it.p100*it.grams/100, 0);
@@ -322,14 +298,14 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
               <div class="mc-tmpl-name">${htmlEsc(t.name)}</div>
               <div class="mc-tmpl-macros">${mk} kcal · P ${mp.toFixed(1)}g</div>
             </div>
-            <button class="mc-tmpl-load" onclick="loadTemplateToMeal('${t.id}','${dateKey}',${i});event.stopPropagation()">Carica</button>
+            <button class="mc-tmpl-load" onclick="loadTemplateToMeal('${t.id}','${dateKey}',${i});event.stopPropagation()">Usa</button>
           </div>`;
         }).join('')}
       </div>
-      <div class="mc-tmpl-sep">— oppure cerca alimento —</div>` : '';
+      <div class="mc-tmpl-sep">oppure cerca un alimento</div>` : '';
 
-    return `<div class="mc-log-panel" id="mlp-${domKey}">
-      ${hasLog ? `<div class="mc-log-items">${logRows}</div>${logSummary}` : emptyStateHTML}
+    return `<div class="mc-log-panel${hasLog ? '' : ' mc-log-panel-empty'}" id="mlp-${domKey}">
+      ${hasLog ? `<div class="mc-log-items">${logRows}</div>${logSummary}` : ''}
       <div class="mc-log-search" id="mls-${domKey}" style="display:none">
         ${tmplPickerHTML}
         <div class="food-search-input-row">
@@ -431,7 +407,7 @@ function getGreetingSubtext(h, type, streak) {
   } else if (h < 18) {
     // Pomeriggio
     if (type === 'on') return 'Hai ancora tempo per portare a casa la giornata';
-    return streak >= 5 ? 'Streak positiva · continua così' : 'Giorno OFF · ricarica le energie';
+    return streak >= 5 ? 'Streak positiva · continua così' : 'Giorno Rest · ricarica le energie';
   } else {
     // Sera
     if (streak >= 5) return 'Ottima continuità · si vede nel tempo';
@@ -439,58 +415,211 @@ function getGreetingSubtext(h, type, streak) {
   }
 }
 
-// ─── Frase motivazionale giornaliera ─────────────────────────────────────────
-function getDailyQuote(dateKey) {
-  const QUOTES = [
-    // Mindset
-    { text: 'La disciplina è fare ciò che va fatto, anche quando non ne hai voglia.', attr: '' },
-    { text: 'Il progresso, non la perfezione, è l\'obiettivo che cambia tutto.', attr: '' },
-    { text: 'Ogni allenamento è un voto per la persona che vuoi diventare.', attr: 'James Clear' },
-    { text: 'Non cercare la motivazione — costruisci l\'abitudine.', attr: '' },
-    { text: 'La fatica di oggi è la forza di domani.', attr: '' },
-    { text: 'La coerenza batte l\'intensità: anni di lavoro costante superano settimane di sforzo massimo.', attr: '' },
-    { text: 'Non confrontarti con gli altri — confrontati con chi eri ieri.', attr: '' },
-    { text: 'Fai del tuo allenamento una priorità, non un\'opzione.', attr: '' },
-    { text: 'Il successo non è un evento, è una serie di scelte quotidiane.', attr: '' },
-    { text: 'Chi si allena con testa vince su chi si allena con solo grinta.', attr: '' },
-    // Scienza
-    { text: 'Il sovraccarico progressivo è l\'unica legge universale del miglioramento fisico.', attr: '' },
-    { text: 'L\'ipertrofia muscolare richiede stimolo, nutrizione e recupero — tutti e tre, sempre.', attr: '' },
-    { text: '1.6–2.2 g di proteine per kg di peso corporeo: è il range che massimizza la crescita muscolare.', attr: 'Morton et al., 2018' },
-    { text: 'I carboidrati non fanno ingrassare — l\'eccesso calorico sì. I carb alimentano la performance.', attr: '' },
-    { text: 'Il 70% dei guadagni di forza nelle prime settimane è neurologico, non muscolare.', attr: '' },
-    { text: 'Una disidratazione del 2% riduce la forza muscolare del 10–20%.', attr: 'ACSM Guidelines' },
-    { text: 'Il surplus calorico ottimale per il muscle gain è di 200–300 kcal/die — oltre si accumula solo grasso.', attr: '' },
-    { text: 'La creatina monoidrato è il supplemento più studiato e sicuro per la performance in forza.', attr: 'ISSN, 2017' },
-    { text: 'Dormire meno di 7 ore riduce significativamente la capacità di sintesi muscolare.', attr: 'Walker, 2017' },
-    { text: 'Allenare ogni muscolo 2 volte a settimana è superiore all\'una: la frequenza conta quanto il volume.', attr: 'Schoenfeld, 2016' },
-    // Recupero
-    { text: 'Il sonno è il tuo allenamento invisibile — è quando i muscoli crescono davvero.', attr: '' },
-    { text: 'Il riposo non è pigrizia: è la parte del piano che completa il lavoro in palestra.', attr: '' },
-    { text: 'Nei giorni OFF i muscoli non si indeboliscono — si ricostruiscono più forti.', attr: '' },
-    { text: 'La caseina prima di dormire supporta la sintesi proteica per 7–8h durante la notte.', attr: 'Res et al., 2012' },
-    { text: 'Il cortisolo cronico da stress riduce la sintesi muscolare: gestire lo stress è parte del training.', attr: '' },
-    { text: 'Ascolta il tuo corpo: un giorno di riposo extra oggi vale più di una settimana di stop forzato domani.', attr: '' },
-    { text: 'La supercompensazione avviene nelle 24–72h dopo lo stimolo: il recupero è parte del training.', attr: '' },
-    { text: 'Non è l\'allenamento che ti rende più forte — è il recupero dall\'allenamento.', attr: '' },
-    { text: 'Il recupero attivo — camminare, stretching — accelera l\'eliminazione dei metaboliti muscolari.', attr: '' },
-    { text: 'Corpo e mente si allenano insieme: il recupero mentale è parte del recupero fisico.', attr: '' },
-    // Nutrizione
-    { text: 'Non esiste cibo "cattivo" — esistono quantità sbagliate e momenti sbagliati.', attr: '' },
-    { text: 'La costanza nel mangiare bene per mesi conta più della perfezione per una settimana.', attr: '' },
-    { text: 'Il meal prep non è ossessione — è rispetto per i tuoi obiettivi futuri.', attr: '' },
-    { text: 'Distribuire le proteine in 4 pasti da 0.4 g/kg massimizza la sintesi muscolare nelle 24h.', attr: 'ISSN, 2017' },
-    { text: 'I grassi non sono nemici: sono essenziali per gli ormoni anabolici, incluso il testosterone.', attr: '' },
-    { text: 'Mangiare lentamente riduce l\'intake calorico totale del 10–15% — la sazietà arriva dopo 20 minuti.', attr: '' },
-    { text: 'La fibra alimentare migliora il microbiota intestinale, che influenza l\'umore e l\'energia.', attr: '' },
-    { text: 'Il deficit calorico deve essere moderato (−300/−500 kcal) per preservare la massa muscolare.', attr: '' },
-    { text: 'Ogni grammo di glicogeno muscolare trattiene 3g di acqua — "gonfiore" da carb è energia immagazzinata.', attr: '' },
-    { text: 'La finestra anabolica post-workout dura ore, non minuti — mangia bene nella giornata, non solo dopo.', attr: '' },
+// ─── Spunto scientifico giornaliero ──────────────────────────────────────────
+function getDailyScienceTip(dateKey, dayType='on', phase='mantieni') {
+  const SCIENCE_TIPS = [
+    {
+      topic: 'Bulk intelligente',
+      phases: ['bulk'],
+      contexts: ['on'],
+      text: 'In bulk non serve esagerare: un surplus moderato tende a sostenere meglio la crescita limitando il grasso in eccesso.',
+      source: '',
+    },
+    {
+      topic: 'Bulk + carboidrati',
+      phases: ['bulk'],
+      contexts: ['on'],
+      text: 'In fase di bulk, tenere i carboidrati adeguati nelle giornate di allenamento aiuta volume, performance e recupero tra sedute ravvicinate.',
+      source: 'Aragon et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0189-4' },
+    },
+    {
+      topic: 'Recupero in bulk',
+      phases: ['bulk'],
+      contexts: ['off'],
+      text: 'Nel giorno OFF di bulk non conviene tagliare troppo: proteine e calorie coerenti aiutano a trasformare il lavoro accumulato in recupero e adattamento.',
+      source: '',
+    },
+    {
+      topic: 'Cut e proteine',
+      phases: ['cut'],
+      contexts: ['on', 'off'],
+      text: 'In cut, tenere le proteine alte e il deficit moderato aiuta a difendere meglio la massa magra e rende la dieta piu sostenibile.',
+      source: 'Jager et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0177-8' },
+    },
+    {
+      topic: 'Cut e training',
+      phases: ['cut'],
+      contexts: ['on'],
+      text: 'In fase di cut, concentrare una quota utile di carboidrati vicino all allenamento puo aiutare a salvare qualita della seduta e percezione di energia.',
+      source: 'Aragon et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0189-4' },
+    },
+    {
+      topic: 'Cut e fame',
+      phases: ['cut'],
+      contexts: ['off'],
+      text: 'Nei giorni OFF di cut, fibra, proteine e cibi sazianti aiutano piu della restrizione estrema: l obiettivo e restare aderente per settimane.',
+      source: 'Rebello et al., 2016',
+      learnMore: { label: 'Scopri di piu', href: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC4757923/' },
+    },
+    {
+      topic: 'Mantenimento',
+      phases: ['mantieni'],
+      contexts: ['on', 'off'],
+      text: 'Mantenere non significa mangiare a caso: vuol dire tenere performance, recupero e peso abbastanza stabili nel tempo con intake coerente.',
+      source: '',
+    },
+    {
+      topic: 'Mantenimento attivo',
+      phases: ['mantieni'],
+      contexts: ['on'],
+      text: 'Anche in mantenimento, proteine adeguate e carboidrati ben distribuiti aiutano a sostenere sedute buone e una composizione corporea piu stabile.',
+      source: 'Jager et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0177-8' },
+    },
+    {
+      topic: 'Mantenimento e recupero',
+      phases: ['mantieni'],
+      contexts: ['off'],
+      text: 'Nel giorno OFF di mantenimento non serve inseguire il minimo calorico: meglio restare regolari e dare spazio a recupero, sonno e aderenza.',
+      source: '',
+    },
+    {
+      topic: 'Proteine',
+      phases: ['bulk', 'cut', 'mantieni'],
+      contexts: ['on', 'off'],
+      text: 'Per chi si allena con costanza, circa 1.4–2.0 g/kg/die di proteine coprono gia la maggior parte dei bisogni per mantenimento e crescita muscolare.',
+      source: 'Jager et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0177-8' },
+    },
+    {
+      topic: 'Distribuzione',
+      phases: ['bulk', 'cut', 'mantieni'],
+      contexts: ['on', 'off'],
+      text: 'Una quota di proteine di alta qualita da circa 20-40 g per pasto, distribuita ogni 3-4 ore, e una strategia pratica per stimolare piu volte la sintesi proteica nella giornata.',
+      source: 'Jager et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0177-8' },
+    },
+    {
+      topic: 'Timing',
+      phases: ['bulk', 'cut', 'mantieni'],
+      contexts: ['on'],
+      text: 'Allenamento di forza e proteine sono sinergici: mangiarle prima o dopo la seduta va bene, ma conta di piu la qualita dell intera giornata rispetto al minuto esatto.',
+      source: 'Aragon et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0189-4' },
+    },
+    {
+      topic: 'Carboidrati',
+      phases: ['bulk', 'mantieni'],
+      contexts: ['on'],
+      text: 'Nelle giornate con allenamenti intensi o voluminosi, carboidrati adeguati aiutano a sostenere glicogeno, qualita della seduta e recupero tra le serie.',
+      source: 'Aragon et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0189-4' },
+    },
+    {
+      topic: 'Creatina',
+      phases: ['bulk', 'cut', 'mantieni'],
+      contexts: ['on', 'off'],
+      text: 'La creatina monoidrato resta uno dei supplementi con evidenza piu solida: migliora la capacita di lavoro ad alta intensita e puo aumentare gli adattamenti nel tempo.',
+      source: 'Kreider et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0173-z' },
+    },
+    {
+      topic: 'Sonno',
+      phases: ['bulk', 'cut', 'mantieni'],
+      contexts: ['on', 'off'],
+      text: 'Dormire poco non pesa solo sulla testa: puo ridurre la sintesi proteica muscolare e peggiorare il contesto ormonale del giorno dopo.',
+      source: 'Lamon et al., 2021',
+      learnMore: { label: 'Scopri di piu', href: 'https://pubmed.ncbi.nlm.nih.gov/33400856/' },
+    },
+    {
+      topic: 'Proteine serali',
+      phases: ['bulk', 'cut', 'mantieni'],
+      contexts: ['on', 'off'],
+      text: 'Una quota di proteine prima di dormire puo aumentare la sintesi proteica notturna e sostenere meglio il recupero se ti alleni con regolarita.',
+      source: 'Snijders et al., 2015',
+      learnMore: { label: 'Scopri di piu', href: 'https://pubmed.ncbi.nlm.nih.gov/25926415/' },
+    },
+    {
+      topic: 'Fibra e fame',
+      phases: ['cut', 'mantieni'],
+      contexts: ['off'],
+      text: 'La fibra, soprattutto quella solubile, tende a rallentare lo svuotamento gastrico e ad aumentare la sazieta: utile quando vuoi controllare meglio fame e aderenza.',
+      source: 'Rebello et al., 2016',
+      learnMore: { label: 'Scopri di piu', href: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC4757923/' },
+    },
+    {
+      topic: 'Idratazione',
+      phases: ['bulk', 'cut', 'mantieni'],
+      contexts: ['on'],
+      text: 'Anche una disidratazione intorno al 2-3% del peso corporeo puo abbassare potenza e qualita della prestazione, soprattutto negli sforzi intensi.',
+      source: 'Judelson et al., 2008',
+      learnMore: { label: 'Scopri di piu', href: 'https://pubmed.ncbi.nlm.nih.gov/18550960/' },
+    },
+    {
+      topic: 'Cut intelligente',
+      phases: ['cut'],
+      contexts: ['on', 'off'],
+      text: 'Quando sei in deficit, piu e aggressivo piu diventa difficile tenere alta la performance e preservare massa magra: meglio un taglio moderato e sostenibile.',
+      source: 'Aragon et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0174-y' },
+    },
+    {
+      topic: 'Recupero',
+      phases: ['bulk', 'cut', 'mantieni'],
+      contexts: ['off'],
+      text: 'Il giorno OFF non e una pausa dal progresso: e il momento in cui sonno, calorie e proteine trasformano lo stimolo dell allenamento in adattamento.',
+      source: '',
+    },
+    {
+      topic: 'Finestra anabolica',
+      phases: ['bulk', 'cut', 'mantieni'],
+      contexts: ['on'],
+      text: 'La finestra post workout non si chiude in pochi minuti: il muscolo resta piu sensibile alle proteine per molte ore dopo la seduta.',
+      source: 'Jager et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0177-8' },
+    },
+    {
+      topic: 'Resistenza',
+      phases: ['bulk', 'cut', 'mantieni'],
+      contexts: ['on'],
+      text: 'Se fai endurance o sessioni molto lunghe, i carboidrati restano la priorita per la performance; una quota di proteine aiuta piu sul recupero che sul cronometro.',
+      source: 'Jager et al., JISSN, 2017',
+      learnMore: { label: 'Scopri di piu', href: 'https://link.springer.com/article/10.1186/s12970-017-0177-8' },
+    },
+    {
+      topic: 'Stimolo + cibo',
+      phases: ['bulk', 'cut', 'mantieni'],
+      contexts: ['on', 'off'],
+      text: 'L allenamento fornisce il segnale, ma senza energia e proteine adeguate l ipertrofia resta limitata: stimolo, nutrizione e recupero devono viaggiare insieme.',
+      source: '',
+    },
   ];
+
   const d = dateKey || localDate(new Date());
-  const base = new Date(d.slice(0,4) + '-01-01');
-  const dayOfYear = Math.round((new Date(d) - base) / 86400000);
-  return QUOTES[dayOfYear % QUOTES.length];
+  const targetDate = new Date(`${d}T12:00:00`);
+  const base = new Date(`${d.slice(0,4)}-01-01T12:00:00`);
+  const dayOfYear = Math.round((targetDate - base) / 86400000);
+  const normalizedPhase = ['bulk', 'cut', 'mantieni'].includes(phase) ? phase : 'mantieni';
+  const matchesContext = tip => !tip.contexts || tip.contexts.includes(dayType);
+  const matchesPhase = tip => !tip.phases || tip.phases.includes(normalizedPhase);
+
+  const phaseSpecificPool = SCIENCE_TIPS.filter(tip =>
+    matchesContext(tip) && matchesPhase(tip) && Array.isArray(tip.phases) && tip.phases.length === 1
+  );
+  const phaseAwarePool = SCIENCE_TIPS.filter(tip =>
+    matchesContext(tip) && matchesPhase(tip) && Array.isArray(tip.phases)
+  );
+  const contextPool = SCIENCE_TIPS.filter(tip => matchesContext(tip) && !Array.isArray(tip.phases));
+  const genericPool = SCIENCE_TIPS.filter(tip => matchesContext(tip) && matchesPhase(tip));
+  const pool = phaseSpecificPool.length
+    ? phaseSpecificPool
+    : (phaseAwarePool.length ? phaseAwarePool : (contextPool.length ? contextPool : genericPool));
+  const phaseOffset = { bulk: 0, cut: 5, mantieni: 9 }[normalizedPhase] || 0;
+  const dayOffset = dayType === 'off' ? 2 : 0;
+  return pool[(dayOfYear + phaseOffset + dayOffset) % pool.length];
 }
 
 // ─── Alert engine ─────────────────────────────────────────────────────────────
@@ -1015,33 +1144,61 @@ function renderGreeting(type, now) {
     }
   }, 0);
 
-  // Chip giorno ON/OFF
+  // Chip giorno Workout/Rest
   const isOn = type === 'on';
-  const chipTxt = isOn ? 'Giorno ON' : 'Giorno OFF';
+  const chipTxt = isOn ? 'Giorno Workout' : 'Giorno Rest';
   const chipIcon = isOn ? '●' : '◐';
-  const dayChip = `<button class="tg-day-chip tg-day-chip-${isOn ? 'on' : 'off'}" onclick="setDay('${isOn?'off':'on'}')">
-    <span class="tg-day-chip-dot">${chipIcon}</span>
-    <span class="tg-day-chip-text">${chipTxt}</span>
-  </button>`;
+  const dayChip = `<span class="tg-day-chip-wrap">
+    <button class="tg-day-chip tg-day-chip-${isOn ? 'on' : 'off'}" onclick="setDay('${isOn?'off':'on'}')">
+      <span class="tg-day-chip-dot">${chipIcon}</span>
+      <span class="tg-day-chip-text">${chipTxt}</span>
+    </button>
+    <button class="tg-day-chip-help" onmouseenter="showDayModeTip(this)" onmouseleave="hideTip('tip-day-mode')" onclick="showDayModeTip(this);event.stopPropagation()" aria-label="Spiega il cambio tra giorno Workout e giorno Rest" title="Come funziona Workout/Rest">i</button>
+  </span>`;
 
   // Badge fase obiettivo rimosso (tracking settimane rimandato a implementazione futura)
   let goalBadge = '';
 
-  // Frase del giorno
+  // Spunto scientifico del giorno
   const dateKey = S.selDate || localDate(now);
-  const quote   = getDailyQuote(dateKey);
+  const cheat = typeof getCheatMealForDate === 'function' ? getCheatMealForDate(dateKey) : null;
+  const activePhase = S.goal?.phase || 'mantieni';
+  const phaseLabel = { bulk: 'Bulk', cut: 'Cut', mantieni: 'Mantenimento' }[activePhase] || 'Mantenimento';
+  const dayTypeLabel = type === 'on' ? 'Giorno di allenamento' : 'Giorno di recupero';
+  const scienceTip = getDailyScienceTip(dateKey, type, activePhase);
+  const scienceFootHTML = (scienceTip.source || scienceTip.learnMore)
+    ? `<div class="tg-quote-foot">
+        ${scienceTip.source ? `<div class="tg-quote-attr">${htmlEsc(scienceTip.source)}</div>` : '<span></span>'}
+        ${scienceTip.learnMore ? `<a class="tg-quote-link" href="${scienceTip.learnMore.href}" target="_blank" rel="noopener noreferrer">${htmlEsc(scienceTip.learnMore.label || 'Scopri di piu')}</a>` : ''}
+      </div>`
+    : '';
   const quoteHTML = `<div class="tg-quote">
-    <div class="tg-quote-kicker">Frase del giorno</div>
-    <div class="tg-quote-text">"${quote.text}"</div>
-    ${quote.attr ? `<div class="tg-quote-attr">— ${quote.attr}</div>` : ''}
+    <div class="tg-quote-top">
+      <div class="tg-quote-head">
+        <div class="tg-quote-kicker">Spunto scientifico</div>
+        <div class="tg-quote-context">${phaseLabel} · ${dayTypeLabel}</div>
+      </div>
+      <div class="tg-quote-topic">${htmlEsc(scienceTip.topic)}</div>
+    </div>
+    <div class="tg-quote-text">${htmlEsc(scienceTip.text)}</div>
+    ${scienceFootHTML}
   </div>`;
 
   const greetingEl = document.getElementById('today-greeting');
   if (greetingEl) {
     greetingEl.dataset.dayState = type;
-    greetingEl.classList.remove('is-on', 'is-off');
+    greetingEl.classList.remove('is-on', 'is-off', 'has-cheat', 'is-on-cheat', 'is-off-cheat');
     greetingEl.classList.add(isOn ? 'is-on' : 'is-off');
+    if (cheat) {
+      greetingEl.classList.add('has-cheat', isOn ? 'is-on-cheat' : 'is-off-cheat');
+    }
   }
+  const cheatBadge = cheat
+    ? `<button class="tg-cheat-chip" onclick="focusTodayCheat()" title="Apri dettaglio sgarro">
+        <span class="tg-cheat-chip-dot"></span>
+        <span class="tg-cheat-chip-text">Sgarro attivo</span>
+      </button>`
+    : '';
 
   document.getElementById('today-greeting').innerHTML = `
     <div class="tg-hero-main">
@@ -1051,6 +1208,7 @@ function renderGreeting(type, now) {
         </div>
         <div class="tg-mobile-meta">
           ${dayChip}
+          ${cheatBadge}
           ${streakBadge}
         </div>
         <div class="tg-hello">${saluto}, <em>${nome}.</em></div>
@@ -1065,7 +1223,22 @@ function renderGreeting(type, now) {
 function renderTodaySignals(type, dateKey) {
   const el = document.getElementById('today-signal-row');
   if (!el) return;
-  el.innerHTML = '';
+  const scheduledType = getScheduledDayType(dateKey);
+  const trackedType = getTrackedDayType(dateKey, type);
+  const dayModeLabel = value => value === 'on' ? 'Workout' : 'Rest';
+  const hasOverride = scheduledType !== trackedType;
+  const overrideMeta = hasOverride
+    ? `<span class="today-signal-note">In Profilo oggi è previsto <strong>${dayModeLabel(scheduledType)}</strong>, ma per oggi hai scelto <strong>${dayModeLabel(trackedType)}</strong>.</span>`
+    : '';
+
+  if (!hasOverride) {
+    el.innerHTML = '';
+    return;
+  }
+
+  el.innerHTML = `<div class="today-signal-actions">
+    <div class="today-signal-status">${overrideMeta}</div>
+  </div>`;
 }
 
 function renderDashboardAlertSummary(type, dateKey) {
@@ -1222,6 +1395,7 @@ function renderWeekCal(now) {
     const isSel  = dStr === S.selDate;
     const isPast = d < now && !isTod;
     const dayInfo = S.doneByDate[dStr];
+    const cheat = typeof getCheatMealForDate === 'function' ? getCheatMealForDate(dStr) : null;
     const isFull  = !!dayInfo && dayInfo.done > 0 && dayInfo.total > 0 && dayInfo.done >= dayInfo.total;
     const hasDone = !!dayInfo && (dayInfo.activityCount || 0) > 0;
 
@@ -1244,23 +1418,22 @@ function renderWeekCal(now) {
 
     const doneTitle = !dayInfo ? '' : [
       dayInfo.total > 0 ? `${dayInfo.done}/${dayInfo.total} pasti` : '',
+      dayInfo.cheatDone > 0 ? `sgarro +${cheat?.extraKcal || 0} kcal` : '',
       dayInfo.suppDone > 0 ? `${dayInfo.suppDone} integratori` : '',
       dayInfo.waterCount > 0 ? `${dayInfo.waterCount} bicchieri` : '',
     ].filter(Boolean).join(' · ');
     const doneBadge = hasDone
-      ? `<div class="wc-done${isFull?' full':''}" title="${doneTitle}"></div>`
+      ? `<div class="wc-done${isFull?' full':''}${cheat ? ' cheat' : ''}" title="${doneTitle}"></div>`
       : '';
-
     // Show a small amber dot inline in the badge when logged type differs from schedule
     const overrideDot = dayInfo && (visualOn !== scheduledOn)
       ? `<span title="Piano ${visualOn?'ON':'OFF'} (diverso dalla programmazione)" style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--amber);vertical-align:middle;margin-left:3px;opacity:.9;flex-shrink:0"></span>`
       : '';
-
     return `<div class="${cls}" onclick="calSelectDay('${dStr}','${clickType}')" title="${d.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'})}">
       ${doneBadge}
       <div class="wc-name">${isTod ? 'OGGI' : DOW_NAMES[i]}</div>
       <div class="wc-num">${d.getDate()}</div>
-      <div class="wc-badge" style="display:flex;align-items:center;justify-content:center">${visualOn?'ON':'OFF'}${overrideDot}</div>
+      <div class="wc-badge" style="display:flex;align-items:center;justify-content:center;gap:4px">${visualOn?'ON':'OFF'}${overrideDot}</div>
     </div>`;
   }).join('');
 }
@@ -1298,16 +1471,48 @@ function renderMacroStrip(type, meals, tgt) {
   eC=Math.round(eC*10)/10;
   eF=Math.round(eF*10)/10;
 
+  let cheat = typeof getCheatMealForDate === 'function' ? getCheatMealForDate(dateKey) : null;
+  let cheatChanged = false;
+  if (typeof reconcileAutoCheatMeal === 'function') {
+    const reconciliation = reconcileAutoCheatMeal(dateKey, type, eK);
+    if (reconciliation) {
+      cheatChanged = !!reconciliation.changed;
+      cheat = reconciliation.cheat || null;
+    }
+  }
+  const effectiveTargetK = typeof getEffectiveKcalTarget === 'function'
+    ? getEffectiveKcalTarget(dateKey, type)
+    : tgt.k;
+  const cheatExtraK = cheat?.extraKcal || 0;
+  const baseTargetK = Math.max(0, tgt.k || 0);
+
   const el = document.getElementById('macro-strip');
-  if (!el) return {eK,eP,eC,eF};
+  if (!el) return {eK,eP,eC,eF, cheatChanged};
 
   // --- Kcal hero ---
-  const kPct = tgt.k > 0 ? Math.min(eK / tgt.k, 1) * 100 : 0;
-  const kRem = tgt.k - eK;
-  const kRc  = kRem < 0 ? 'err' : kRem < tgt.k * 0.15 ? 'warn' : 'ok';
+  const kPct = effectiveTargetK > 0 ? Math.min(eK / effectiveTargetK, 1) * 100 : 0;
+  const kRem = effectiveTargetK - eK;
+  const kRc  = kRem < 0 ? 'err' : kRem < effectiveTargetK * 0.15 ? 'warn' : 'ok';
   const kRt  = kRem <= 0
-    ? (eK > tgt.k ? `+${Math.round(eK - tgt.k)} kcal in più` : 'obiettivo raggiunto ✓')
+    ? (eK > effectiveTargetK ? `+${Math.round(eK - effectiveTargetK)} kcal in più` : 'obiettivo raggiunto ✓')
     : `–${Math.abs(Math.round(kRem))} mancanti`;
+  const basePct = effectiveTargetK > 0 ? Math.min(baseTargetK / effectiveTargetK, 1) * 100 : 0;
+  const extraPct = effectiveTargetK > 0 ? Math.min(cheatExtraK / effectiveTargetK, 1) * 100 : 0;
+  const eatenPct = effectiveTargetK > 0 ? Math.min(eK / effectiveTargetK, 1) * 100 : 0;
+  const redStartPct = Math.max(0, 100 - extraPct);
+  const fillStyle = cheatExtraK > 0
+    ? `background:
+        linear-gradient(90deg,
+          var(--${kRc === 'err' ? 'red' : kRc === 'warn' ? 'amber' : 'on'}) 0%,
+          var(--${kRc === 'err' ? 'red' : kRc === 'warn' ? 'amber' : 'on'}) ${Math.min(eatenPct, redStartPct)}%,
+          ${eK > baseTargetK ? (kRc === 'err' ? 'var(--red)' : 'var(--amber)') : 'var(--on)'} ${Math.min(eatenPct, redStartPct)}%,
+          ${eK > baseTargetK ? (kRc === 'err' ? 'var(--red)' : 'var(--amber)') : 'var(--on)'} ${eatenPct}%,
+          transparent ${eatenPct}%,
+          transparent 100%)`
+    : '';
+  const cheatTailHTML = cheatExtraK > 0
+    ? `<div class="ms-kcal-cheat-tail" style="left:${basePct}%;width:${extraPct}%"></div>`
+    : '';
 
   // --- Macro 3 card ---
   const macros = [
@@ -1323,7 +1528,7 @@ function renderMacroStrip(type, meals, tgt) {
     const rt  = rem <= 0
       ? (m.eaten > m.tgt ? `+${Math.round(m.eaten - m.tgt)}g` : '✓')
       : `–${Math.abs(Math.round(rem))}g`;
-    return `<div class="ms-macro-card ${m.cls}" onclick="openMacroDetail('${m.cls}')" style="cursor:pointer">
+    return `<div class="ms-macro-card ${m.cls}" onclick="openMacroDetail('${m.cls}')" title="Vedi dettaglio ${m.lbl.toLowerCase()}">
       <div class="ms-macro-icon">${m.icon}</div>
       <div class="ms-macro-val">${m.eaten}<span class="ms-macro-unit">${m.unit}</span></div>
       <div class="ms-macro-lbl">${m.lbl}</div>
@@ -1333,7 +1538,7 @@ function renderMacroStrip(type, meals, tgt) {
   }).join('');
 
   el.innerHTML = `
-    <div class="ms-kcal-card">
+    <div class="ms-kcal-card" onclick="openMacroDetail('kcal')" title="Vedi dettaglio calorie">
       <div class="ms-kcal-top">
         <div class="ms-kcal-eaten">
           <span class="ms-kcal-icon">🔥</span>
@@ -1343,13 +1548,52 @@ function renderMacroStrip(type, meals, tgt) {
         <div class="ms-kcal-rem ${kRc}">${kRt}</div>
       </div>
       <div class="ms-kcal-bar">
-        <div class="ms-kcal-fill ${kRc}" style="width:${kPct}%"></div>
+        ${cheatTailHTML}
+        <div class="ms-kcal-fill ${kRc}" style="width:${kPct}%;${fillStyle}"></div>
       </div>
-      <div class="ms-kcal-target">obiettivo: ${tgt.k.toLocaleString('it-IT')} kcal</div>
+      <div class="ms-kcal-target">obiettivo: ${effectiveTargetK.toLocaleString('it-IT')} kcal${cheat ? ` <span class="ms-kcal-boost">(${tgt.k.toLocaleString('it-IT')} base + ${cheat.extraKcal} sgarro)</span>` : ''}</div>
     </div>
     <div class="ms-macros-row">${macroCards}</div>`;
 
-  return {eK, eP, eC, eF};
+  return {eK, eP, eC, eF, cheatChanged};
+}
+function renderCheatWidget() {
+  const el = document.getElementById('cheat-widget');
+  if (!el) return;
+  const dateKey = S.selDate || localDate();
+  const dayType = getTrackedDayType(dateKey, getScheduledDayType(dateKey));
+  const cheat = typeof getCheatMealForDate === 'function' ? getCheatMealForDate(dateKey) : null;
+  const weeklyCount = typeof getWeekCheatCount === 'function' ? getWeekCheatCount(dateKey) : 0;
+  const weeklyLimit = typeof getCheatWeeklyLimit === 'function' ? getCheatWeeklyLimit() : 2;
+  const targetK = typeof getEffectiveKcalTarget === 'function'
+    ? getEffectiveKcalTarget(dateKey, dayType)
+    : (S.macro?.[dayType]?.k || 0);
+  const triggerAt = typeof getCheatAutoTriggerKcal === 'function'
+    ? getCheatAutoTriggerKcal(dateKey, dayType)
+    : ((S.macro?.[dayType]?.k || 0) + 250);
+
+  if (!cheat) {
+    el.innerHTML = '';
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+
+  el.innerHTML = `<div class="cheat-widget support-mini-card${cheat ? ' active' : ''}" id="today-cheat-card">
+    <div class="cheat-top">
+      <div>
+        <div class="cheat-title">Sgarro controllato</div>
+        <div class="cheat-sub">Oggi hai superato il tuo target base di almeno 250 kcal, quindi la giornata viene segnata automaticamente come sgarro.</div>
+      </div>
+      <div class="cheat-badge${weeklyCount >= weeklyLimit ? ' is-limit' : ''}">${weeklyCount}/${weeklyLimit} sett.</div>
+    </div>
+    <div class="cheat-meta">
+      <span class="cheat-pill">${dayType.toUpperCase()}</span>
+      <span class="cheat-meta-text">Nuovo target di oggi: ${targetK.toLocaleString('it-IT')} kcal</span>
+    </div>
+    <div class="cheat-copy">Per tenere il riepilogo piu realistico, oggi aggiungo ${cheat.extraKcal} kcal di margine al target della giornata.</div>
+    <div class="cheat-auto-note">Non devi fare nulla: questo evento resta salvato e lo ritroverai anche nel riepilogo del mese.</div>
+  </div>`;
 }
 function renderToday() {
   const type  = S.day;
@@ -1369,6 +1613,7 @@ function renderToday() {
     noteInput.dataset.key = noteKey;
   }
   renderNotes();
+  renderCheatWidget();
   renderSuppToday();
   checkWeeklyCheckin();
 }
@@ -1497,7 +1742,8 @@ function renderTodayLog() {
   const meals = S.meals[type];
   const tgt   = S.macro[type];
   const dateKey = S.selDate || localDate();
-  const {eK, eP, eC, eF} = renderMacroStrip(type, meals, tgt);
+  const {eK, eP, eC, eF, cheatChanged} = renderMacroStrip(type, meals, tgt);
+  renderCheatWidget();
   renderWater();
 
   // Determine current meal index based on time (only for today's view)
@@ -1532,6 +1778,7 @@ function renderTodayLog() {
   const dpFill  = document.getElementById('dp-fill');
   if (dpLabel) dpLabel.textContent = `${completion.done} / ${completion.total} pasti`;
   if (dpFill)  dpFill.style.width  = `${completion.total ? (completion.done/completion.total)*100 : 0}%`;
+  if (cheatChanged) refreshTodayDerivedViews({ greeting: true, calendar: true, stats: true });
 }
 function renderNotes() {
   const entries = Object.entries(S.notes)
@@ -2916,6 +3163,24 @@ function renderGoalCard() {
       </div>
     </div>`;
 }
+function supplementFormHTML(scope) {
+  const safeScope = htmlEsc(scope || 'today');
+  return `
+    <div id="supp-form-${safeScope}" data-supp-form-scope="${safeScope}" style="display:none;margin-top:10px;background:var(--surf);border:1px solid var(--b1);border-radius:var(--r2);padding:12px">
+      <div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;margin-bottom:8px">
+        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Nome</label>
+          <input id="sf-name-${safeScope}" type="text" placeholder="es. Magnesio" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink);transition:border-color .13s"></div>
+        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Dose</label>
+          <input id="sf-dose-${safeScope}" type="text" placeholder="3 g" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink)"></div>
+        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Quando</label>
+          <input id="sf-when-${safeScope}" type="text" placeholder="mattina" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink)"></div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button onclick="confirmAddSupp('${esc(scope || 'today')}')" style="font-family:'Manrope',sans-serif;font-size:11px;font-weight:700;background:var(--on);color:#fff;border:none;border-radius:var(--r2);padding:7px 16px;cursor:pointer;flex:1">Aggiungi</button>
+        <button onclick="toggleSuppForm('${esc(scope || 'today')}')" style="font-family:'Manrope',sans-serif;font-size:11px;font-weight:700;background:none;border:1.5px solid var(--b2);border-radius:var(--r2);padding:7px 14px;cursor:pointer;color:var(--muted)">Annulla</button>
+      </div>
+    </div>`;
+}
 function renderSupplements() {
   const el = document.getElementById('supps-card');
   if (!el) return;
@@ -2933,26 +3198,13 @@ function renderSupplements() {
   el.innerHTML = `
     <div class="supp-cards-row">
       ${cards}
-      <button class="supp-card supp-card-add" onclick="toggleSuppForm()">
+      <button class="supp-card supp-card-add" onclick="toggleSuppForm('profile')">
         <div class="supp-card-check"></div>
         <div class="supp-card-name">+ Aggiungi</div>
         <div class="supp-card-meta"></div>
       </button>
     </div>
-    <div id="supp-form" style="display:none;margin-top:10px;background:var(--surf);border:1px solid var(--b1);border-radius:var(--r2);padding:12px">
-      <div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;margin-bottom:8px">
-        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Nome</label>
-          <input id="sf-name" type="text" placeholder="es. Magnesio" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink);transition:border-color .13s"></div>
-        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Dose</label>
-          <input id="sf-dose" type="text" placeholder="3 g" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink)"></div>
-        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Quando</label>
-          <input id="sf-when" type="text" placeholder="mattina" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink)"></div>
-      </div>
-      <div style="display:flex;gap:6px">
-        <button onclick="confirmAddSupp()" style="font-family:'Manrope',sans-serif;font-size:11px;font-weight:700;background:var(--on);color:#fff;border:none;border-radius:var(--r2);padding:7px 16px;cursor:pointer;flex:1">Aggiungi</button>
-        <button onclick="toggleSuppForm()" style="font-family:'Manrope',sans-serif;font-size:11px;font-weight:700;background:none;border:1.5px solid var(--b2);border-radius:var(--r2);padding:7px 14px;cursor:pointer;color:var(--muted)">Annulla</button>
-      </div>
-    </div>`;
+    ${supplementFormHTML('profile')}`;
 }
 function renderWater() {
   const el = document.getElementById('water-widget');
@@ -3028,6 +3280,21 @@ function showWaterTip(anchor) {
   showTip('tip-water', anchor);
 }
 
+function showDayModeTip(anchor) {
+  const tip = document.getElementById('tip-day-mode');
+  if (!tip) return;
+  const phase = S.goal?.phase || 'mantieni';
+  const phaseLabel = { bulk: 'bulk', cut: 'cut', mantieni: 'mantenimento' }[phase] || 'mantenimento';
+  tip.innerHTML = `
+    <div class="tip-title">Workout / Rest</div>
+    <div class="tip-desc">
+      Questo pulsante cambia la giornata tra <strong>allenamento</strong> e <strong>riposo</strong>.<br><br>
+      Quando lo cambi, MarciFit aggiorna in modo coerente i <strong>target di kcal e macro</strong> del giorno in base alla tua fase attiva di <strong>${phaseLabel}</strong>.<br><br>
+      In pratica: <strong>Workout</strong> usa i target del giorno con allenamento, <strong>Rest</strong> quelli del giorno di recupero.
+    </div>`;
+  showTip('tip-day-mode', anchor);
+}
+
 function showPastiDistTip(anchor) {
   const tip = document.getElementById('tip-pasti-dist');
   if (!tip) return;
@@ -3063,8 +3330,8 @@ function renderSuppToday() {
   const el = document.getElementById('supp-today');
   if (!el) return;
   const active = S.supplements.filter(s=>s.active);
-  const todayKey = localDate();
-  const checked = S.suppChecked[todayKey] || [];
+  const dateKey = S.selDate || localDate();
+  const checked = S.suppChecked[dateKey] || [];
   const checkSVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
   const rows = active.length ? active.map(s => {
     const done = checked.includes(s.id);
@@ -3083,28 +3350,14 @@ function renderSuppToday() {
     <div class="support-mini-card support-mini-card-supp">
     <div class="supp-today-head">
       <div class="notes-label">💊 Routine integratori</div>
-      <button class="supp-today-add-btn" onclick="toggleSuppForm()">+ Nuovo</button>
+      <button class="supp-today-add-btn" onclick="toggleSuppForm('today')">+ Nuovo</button>
     </div>
     <div class="supp-today-row">
       ${rows}
     </div>
     </div>`;
   el.style.display='block';
-  el.innerHTML += `
-    <div id="supp-form" style="display:none;margin-top:10px;background:var(--surf);border:1px solid var(--b1);border-radius:var(--r2);padding:12px">
-      <div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;margin-bottom:8px">
-        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Nome</label>
-          <input id="sf-name" type="text" placeholder="es. Magnesio" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink);transition:border-color .13s"></div>
-        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Dose</label>
-          <input id="sf-dose" type="text" placeholder="3 g" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink)"></div>
-        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Quando</label>
-          <input id="sf-when" type="text" placeholder="mattina" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink)"></div>
-      </div>
-      <div style="display:flex;gap:6px">
-        <button onclick="confirmAddSupp()" style="font-family:'Manrope',sans-serif;font-size:11px;font-weight:700;background:var(--on);color:#fff;border:none;border-radius:var(--r2);padding:7px 16px;cursor:pointer;flex:1">Aggiungi</button>
-        <button onclick="toggleSuppForm()" style="font-family:'Manrope',sans-serif;font-size:11px;font-weight:700;background:none;border:1.5px solid var(--b2);border-radius:var(--r2);padding:7px 14px;cursor:pointer;color:var(--muted)">Annulla</button>
-      </div>
-    </div>`;
+  el.innerHTML += supplementFormHTML('today');
 }
 function showStreakTip(anchor, streak) {
   const tip = document.getElementById('tip-streak');

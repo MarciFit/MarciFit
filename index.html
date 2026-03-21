@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=61">
+<link rel="stylesheet" href="style.css?v=74">
 </head>
 <body>
 <div class="app">
@@ -92,6 +92,7 @@
       <div class="today-support-primary">
         <div id="today-support-alerts"></div>
         <div class="today-routine-grid">
+          <div id="cheat-widget"></div>
           <div id="water-widget"></div>
           <div id="supp-today" style="display:none"></div>
         </div>
@@ -255,6 +256,12 @@
     <div class="prof-card-box" id="prof-foods-card"></div>
   </div>
 
+  <!-- Card: Integratori -->
+  <div class="stat-section profile-section">
+    <div class="stat-section-title">Integratori</div>
+    <div class="prof-card-box" id="supps-card"></div>
+  </div>
+
   <!-- Goal extra fields (data inizio, peso target, note) -->
   <div class="stat-section profile-section" id="goal-extra-section">
     <div id="goal-card"></div>
@@ -319,6 +326,7 @@
 <div id="tip-bmr"    class="stat-tip tip-up"></div>
 <div id="tip-tdee"   class="stat-tip tip-up"></div>
 <div id="tip-streak" class="stat-tip tip-up"></div>
+<div id="tip-day-mode" class="stat-tip tip-up"></div>
 <div id="tip-water"      class="stat-tip tip-up"></div>
 <div id="tip-pasti-dist" class="stat-tip tip-up"></div>
 <div id="tip-piano-summary" class="stat-tip tip-up"></div>
@@ -373,14 +381,19 @@
 
 <!-- Day mismatch modal -->
 <div id="day-modal-ov" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:400;align-items:center;justify-content:center" onclick="if(event.target===this)closeDayModal()">
-  <div style="background:var(--surf);border-radius:var(--r);box-shadow:var(--sh2);padding:24px 28px;max-width:340px;width:90%;margin:0 16px;animation:up .18s ease;position:relative">
-    <button id="day-modal-close-x" onclick="closeDayModal()" style="display:none;position:absolute;top:10px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:var(--bg);color:var(--muted);font-size:16px;line-height:1;cursor:pointer;display:none;align-items:center;justify-content:center">×</button>
-    <div style="font-size:18px;margin-bottom:10px" id="day-modal-icon"></div>
-    <div style="font-family:'Lora',serif;font-size:17px;font-weight:600;margin-bottom:8px" id="day-modal-title"></div>
-    <div style="font-size:13px;color:var(--ink2);line-height:1.55;margin-bottom:20px" id="day-modal-body"></div>
-    <div id="day-modal-footer" style="display:flex;gap:8px;justify-content:flex-end">
-      <button onclick="closeDayModal()" style="font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;padding:8px 16px;border-radius:var(--r2);border:1.5px solid var(--b2);color:var(--ink2);cursor:pointer;background:none">Annulla</button>
-      <button id="day-modal-confirm" style="font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;padding:8px 16px;border-radius:var(--r2);border:none;color:#fff;cursor:pointer;background:var(--ink)">Procedi comunque</button>
+  <div id="day-modal-card" class="day-modal-card" style="background:var(--surf);border-radius:var(--r);box-shadow:var(--sh2);padding:24px 28px;max-width:340px;width:90%;margin:0 16px;animation:up .18s ease;position:relative">
+    <button id="day-modal-close-x" class="day-modal-close-x" onclick="closeDayModal()" style="display:none;position:absolute;top:10px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:var(--bg);color:var(--muted);font-size:16px;line-height:1;cursor:pointer;display:none;align-items:center;justify-content:center">×</button>
+    <div class="day-modal-head">
+      <div style="font-size:18px;margin-bottom:10px" id="day-modal-icon" class="day-modal-icon"></div>
+      <div class="day-modal-title-wrap">
+        <div id="day-modal-kicker" class="day-modal-kicker" style="display:none"></div>
+        <div style="font-family:'Lora',serif;font-size:17px;font-weight:600;margin-bottom:8px" id="day-modal-title" class="day-modal-title"></div>
+      </div>
+    </div>
+    <div style="font-size:13px;color:var(--ink2);line-height:1.55;margin-bottom:20px" id="day-modal-body" class="day-modal-body"></div>
+    <div id="day-modal-footer" class="day-modal-footer" style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="day-modal-btn day-modal-btn-secondary" onclick="closeDayModal()" style="font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;padding:8px 16px;border-radius:var(--r2);border:1.5px solid var(--b2);color:var(--ink2);cursor:pointer;background:none">Annulla</button>
+      <button id="day-modal-confirm" class="day-modal-btn day-modal-btn-primary" style="font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;padding:8px 16px;border-radius:var(--r2);border:none;color:#fff;cursor:pointer;background:var(--ink)">Procedi comunque</button>
     </div>
   </div>
 </div>
@@ -389,13 +402,13 @@
 <div id="cal-picker" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center" onclick="if(event.target===this)closeCalPicker()"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.7.4/dist/quagga.min.js"></script>
-<script src="debugTools.js?v=1"></script>
-<script src="storage.js?v=31"></script>
-<script src="nutritionLogic.js?v=50"></script>
-<script src="uiComponents.js?v=60"></script>
+<script src="debugTools.js?v=3"></script>
+<script src="storage.js?v=33"></script>
+<script src="nutritionLogic.js?v=54"></script>
+<script src="uiComponents.js?v=71"></script>
 <script src="bootstrapTools.js?v=1"></script>
-<script src="app.js?v=62"></script>
-<script src="barcodeTools.js?v=12"></script>
+<script src="app.js?v=71"></script>
+<script src="barcodeTools.js?v=13"></script>
 <script>lucide.createIcons();</script>
 </body>
 </html>

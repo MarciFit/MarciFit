@@ -125,6 +125,7 @@ function getDayCompletion(dateKey, type) {
   const dayType = getTrackedDayType(key, type);
   const meals = S.meals?.[dayType] || [];
   const dayLog = S.foodLog?.[key] || {};
+  const cheat = typeof getCheatMealForDate === 'function' ? getCheatMealForDate(key) : null;
   const extraActive = S.extraMealsActive?.[key] || {};
   const extraLogKeys = Object.keys(dayLog).filter(logKey => Number.isNaN(Number(logKey)));
   const extraKeys = Array.from(new Set([...Object.keys(extraActive), ...extraLogKeys]));
@@ -133,9 +134,10 @@ function getDayCompletion(dateKey, type) {
   const extraDone = extraKeys.filter(extraKey => (dayLog[extraKey] || []).length > 0).length;
   const done = mealDone + extraDone;
   const total = meals.length + extraKeys.length;
+  const cheatDone = cheat ? 1 : 0;
   const suppDone = ((S.suppChecked && S.suppChecked[key]) || []).length;
   const waterCount = (S.water && S.water[key]) || 0;
-  const activityCount = done + (suppDone > 0 ? 1 : 0) + (waterCount > 0 ? 1 : 0);
+  const activityCount = done + cheatDone + (suppDone > 0 ? 1 : 0) + (waterCount > 0 ? 1 : 0);
 
   return {
     key,
@@ -144,6 +146,7 @@ function getDayCompletion(dateKey, type) {
     extraDone,
     done,
     total,
+    cheatDone,
     suppDone,
     waterCount,
     activityCount,
@@ -613,6 +616,8 @@ const FOOD_TOKEN_ALIASES = {
   greca: 'greco',
   greche: 'greco',
   greci: 'greco',
+  kelloggs: 'kellogg',
+  kellogg: 'kellogg',
   oats: 'avena',
   oat: 'avena',
   chicken: 'pollo',
@@ -642,10 +647,81 @@ const FOOD_TOKEN_ALIASES = {
 const FOOD_BRAND_HINTS = (() => {
   const tokens = new Set(['prix', 'lidl', 'coop', 'conad', 'esselunga', 'carrefour', 'eurospin', 'despar', 'pam', 'md']);
   FOOD_DB.forEach(item => {
-    removeWeakTokens(tokenizeFoodText(item.brand || '')).forEach(token => tokens.add(token));
+    removeWeakTokens(tokenizeFoodText(item.brand || '')).forEach(token => {
+      const canonical = canonicalizeFoodToken(token);
+      if (canonical.length < 3) return;
+      if (WHOLE_FOOD_TERMS.has(canonical)) return;
+      if (COMPOUND_FOOD_TERMS.has(canonical)) return;
+      if (FOOD_ATTRIBUTE_TOKENS.has(canonical)) return;
+      tokens.add(canonical);
+    });
   });
   return tokens;
 })();
+
+const FOOD_STORE_PRIVATE_LABELS = {
+  lidl: [
+    { phrase: 'lidl' },
+    { phrase: 'milbona', hints: ['yogurt', 'skyr', 'latte', 'mozzarella', 'ricotta', 'formaggio'] },
+    { phrase: 'crownfield', hints: ['avena', 'cereali', 'muesli', 'granola', 'flakes'] },
+    { phrase: 'italiamo', hints: ['pasta', 'pizza', 'passata', 'sugo', 'pomodoro'] },
+    { phrase: 'combino', hints: ['riso', 'tonno', 'mais', 'legumi', 'salsa'] },
+    { phrase: 'nixe', hints: ['tonno', 'salmone', 'sgombro', 'pesce'] },
+  ],
+  carrefour: [
+    { phrase: 'carrefour' },
+    { phrase: 'carrefour bio', hints: ['yogurt', 'skyr', 'avena', 'riso', 'pasta', 'latte'] },
+    { phrase: 'terre d italia', hints: ['pasta', 'passata', 'sugo', 'pomodoro', 'mozzarella'] },
+    { phrase: 'simpl' },
+    { phrase: 'selection carrefour' },
+  ],
+  esselunga: [
+    { phrase: 'esselunga' },
+    { phrase: 'equilibrio', hints: ['skyr', 'yogurt', 'latte', 'proteico', 'protein'] },
+    { phrase: 'smart' },
+  ],
+  coop: [
+    { phrase: 'coop' },
+    { phrase: 'fior fiore', hints: ['pasta', 'passata', 'sugo', 'pomodoro', 'mozzarella'] },
+    { phrase: 'vivi verde', hints: ['yogurt', 'latte', 'avena', 'riso', 'pasta', 'bio'] },
+    { phrase: 'bene si', hints: ['proteico', 'skyr', 'yogurt', 'latte', 'light'] },
+  ],
+  conad: [
+    { phrase: 'conad' },
+    { phrase: 'piacersi', hints: ['skyr', 'yogurt', 'proteico', 'latte', 'light'] },
+    { phrase: 'verso natura', hints: ['bio', 'integrale', 'avena', 'riso', 'pasta'] },
+    { phrase: 'sapori dintorni', hints: ['pasta', 'sugo', 'pomodoro', 'mozzarella', 'olio'] },
+    { phrase: 'alimentum', hints: ['senza', 'lattosio', 'gluten free'] },
+  ],
+  eurospin: [
+    { phrase: 'eurospin' },
+    { phrase: 'land', hints: ['latte', 'yogurt', 'skyr', 'mozzarella', 'formaggio'] },
+    { phrase: 'tre mulini', hints: ['pasta', 'biscotti', 'cracker', 'cereali'] },
+    { phrase: 'amo essere', hints: ['proteico', 'skyr', 'yogurt', 'latte', 'senza', 'glutine'] },
+    { phrase: 'ondina', hints: ['tonno', 'salmone', 'pesce'] },
+    { phrase: 'delizie dal sole', hints: ['passata', 'sugo', 'pomodoro', 'pizza', 'pasta'] },
+    { phrase: 'dolciando', hints: ['biscotti', 'wafer', 'dessert'] },
+  ],
+  prix: [
+    { phrase: 'prix' },
+    { phrase: 'prix quality' },
+    { phrase: 'vivo meglio', hints: ['proteico', 'yogurt', 'skyr', 'latte', 'light'] },
+    { phrase: 'natura chiama', hints: ['bio', 'integrale', 'avena', 'riso', 'pasta'] },
+  ],
+  despar: [
+    { phrase: 'despar' },
+    { phrase: 'scelta verde', hints: ['bio', 'avena', 'riso', 'pasta', 'latte'] },
+  ],
+  pam: [
+    { phrase: 'pam' },
+    { phrase: 'pam panorama' },
+  ],
+  md: [
+    { phrase: 'md' },
+    { phrase: 'let s go', hints: ['snack', 'proteico', 'drink'] },
+    { phrase: 'bon my', hints: ['latte', 'yogurt', 'mozzarella'] },
+  ],
+};
 
 function normalizeFoodText(str) {
   return String(str || '')
@@ -678,6 +754,64 @@ function uniqueFoodTerms(values) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+function buildStoreAliasData(storeTokens, queryTokens = []) {
+  const canonicalQueryTokens = uniqueFoodTerms((queryTokens || []).map(canonicalizeFoodToken));
+  const phraseEntries = [];
+
+  storeTokens.forEach(storeToken => {
+    const entries = FOOD_STORE_PRIVATE_LABELS[storeToken] || [];
+    entries.forEach(entry => {
+      const normalizedPhrase = normalizeFoodText(entry?.phrase || '');
+      if (!normalizedPhrase) return;
+      const phraseTokens = uniqueFoodTerms(
+        removeWeakTokens(tokenizeFoodText(normalizedPhrase))
+          .map(canonicalizeFoodToken)
+          .filter(token => token.length >= 3)
+      );
+      const hintTokens = uniqueFoodTerms(
+        removeWeakTokens((entry?.hints || []).flatMap(tokenizeFoodText))
+          .map(canonicalizeFoodToken)
+      );
+      phraseEntries.push({
+        storeToken,
+        normalizedPhrase,
+        phraseTokens,
+        hintHits: hintTokens.filter(token => canonicalQueryTokens.includes(token)).length,
+        isExactStorePhrase: phraseTokens.length === 1 && phraseTokens[0] === storeToken,
+      });
+    });
+  });
+
+  const dedupedEntries = [];
+  const seen = new Set();
+  phraseEntries.forEach(entry => {
+    if (seen.has(entry.normalizedPhrase)) return;
+    seen.add(entry.normalizedPhrase);
+    dedupedEntries.push(entry);
+  });
+
+  const sortedEntries = dedupedEntries.sort((a, b) =>
+    (b.hintHits - a.hintHits) ||
+    (Number(a.isExactStorePhrase) - Number(b.isExactStorePhrase)) ||
+    (a.phraseTokens.length - b.phraseTokens.length) ||
+    a.normalizedPhrase.localeCompare(b.normalizedPhrase)
+  );
+
+  const searchEntries = [...sortedEntries]
+    .filter(entry => !entry.isExactStorePhrase)
+    .sort((a, b) =>
+      (b.hintHits - a.hintHits) ||
+      (a.phraseTokens.length - b.phraseTokens.length) ||
+      a.normalizedPhrase.localeCompare(b.normalizedPhrase)
+    );
+
+  return {
+    entries: sortedEntries,
+    phrases: uniqueFoodTerms(sortedEntries.map(entry => entry.normalizedPhrase)),
+    searchPhrases: uniqueFoodTerms(searchEntries.map(entry => entry.normalizedPhrase)),
+  };
+}
+
 function buildFoodQueryVariants(queryCtx) {
   const variants = [];
   const pushVariant = (terms) => {
@@ -689,20 +823,35 @@ function buildFoodQueryVariants(queryCtx) {
   pushVariant(queryCtx.raw);
   pushVariant(queryCtx.canonicalJoined);
 
-  const noBrand = queryCtx.effectiveCanonicalTokens.filter(t => !FOOD_BRAND_HINTS.has(t));
-  if (noBrand.length && noBrand.length !== queryCtx.effectiveCanonicalTokens.length) pushVariant(noBrand);
+  const storeCoreTokens = queryCtx.effectiveCanonicalTokens.filter(t => !queryCtx.storeHintTokens.includes(t));
+  if (queryCtx.storeAliasSearchPhrases.length > 0) {
+    const storeVariantBase = storeCoreTokens.length ? storeCoreTokens : queryCtx.coreTokens;
+    queryCtx.storeAliasSearchPhrases.slice(0, 3).forEach(phrase => {
+      const phraseTokens = removeWeakTokens(tokenizeFoodText(phrase));
+      pushVariant(storeVariantBase.length ? [...storeVariantBase, ...phraseTokens] : phraseTokens);
+    });
+  }
 
   const noAttr = queryCtx.effectiveCanonicalTokens.filter(t => !FOOD_ATTRIBUTE_TOKENS.has(t));
-  if (noAttr.length && noAttr.length !== queryCtx.effectiveCanonicalTokens.length) pushVariant(noAttr);
+  const noBrand = queryCtx.effectiveCanonicalTokens.filter(t => !FOOD_BRAND_HINTS.has(t));
 
   const core = queryCtx.effectiveCanonicalTokens.filter(t =>
     !FOOD_BRAND_HINTS.has(t) && !FOOD_ATTRIBUTE_TOKENS.has(t)
   );
-  if (core.length) pushVariant(core);
+
+  if (queryCtx.brandHintTokens.length > 0) {
+    if (noAttr.length && noAttr.length !== queryCtx.effectiveCanonicalTokens.length) pushVariant(noAttr);
+    if (noBrand.length && noBrand.length !== queryCtx.effectiveCanonicalTokens.length) pushVariant(noBrand);
+    if (core.length) pushVariant(core);
+  } else {
+    if (noBrand.length && noBrand.length !== queryCtx.effectiveCanonicalTokens.length) pushVariant(noBrand);
+    if (noAttr.length && noAttr.length !== queryCtx.effectiveCanonicalTokens.length) pushVariant(noAttr);
+    if (core.length) pushVariant(core);
+  }
 
   if (core.length > 1) pushVariant(core.slice(0, 2));
 
-  return variants.slice(0, 5);
+  return variants.slice(0, 6);
 }
 
 function buildFoodQueryContext(q) {
@@ -715,6 +864,15 @@ function buildFoodQueryContext(q) {
   const canonicalStrongTokens = canonicalTokens.filter(t => t.length >= 3);
   const effectiveCanonicalTokens = canonicalStrongTokens.length ? canonicalStrongTokens : canonicalTokens;
   const wholeFoodTokens = effectiveTokens.filter(t => WHOLE_FOOD_TERMS.has(t));
+  const brandHintTokens = effectiveCanonicalTokens.filter(t => FOOD_BRAND_HINTS.has(t));
+  const storeHintTokens = uniqueFoodTerms(brandHintTokens.filter(t => FOOD_STORE_PRIVATE_LABELS[t]));
+  const storeAliasData = buildStoreAliasData(storeHintTokens, effectiveCanonicalTokens);
+  const attributeTokens = effectiveCanonicalTokens.filter(t => FOOD_ATTRIBUTE_TOKENS.has(t));
+  const nonBrandTokens = effectiveCanonicalTokens.filter(t => !FOOD_BRAND_HINTS.has(t));
+  const coreTokens = nonBrandTokens.filter(t => !FOOD_ATTRIBUTE_TOKENS.has(t));
+  const requiredNameTokens = coreTokens.length
+    ? coreTokens
+    : (nonBrandTokens.length ? nonBrandTokens : effectiveCanonicalTokens);
   const queryCtx = {
     raw: String(q || '').trim(),
     normalized,
@@ -727,10 +885,17 @@ function buildFoodQueryContext(q) {
     effectiveCanonicalTokens,
     wholeFoodTokens,
     isWholeFoodQuery: effectiveTokens.length > 0 && wholeFoodTokens.length === effectiveTokens.length,
+    isBrandFocusedQuery: effectiveCanonicalTokens.length > 0 && brandHintTokens.length === effectiveCanonicalTokens.length,
     joined: effectiveTokens.join(' '),
     canonicalJoined: effectiveCanonicalTokens.join(' '),
-    brandHintTokens: effectiveCanonicalTokens.filter(t => FOOD_BRAND_HINTS.has(t)),
-    attributeTokens: effectiveCanonicalTokens.filter(t => FOOD_ATTRIBUTE_TOKENS.has(t)),
+    brandHintTokens,
+    storeHintTokens,
+    storeAliasPhrases: storeAliasData.phrases,
+    storeAliasSearchPhrases: storeAliasData.searchPhrases,
+    attributeTokens,
+    nonBrandTokens,
+    coreTokens,
+    requiredNameTokens: uniqueFoodTerms(requiredNameTokens),
     expandedTokens: uniqueFoodTerms([...effectiveTokens, ...effectiveCanonicalTokens]),
   };
   queryCtx.variants = buildFoodQueryVariants(queryCtx);
@@ -770,9 +935,42 @@ function buildFoodResultContext(item) {
   };
 }
 
+function resultMatchesNormalizedPhrase(resultCtx, normalizedPhrase, item) {
+  if (!normalizedPhrase) return false;
+  if (
+    resultCtx.nameNorm.includes(normalizedPhrase) ||
+    resultCtx.brandNorm.includes(normalizedPhrase) ||
+    resultCtx.combinedNorm.includes(normalizedPhrase)
+  ) return true;
+  return !!(item?.verified && resultCtx.aliasNorm.includes(normalizedPhrase));
+}
+
+function getStoreAliasMatchDetails(resultCtx, item, queryCtx) {
+  const storeAliasPhrases = queryCtx?.storeAliasPhrases || [];
+  const matchedPhrases = [];
+
+  [...storeAliasPhrases]
+    .sort((a, b) => b.length - a.length)
+    .forEach(phrase => {
+      if (!resultMatchesNormalizedPhrase(resultCtx, phrase, item)) return;
+      const overlapsExisting = matchedPhrases.some(existing => existing.includes(phrase) || phrase.includes(existing));
+      if (!overlapsExisting) matchedPhrases.push(phrase);
+    });
+
+  return {
+    matchedPhrases,
+    phraseHits: matchedPhrases.length,
+    tokenHits: 0,
+    hitCount: matchedPhrases.length,
+  };
+}
+
 function hasQueryMatch(item, queryCtx) {
   const resultCtx = buildFoodResultContext(item);
   const tokens = queryCtx.expandedTokens;
+  const storeMatch = queryCtx.storeHintTokens.length > 0
+    ? getStoreAliasMatchDetails(resultCtx, item, queryCtx)
+    : { hitCount: 0 };
   if (!queryCtx.normalized || !tokens.length) return false;
   if (resultCtx.combinedNorm.includes(queryCtx.normalized)) return true;
   if (item.verified && resultCtx.aliasNorm.includes(queryCtx.normalized)) return true;
@@ -781,12 +979,48 @@ function hasQueryMatch(item, queryCtx) {
     resultCtx.canonicalCombinedNorm.includes(queryCtx.canonicalJoined) ||
     (item.verified && resultCtx.canonicalAliasNorm.includes(queryCtx.canonicalJoined))
   )) return true;
-  return tokens.some(t =>
-    resultCtx.nameNorm.includes(t) ||
-    resultCtx.brandNorm.includes(t) ||
-    (item.verified && resultCtx.aliasNorm.includes(t)) ||
-    resultCtx.canonicalCombinedTokens.includes(canonicalizeFoodToken(t))
-  );
+
+  const effectiveTokens = queryCtx.effectiveCanonicalTokens.length
+    ? queryCtx.effectiveCanonicalTokens
+    : queryCtx.effectiveTokens;
+  const requiredNameTokens = queryCtx.requiredNameTokens?.length
+    ? queryCtx.requiredNameTokens
+    : effectiveTokens;
+
+  let matchedNameOrAlias = 0;
+  let matchedBrand = 0;
+  let matchedRequiredNameOrAlias = 0;
+
+  effectiveTokens.forEach(t => {
+    const canonical = canonicalizeFoodToken(t);
+    const inName = resultCtx.nameTokens.includes(t) || resultCtx.canonicalNameTokens.includes(canonical);
+    const inAlias = item.verified && (
+      resultCtx.aliasTokens.includes(t) || resultCtx.canonicalAliasTokens.includes(canonical)
+    );
+    const inBrand = resultCtx.brandTokens.includes(t) || resultCtx.canonicalBrandTokens.includes(canonical);
+
+    if (inName || inAlias) {
+      matchedNameOrAlias++;
+      if (requiredNameTokens.includes(t) || requiredNameTokens.includes(canonical)) matchedRequiredNameOrAlias++;
+    } else if (inBrand) {
+      matchedBrand++;
+    }
+  });
+
+  if (queryCtx.isBrandFocusedQuery) {
+    const minBrandMatches = Math.min(queryCtx.brandHintTokens.length || 1, 2);
+    if (storeMatch.hitCount > 0) return true;
+    return matchedBrand >= minBrandMatches;
+  }
+
+  if (queryCtx.brandHintTokens.length > 0 && matchedNameOrAlias === 0) return false;
+  if (!matchedNameOrAlias && !matchedBrand) return false;
+
+  if (requiredNameTokens.length >= 3 && matchedRequiredNameOrAlias < 2) return false;
+  if (requiredNameTokens.length >= 1 && matchedRequiredNameOrAlias < 1) return false;
+
+  const minTotalMatches = effectiveTokens.length >= 4 ? 2 : 1;
+  return (matchedNameOrAlias + matchedBrand) >= minTotalMatches;
 }
 
 function sourceRank(src) {
@@ -796,6 +1030,24 @@ function sourceRank(src) {
   if (src === 'cache') return 3;
   if (src === 'off') return 1;
   return 0;
+}
+
+function getWholeFoodNameDetails(resultCtx, queryCtx) {
+  if (!queryCtx?.isWholeFoodQuery || !queryCtx.wholeFoodTokens?.length) {
+    return { matchedWholeTokens: [], otherWholeTokens: [], exactWholeName: false };
+  }
+
+  const queryWholeTokens = uniqueFoodTerms(queryCtx.wholeFoodTokens.map(canonicalizeFoodToken));
+  const nameWholeTokens = uniqueFoodTerms(
+    resultCtx.canonicalNameTokens.filter(token => WHOLE_FOOD_TERMS.has(token))
+  );
+  const matchedWholeTokens = nameWholeTokens.filter(token => queryWholeTokens.includes(token));
+  const otherWholeTokens = nameWholeTokens.filter(token => !queryWholeTokens.includes(token));
+  const exactWholeName =
+    resultCtx.canonicalNameTokens.length === queryWholeTokens.length &&
+    queryWholeTokens.every(token => resultCtx.canonicalNameTokens.includes(token));
+
+  return { matchedWholeTokens, otherWholeTokens, exactWholeName };
 }
 
 function foodQualityPenalty(item) {
@@ -812,12 +1064,18 @@ function foodQualityPenalty(item) {
   return penalty;
 }
 
-function wholeFoodQueryAdjustment(resultCtx, queryCtx) {
+function wholeFoodQueryAdjustment(resultCtx, queryCtx, wholeFoodDetails = null) {
   if (!queryCtx.isWholeFoodQuery || !queryCtx.wholeFoodTokens.length) return 0;
+  const details = wholeFoodDetails || getWholeFoodNameDetails(resultCtx, queryCtx);
 
   let adj = 0;
   const matchedWholeTokens = queryCtx.wholeFoodTokens.filter(t => resultCtx.nameTokens.includes(t));
   if (matchedWholeTokens.length === queryCtx.wholeFoodTokens.length) adj += 40;
+
+  if (details.exactWholeName) adj += 80;
+  if (details.otherWholeTokens.length > 0) {
+    adj -= details.otherWholeTokens.length * (queryCtx.wholeFoodTokens.length === 1 ? 90 : 56);
+  }
 
   const extraNameTokens = resultCtx.nameTokens.filter(t => !queryCtx.wholeFoodTokens.includes(t));
   const compoundHits = extraNameTokens.filter(t => COMPOUND_FOOD_TERMS.has(t)).length;
@@ -832,7 +1090,28 @@ function wholeFoodQueryAdjustment(resultCtx, queryCtx) {
   return adj;
 }
 
-function classifyFoodConfidence(score, meta, item) {
+function classifyFoodConfidence(score, meta, item, queryCtx) {
+  if (queryCtx?.isWholeFoodQuery && meta.otherWholeFoodHits > 0) {
+    return 'low';
+  }
+  if (queryCtx?.storeHintTokens?.length > 0 && meta.storeHits === 0 && meta.brandHits === 0) {
+    return 'low';
+  }
+  if (
+    queryCtx?.brandHintTokens?.length > 0 &&
+    !queryCtx.isBrandFocusedQuery &&
+    meta.brandHits === 0 &&
+    meta.storeHits === 0
+  ) {
+    return 'low';
+  }
+  if (queryCtx?.attributeTokens?.length > 0 && meta.attributeHits === 0) {
+    return 'low';
+  }
+  if (queryCtx?.attributeTokens?.length > 1 && meta.attributeHits < queryCtx.attributeTokens.length) {
+    return score >= 54 ? 'medium' : 'low';
+  }
+
   const source = item.src || 'off';
   if (source === 'local' || source === 'recent' || source === 'favorite') {
     if (score >= 85 || meta.fullCanonicalMatch) return 'high';
@@ -853,6 +1132,7 @@ function scoreFoodResult(item, queryCtx, opts = {}) {
   const resultCtx = buildFoodResultContext(item);
   const tokens = queryCtx.effectiveCanonicalTokens.length ? queryCtx.effectiveCanonicalTokens : queryCtx.effectiveTokens;
   let score = 0;
+  const variantIndex = Number.isFinite(Number(item._offVariantIndex)) ? Number(item._offVariantIndex) : 0;
   const meta = {
     tokenCount: tokens.length,
     matchedName: 0,
@@ -861,6 +1141,10 @@ function scoreFoodResult(item, queryCtx, opts = {}) {
     exactNameTokenMatches: 0,
     attributeHits: 0,
     brandHits: 0,
+    storeHits: 0,
+    storePhraseHits: 0,
+    otherWholeFoodHits: 0,
+    exactWholeFoodName: false,
     aliasHits: 0,
     fullCanonicalMatch: false,
     verifiedBoost: 0,
@@ -928,19 +1212,54 @@ function scoreFoodResult(item, queryCtx, opts = {}) {
     score += 40;
   }
 
+  if (queryCtx.storeHintTokens.length > 0) {
+    const storeMatch = getStoreAliasMatchDetails(resultCtx, item, queryCtx);
+    meta.storeHits = storeMatch.hitCount;
+    meta.storePhraseHits = storeMatch.phraseHits;
+    score += storeMatch.phraseHits * 26;
+    if (storeMatch.phraseHits === 0) score += Math.min(storeMatch.tokenHits * 8, 18);
+    if (queryCtx.isBrandFocusedQuery && meta.storeHits > 0) score += 36;
+    else if (meta.storeHits > 0 && meta.matchedName > 0) score += 18;
+    else if (meta.storeHits === 0) score -= Math.min(28, queryCtx.storeHintTokens.length * 18);
+  }
+
   if (queryCtx.attributeTokens.length > 0) {
     meta.attributeHits = queryCtx.attributeTokens.filter(t =>
       resultCtx.canonicalNameTokens.includes(t) || resultCtx.canonicalBrandTokens.includes(t)
     ).length;
     score += meta.attributeHits * 10;
+    if (meta.attributeHits === 0) score -= Math.min(28, queryCtx.attributeTokens.length * 14);
+    else if (meta.attributeHits < queryCtx.attributeTokens.length) score -= (queryCtx.attributeTokens.length - meta.attributeHits) * 6;
   }
 
   if (queryCtx.brandHintTokens.length > 0) {
-    meta.brandHits = queryCtx.brandHintTokens.filter(t => resultCtx.canonicalBrandTokens.includes(t)).length;
-    score += meta.brandHits * 10;
+    meta.brandHits = queryCtx.brandHintTokens.filter(t =>
+      resultCtx.canonicalBrandTokens.includes(t) ||
+      resultCtx.canonicalNameTokens.includes(t) ||
+      resultCtx.canonicalCombinedNorm.includes(t)
+    ).length;
+    score += meta.brandHits * 18;
+    if (
+      queryCtx.isBrandFocusedQuery &&
+      (
+        meta.brandHits === queryCtx.brandHintTokens.length ||
+        (queryCtx.storeHintTokens.length === queryCtx.brandHintTokens.length && meta.storeHits > 0)
+      )
+    ) score += 34;
+    if (!queryCtx.isBrandFocusedQuery && meta.brandHits === 0 && meta.storeHits === 0) {
+      score -= Math.min(32, queryCtx.brandHintTokens.length * 18);
+    }
   }
 
-  score += wholeFoodQueryAdjustment(resultCtx, queryCtx);
+  if (item.src === 'off') {
+    if (variantIndex === 0) score += 18;
+    else score -= Math.min(variantIndex * (queryCtx.brandHintTokens.length > 0 ? 14 : 10), 42);
+  }
+
+  const wholeFoodDetails = getWholeFoodNameDetails(resultCtx, queryCtx);
+  meta.otherWholeFoodHits = wholeFoodDetails.otherWholeTokens.length;
+  meta.exactWholeFoodName = wholeFoodDetails.exactWholeName;
+  score += wholeFoodQueryAdjustment(resultCtx, queryCtx, wholeFoodDetails);
   meta.verifiedBoost = verifiedFoodBoost(item, resultCtx, queryCtx, meta);
   score += meta.verifiedBoost;
 
@@ -949,7 +1268,7 @@ function scoreFoodResult(item, queryCtx, opts = {}) {
   score -= foodQualityPenalty(item);
   return {
     score,
-    confidence: classifyFoodConfidence(score, meta, item),
+    confidence: classifyFoodConfidence(score, meta, item, queryCtx),
     meta,
   };
 }
@@ -964,7 +1283,7 @@ function verifiedFoodBoost(item, resultCtx, queryCtx, meta) {
 
   if (meta.fullCanonicalMatch) boost += 26;
   if (aliasExact || aliasCanonical) boost += 34;
-  if (meta.matchedName > 0 && (meta.matchedBrand > 0 || meta.brandHits > 0)) boost += 18;
+  if (meta.matchedName > 0 && (meta.matchedBrand > 0 || meta.brandHits > 0 || meta.storeHits > 0)) boost += 18;
   if (meta.attributeHits > 0) boost += 10;
   if (strongCoverage) boost += 16;
   if (meta.exactNameTokenMatches === meta.tokenCount && meta.tokenCount > 0) boost += 18;
@@ -1142,11 +1461,15 @@ async function searchFoods(q, callback, opts = {}) {
     .filter(f => hasQueryMatch(f, queryCtx))
     .map(f => ({ ...f, src: 'local' }));
 
+  const favorites = (S.favoriteFoods || [])
+    .filter(f => hasQueryMatch(f, queryCtx))
+    .map(f => ({ ...f, src: 'favorite' }));
+
   const local = FOOD_DB
     .filter(f => hasQueryMatch(f, queryCtx))
     .map(f => ({ ...f, src: 'local' }));
 
-  const allLocal = dedupeFoodResults([...custom, ...local], queryCtx, 8, { contextKey });
+  const allLocal = dedupeFoodResults([...favorites, ...custom, ...local], queryCtx, 10, { contextKey });
 
   // 1.5 Cache query/sessione: usata davvero come prima sorgente esterna locale
   const cached = ((S.foodCache && S.foodCache[key]) || [])
@@ -1231,9 +1554,16 @@ async function fetchOFF(q, signal, queryCtx) {
     : [q];
   let products = [];
 
-  for (const variant of variants) {
+  for (let idx = 0; idx < variants.length; idx++) {
+    const variant = variants[idx];
     const variantProducts = await _fetch(variant);
-    if (variantProducts.length) products = products.concat(variantProducts);
+    if (variantProducts.length) {
+      products = products.concat(variantProducts.map(p => ({
+        ...p,
+        _offVariantIndex: idx,
+        _offVariant: variant,
+      })));
+    }
     if (products.length >= 18) break;
   }
 
@@ -1248,6 +1578,8 @@ async function fetchOFF(q, signal, queryCtx) {
       c100:    Math.round((n['carbohydrates_100g'] || 0) * 10) / 10,
       f100:    Math.round((n['fat_100g']           || 0) * 10) / 10,
       _offHasItLabel: !!(p.product_name_it && p.product_name_it.trim()),
+      _offVariantIndex: Number.isFinite(Number(p._offVariantIndex)) ? Number(p._offVariantIndex) : 0,
+      _offVariant: p._offVariant || '',
       src: 'off',
     };
   }).filter(r => r.name && r.kcal100 > 0 && hasQueryMatch(r, localQueryCtx));
@@ -1264,19 +1596,28 @@ async function fetchOFF(q, signal, queryCtx) {
 // HTML del form "Aggiungi manualmente" — sempre disponibile in fondo ai risultati
 function _manualFormHTML(uid) {
   return `<div class="mf-toggle" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.classList.toggle('mf-open')">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Aggiungi manualmente
+      <span class="mf-toggle-icon">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </span>
+      <span class="mf-toggle-copy">
+        <span class="mf-toggle-title">Aggiungi manualmente</span>
+        <span class="mf-toggle-sub">Crea un alimento personalizzato per questo pasto</span>
+      </span>
     </div>
     <div class="mf-form" style="display:none" id="mff-${uid}">
-      <input class="mf-name" type="text" placeholder="Nome (es. Pasticciotto leccese)" autocomplete="off" style="font-size:16px">
+      <div class="mf-form-head">
+        <div class="mf-form-title">Nuovo alimento personalizzato</div>
+        <div class="mf-form-sub">Inserisci i valori nutrizionali per 100g e lo aggiungiamo subito al pasto.</div>
+      </div>
+      <input class="mf-name" type="text" placeholder="Nome alimento (es. Pasticciotto leccese)" autocomplete="off" style="font-size:16px">
       <div class="mf-row4">
-        <label class="mf-lbl">kcal<input class="mf-kcal" type="number" min="0" placeholder="0" inputmode="decimal" style="font-size:16px"></label>
+        <label class="mf-lbl">Kcal<input class="mf-kcal" type="number" min="0" placeholder="0" inputmode="decimal" style="font-size:16px"></label>
         <label class="mf-lbl">Prot<input class="mf-p"    type="number" min="0" placeholder="0" inputmode="decimal" style="font-size:16px"></label>
         <label class="mf-lbl">Carb<input class="mf-c"    type="number" min="0" placeholder="0" inputmode="decimal" style="font-size:16px"></label>
-        <label class="mf-lbl">Gras<input class="mf-g"    type="number" min="0" placeholder="0" inputmode="decimal" style="font-size:16px"></label>
+        <label class="mf-lbl">Grassi<input class="mf-g"    type="number" min="0" placeholder="0" inputmode="decimal" style="font-size:16px"></label>
       </div>
       <div class="mf-hint">Valori per 100g</div>
-      <button class="mf-save-btn">Salva e aggiungi →</button>
+      <button class="mf-save-btn">Salva e aggiungi</button>
     </div>`;
 }
 
@@ -1332,13 +1673,14 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
   }
 
   // Raggruppa per src — 'cache' → 'off'
-  const groups = { local: [], recent: [], cache: [], off: [] };
+  const groups = { favorite: [], local: [], recent: [], cache: [], off: [] };
   results.forEach(r => {
     const g = groups[r.src] ? r.src : 'off';
     groups[g].push(r);
   });
 
   const srcBadge = {
+    favorite:'<span class="fsr-src fsr-src-favorite">Preferito</span>',
     local:  '<span class="fsr-src fsr-src-local">Locale</span>',
     recent: '<span class="fsr-src fsr-src-recent">Recente</span>',
     cache:  '<span class="fsr-src fsr-src-cache">Cache</span>',
@@ -1353,8 +1695,10 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
 
   let html = alertsHtml;
   let idx = 0;
-  const primaryItems = [...groups.local, ...groups.recent, ...groups.cache]
+  const primaryPool = [...groups.favorite, ...groups.local, ...groups.recent, ...groups.cache]
     .sort((a, b) => (b._searchScore - a._searchScore));
+  const primaryItems = primaryPool.filter(item => item._searchConfidence !== 'low');
+  const lowConfidencePrimaryItems = primaryPool.filter(item => item._searchConfidence === 'low');
   const strongOffItems = groups.off.filter(item => item._searchConfidence !== 'low');
   const lowConfidenceOffItems = groups.off.filter(item => item._searchConfidence === 'low');
 
@@ -1401,15 +1745,18 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
     }
   }
 
-  if (lowConfidenceOffItems.length) {
+  const lowConfidenceItems = [...lowConfidencePrimaryItems, ...lowConfidenceOffItems]
+    .sort((a, b) => (b._searchScore - a._searchScore));
+
+  if (lowConfidenceItems.length) {
     html += '<div class="fsr-section">Altri risultati</div>';
     const lowId = 'fsr-low-' + Date.now();
-    html += '<div class="fsr-show-more" onclick="document.getElementById(\'' + lowId + '\').style.display=\'block\';this.style.display=\'none\'">Mostra risultati meno pertinenti (' + lowConfidenceOffItems.length + ')</div>';
+    html += '<div class="fsr-show-more" onclick="document.getElementById(\'' + lowId + '\').style.display=\'block\';this.style.display=\'none\'">Mostra risultati meno pertinenti (' + lowConfidenceItems.length + ')</div>';
     html += '<div id="' + lowId + '" style="display:none">';
-    lowConfidenceOffItems.forEach(item => {
+    lowConfidenceItems.forEach(item => {
       const k = 'r-' + idx++;
       html += '<div class="fsr-item fsr-item-low" id="fsri-' + k + '">' +
-        srcBadge.off +
+        (srcBadge[item.src] || srcBadge.off) +
         confidenceBadge.low +
         '<div class="fsr-info"><div class="fsr-name"><span class="fsr-name-txt">' + htmlEsc(item.name) + '</span>' + (item.verified ? verifiedBadge : '') + '</div>' +
         '<div class="fsr-brand">' + htmlEsc(item.brand || '') + '</div></div>' +
@@ -1425,7 +1772,7 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
 
   // Bind click su tutti gli item
   let bindIdx = 0;
-  [...primaryItems, ...strongOffItems, ...lowConfidenceOffItems].forEach(item => {
+  [...primaryItems, ...strongOffItems, ...lowConfidenceItems].forEach(item => {
     const el = document.getElementById('fsri-r-' + bindIdx++);
     if (el) el.addEventListener('click', () => onSelectFn(item, el));
   });
@@ -1449,6 +1796,25 @@ function showGramPicker(resEl, item, onConfirmFn, mealCtx) {
   const portionChips = FOOD_PORTIONS.map(p =>
     `<button class="fsr-portion" data-g="${p.g}">${p.label}<span class="fsr-portion-g">${p.g}g</span></button>`
   ).join('');
+  const sourceLabel = item.src === 'local'
+    ? 'Locale'
+    : item.src === 'recent'
+      ? 'Recente'
+      : item.src === 'cache'
+        ? 'Cache'
+        : item.src === 'off'
+          ? 'OFF'
+          : '';
+  const verifiedHtml = item.verified
+    ? `<span class="fsr-gp-verified" title="Alimento verificato">Verificato</span>`
+    : '';
+  const brandHtml = item.brand
+    ? `<div class="fsr-gp-brand">${htmlEsc(item.brand)}</div>`
+    : `<div class="fsr-gp-brand fsr-gp-brand-muted">Brand non specificato</div>`;
+  const metaBadgesHtml = [
+    sourceLabel ? `<span class="fsr-gp-badge">${sourceLabel}</span>` : '',
+    verifiedHtml,
+  ].filter(Boolean).join('');
 
   // Compute daily remaining kcal
   const _dk = (typeof S !== 'undefined' && S.selDate) || (typeof localDate === 'function' ? localDate() : '');
@@ -1478,6 +1844,9 @@ function showGramPicker(resEl, item, onConfirmFn, mealCtx) {
     }
   }
   const _mealRemK = _mealTgtK - _mealEatenK;
+  const _p100 = Math.round((item.p100 || 0) * 10) / 10;
+  const _c100 = Math.round((item.c100 || 0) * 10) / 10;
+  const _f100 = Math.round((item.f100 || 0) * 10) / 10;
 
   const remRowHTML = (_tgtK > 0 || _hasMealTarget) ? `<div class="fsr-rem-row">` +
     (_hasMealTarget ? `<span class="fsr-rem-lbl">Pasto:</span><span class="fsr-meal-rem-val ${_mealRemK < 0 ? 'err' : _mealRemK < _mealTgtK * 0.1 ? 'warn' : 'ok'}">${_mealRemK - item.kcal100} kcal rim.</span><span class="fsr-rem-sep">·</span>` : '') +
@@ -1485,25 +1854,68 @@ function showGramPicker(resEl, item, onConfirmFn, mealCtx) {
     `</div>` : '';
 
   div.innerHTML =
-    `<div class="fsr-gram-name">${htmlEsc(item.name.slice(0, 30))}</div>` +
-    `<div class="fsr-portions">${portionChips}</div>` +
-    `<div class="fsr-gram-custom">` +
-    `<input type="number" class="fsr-gram-input" value="100" min="1" max="5000" step="1" style="font-size:16px" placeholder="grammi">` +
-    `<span class="fsr-gram-unit">g</span>` +
-    `<span class="fsr-gram-calc">=\u00a0${item.kcal100}\u00a0kcal</span>` +
-    `<button class="fsr-gram-add">Aggiungi</button>` +
+    `<div class="fsr-gp-info">` +
+      `<div class="fsr-gp-head">` +
+        `<div class="fsr-gp-copy">` +
+          `<div class="fsr-gram-name">${htmlEsc(item.name.slice(0, 42))}</div>` +
+          `${brandHtml}` +
+        `</div>` +
+        (metaBadgesHtml ? `<div class="fsr-gp-badges">${metaBadgesHtml}</div>` : '') +
+      `</div>` +
+      `<div class="fsr-gp-macro-title">Valori nutrizionali per 100g</div>` +
+      `<div class="fsr-gp-macro-grid">` +
+        `<div class="fsr-gp-macro-card kcal"><span class="fsr-gp-macro-k">🔥</span><span class="fsr-gp-macro-v">${item.kcal100}</span><span class="fsr-gp-macro-u">kcal</span><span class="fsr-gp-macro-l">per 100g</span></div>` +
+        `<div class="fsr-gp-macro-card"><span class="fsr-gp-macro-k">🥩</span><span class="fsr-gp-macro-v">${_p100}</span><span class="fsr-gp-macro-u">g</span><span class="fsr-gp-macro-l">Proteine</span></div>` +
+        `<div class="fsr-gp-macro-card"><span class="fsr-gp-macro-k">🍚</span><span class="fsr-gp-macro-v">${_c100}</span><span class="fsr-gp-macro-u">g</span><span class="fsr-gp-macro-l">Carboidrati</span></div>` +
+        `<div class="fsr-gp-macro-card"><span class="fsr-gp-macro-k">🧈</span><span class="fsr-gp-macro-v">${_f100}</span><span class="fsr-gp-macro-u">g</span><span class="fsr-gp-macro-l">Grassi</span></div>` +
+      `</div>` +
     `</div>` +
-    remRowHTML;
+    `<div class="fsr-gp-action">` +
+      `<div class="fsr-gp-action-head">Inserisci quantita</div>` +
+      `<div class="fsr-portions">${portionChips}</div>` +
+      `<div class="fsr-gram-custom">` +
+      `<div class="fsr-gram-input-wrap">` +
+      `<input type="number" class="fsr-gram-input" value="100" min="1" max="5000" step="1" style="font-size:16px" placeholder="grammi">` +
+      `<span class="fsr-gram-unit">g</span>` +
+      `</div>` +
+      `<span class="fsr-gram-calc">=\u00a0${item.kcal100}\u00a0kcal</span>` +
+      `<button class="fsr-gram-add">Aggiungi</button>` +
+      `</div>` +
+      `<div class="fsr-gp-live">` +
+        `<span class="fsr-gp-live-lbl">Con questa quantita</span>` +
+        `<span class="fsr-gp-live-val">
+          <strong class="fsr-gp-live-k">${item.kcal100} kcal</strong>
+          <span class="fsr-gp-live-sep">·</span>
+          <span class="fsr-gp-live-m">P <span class="fsr-gp-live-p">${_p100}</span>g</span>
+          <span class="fsr-gp-live-sep">·</span>
+          <span class="fsr-gp-live-m">C <span class="fsr-gp-live-c">${_c100}</span>g</span>
+          <span class="fsr-gp-live-sep">·</span>
+          <span class="fsr-gp-live-m">G <span class="fsr-gp-live-f">${_f100}</span>g</span>
+        </span>` +
+      `</div>` +
+      remRowHTML +
+    `</div>`;
 
   resEl.after(div);
   const gi = div.querySelector('.fsr-gram-input');
   const gc = div.querySelector('.fsr-gram-calc');
   const gr = div.querySelector('.fsr-rem-val');
   const gm = div.querySelector('.fsr-meal-rem-val');
+  const liveK = div.querySelector('.fsr-gp-live-k');
+  const liveP = div.querySelector('.fsr-gp-live-p');
+  const liveC = div.querySelector('.fsr-gp-live-c');
+  const liveF = div.querySelector('.fsr-gp-live-f');
 
   const updateCalc = g => {
     const thisKcal = Math.round(item.kcal100 * g / 100);
+    const thisP = Math.round((item.p100 || 0) * g / 100 * 10) / 10;
+    const thisC = Math.round((item.c100 || 0) * g / 100 * 10) / 10;
+    const thisF = Math.round((item.f100 || 0) * g / 100 * 10) / 10;
     gc.textContent = '=\u00a0' + thisKcal + '\u00a0kcal';
+    if (liveK) liveK.textContent = `${thisKcal} kcal`;
+    if (liveP) liveP.textContent = thisP;
+    if (liveC) liveC.textContent = thisC;
+    if (liveF) liveF.textContent = thisF;
     if (gr && _tgtK > 0) {
       const afterRem = _remK - thisKcal;
       gr.textContent = (afterRem >= 0 ? afterRem : Math.abs(afterRem)) + (afterRem >= 0 ? ' kcal rim.' : ' kcal in più');
@@ -1559,20 +1971,23 @@ function onLogFoodSearch(input, dateKey, mealIdx, domKey) {
           resEl.querySelectorAll('.fsr-item').forEach(e => e.classList.remove('sel'));
           el.classList.add('sel');
           showGramPicker(resEl, item, confirmed => {
+            const dayType = typeof resolveDayTypeForDate === 'function'
+              ? resolveDayTypeForDate(dateKey)
+              : S.day;
             if (!S.foodLog[dateKey]) S.foodLog[dateKey] = {};
             if (!S.foodLog[dateKey][mealIdx]) S.foodLog[dateKey][mealIdx] = [];
             S.foodLog[dateKey][mealIdx].push(confirmed);
-            syncLoggedMealState(dateKey, mealIdx, S.day);
+            syncLoggedMealState(dateKey, mealIdx, dayType);
             save();
             input.value = '';
             resEl.innerHTML = '';
             const gp2 = resEl.nextSibling;
             if (gp2?.classList?.contains('fsr-gram-row')) gp2.remove();
             toast('✅ ' + confirmed.name + ' aggiunto');
-            refreshMealCard(S.day, mealIdx);
+            refreshMealCard(dayType, mealIdx);
             requestAnimationFrame(() => {
               if (typeof scrollMealCardIntoView === 'function') {
-                scrollMealCardIntoView(S.day, mealIdx, { behavior: 'smooth', focusAdd: true });
+                scrollMealCardIntoView(dayType, mealIdx, { behavior: 'smooth', focusAdd: true });
               }
             });
           }, { mealIdx, dateKey });

@@ -6,6 +6,27 @@
 const LS_KEY = 'piano_federico_v2';
 let _saveTimer;
 
+const USER_STATE_KEYS = [
+  'checked','altSel','weightLog','notes','noteSearch','profHist',
+  'profilo','anagrafica','macro','meals','alts','onDays','calOffset','selDate',
+  'doneByDate','measurements','goal','supplements','suppChecked','statsRange',
+  'lastCheckin','barcodeCache','foodCache','foodSearchLearn','foodLog','templates','customFoods','water',
+  'cheatMealsByDate','cheatConfig',
+  'favoriteFoods','mealPlanner'
+];
+
+function applyValidatedState(saved) {
+  USER_STATE_KEYS.forEach(k => { if (k in saved) S[k] = saved[k]; });
+
+  if (saved.day === 'on' || saved.day === 'off') S.day = saved.day;
+  if (saved.planTab === 'on' || saved.planTab === 'off') S.planTab = saved.planTab;
+
+  if (!Array.isArray(S.onDays) || S.onDays.length === 0) S.onDays = [1, 3, 5];
+  if (typeof S.noteSearch !== 'string') S.noteSearch = '';
+  if (!S.cheatMealsByDate || typeof S.cheatMealsByDate !== 'object' || Array.isArray(S.cheatMealsByDate)) S.cheatMealsByDate = {};
+  if (typeof normalizeCheatConfig === 'function') normalizeCheatConfig(S.cheatConfig);
+}
+
 // Salva lo stato su localStorage
 function save() {
   try {
@@ -41,25 +62,7 @@ function loadSaved() {
       return false;
     }
 
-    // Chiavi dati utente – sempre ripristinate
-    const USER_KEYS = [
-      'checked','altSel','weightLog','notes','noteSearch','profHist',
-      'profilo','anagrafica','macro','meals','alts','onDays','calOffset','selDate',
-      'doneByDate','measurements','goal','supplements','suppChecked','statsRange',
-      'lastCheckin','barcodeCache','foodCache','foodSearchLearn','foodLog','templates','customFoods','water',
-      'favoriteFoods','mealPlanner'
-    ];
-    USER_KEYS.forEach(k => { if (k in saved) S[k] = saved[k]; });
-
-    // day/planTab: ripristina solo se valore valido
-    if (saved.day === 'on' || saved.day === 'off') S.day = saved.day;
-    if (saved.planTab === 'on' || saved.planTab === 'off') S.planTab = saved.planTab;
-
-    // Guardrail: onDays sempre array non vuoto
-    if (!Array.isArray(S.onDays) || S.onDays.length === 0) S.onDays = [1, 3, 5];
-
-    // Guardrail: noteSearch sempre stringa
-    if (typeof S.noteSearch !== 'string') S.noteSearch = '';
+    applyValidatedState(saved);
 
     mfDebug('storage', 'load ok', { keys: Object.keys(saved).length, bytes: raw.length });
     return true;
@@ -114,7 +117,7 @@ function onLoad(e) {
         toast('❌  File JSON non valido');
         return;
       }
-      Object.assign(S, parsed);
+      applyValidatedState(parsed);
       save();
       initAll();
       _storageStatus.lastImportError = null;

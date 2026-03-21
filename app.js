@@ -36,6 +36,15 @@ const S = {
     { id:'creatina', name:'Creatina Creapure', dose:'3 g', when:'mattina', active:true },
     { id:'vitd',     name:'Vitamina D',        dose:'---', when:'mattina', active:false },
   ],
+  cheatMealsByDate: {},
+  cheatConfig: {
+    enabled: true,
+    weeklyMax: 2,
+    hardMax: 3,
+    defaultMode: 'surplus_pct',
+    surplusPct: 12,
+    fixedKcal: 350,
+  },
   suppChecked: {},  // {'2026-03-17': ['creatina']}
   water: {},        // {'2026-03-17': 3}  (bicchieri)
   lastCheckin: null,
@@ -337,18 +346,30 @@ function scheduleGreetingStateTransition(prevType, nextType) {
   }, 780);
 }
 
-function showDayModal({icon, title, body, onConfirm, danger = false, noButtons = false}) {
+function showDayModal({icon, title, body, onConfirm, danger = false, noButtons = false, eyebrow = '', modalClass = ''}) {
   document.getElementById('day-modal-icon').textContent  = icon;
+  const eyebrowEl = document.getElementById('day-modal-kicker');
+  if (eyebrowEl) {
+    eyebrowEl.textContent = eyebrow;
+    eyebrowEl.style.display = eyebrow ? 'block' : 'none';
+  }
   const titleEl = document.getElementById('day-modal-title');
   titleEl.textContent = title;
   titleEl.style.color = danger ? 'var(--red)' : '';
-  document.getElementById('day-modal-body').innerHTML    = body;
+  const bodyEl = document.getElementById('day-modal-body');
+  bodyEl.innerHTML = body;
   const confirmBtn = document.getElementById('day-modal-confirm');
   confirmBtn.style.background = danger ? 'var(--red)' : 'var(--ink)';
   const footer  = document.getElementById('day-modal-footer');
   const closeX  = document.getElementById('day-modal-close-x');
+  const card    = document.getElementById('day-modal-card');
+  if (card) card.className = `day-modal-card${modalClass ? ` ${modalClass}` : ''}`;
   footer.style.display  = noButtons ? 'none' : 'flex';
   closeX.style.display  = noButtons ? 'flex' : 'none';
+  if (card) {
+    card.style.maxWidth = noButtons ? '430px' : '340px';
+  }
+  bodyEl.style.marginBottom = noButtons ? '0' : '20px';
   _modalConfirmFn = onConfirm;
   const ov = document.getElementById('day-modal-ov');
   ov.style.display = 'flex';
@@ -361,6 +382,8 @@ function showDayModal({icon, title, body, onConfirm, danger = false, noButtons =
 }
 function closeDayModal() {
   document.getElementById('day-modal-ov').style.display = 'none';
+  const card = document.getElementById('day-modal-card');
+  if (card) card.className = 'day-modal-card';
   _modalConfirmFn = null;
   unlockUiScroll();
 }
@@ -381,12 +404,153 @@ function syncDoneByDate(dateKey = (S.selDate || localDate()), type = S.day) {
     type: resolvedType,
     mealDone: info.mealDone,
     extraDone: info.extraDone,
+    cheatDone: info.cheatDone,
     suppDone: info.suppDone,
     waterCount: info.waterCount,
     activityCount: info.activityCount,
     hasActivity: info.hasActivity,
     hasTypeOverride,
   };
+}
+function normalizeCheatConfig(config = S.cheatConfig || {}) {
+  const weeklyMax = Number.isInteger(config.weeklyMax) ? config.weeklyMax : 2;
+  const hardMax = Number.isInteger(config.hardMax) ? config.hardMax : 3;
+  const fixedKcal = Number.isFinite(config.fixedKcal) ? Math.round(config.fixedKcal) : 350;
+  const surplusPct = Number.isFinite(config.surplusPct) ? config.surplusPct : 12;
+  S.cheatConfig = {
+    enabled: config.enabled !== false,
+    weeklyMax: Math.max(0, Math.min(3, weeklyMax)),
+    hardMax: Math.max(1, Math.min(3, hardMax)),
+    defaultMode: config.defaultMode === 'fixed' ? 'fixed' : 'surplus_pct',
+    surplusPct: Math.max(5, Math.min(20, surplusPct)),
+    fixedKcal: Math.max(150, Math.min(800, fixedKcal)),
+  };
+  if (S.cheatConfig.weeklyMax > S.cheatConfig.hardMax) {
+    S.cheatConfig.weeklyMax = S.cheatConfig.hardMax;
+  }
+  return S.cheatConfig;
+}
+function resolveDayTypeForDate(dateKey) {
+  const selectedKey = S.selDate || localDate();
+  if (dateKey === selectedKey) return S.day;
+  return getTrackedDayType(dateKey, getScheduledDayType(dateKey));
+}
+function getCheatMealForDate(dateKey = (S.selDate || localDate())) {
+  return S.cheatMealsByDate?.[dateKey] || null;
+}
+function hasCheatMeal(dateKey = (S.selDate || localDate())) {
+  return !!getCheatMealForDate(dateKey);
+}
+function getWeekBounds(dateKey = (S.selDate || localDate())) {
+  const base = new Date(`${dateKey}T12:00:00`);
+  const dow = base.getDay();
+  const monOffset = dow === 0 ? -6 : 1 - dow;
+  const start = new Date(base);
+  start.setDate(base.getDate() + monOffset);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+function getWeekCheatCount(dateKey = (S.selDate || localDate())) {
+  const { start, end } = getWeekBounds(dateKey);
+  return Object.keys(S.cheatMealsByDate || {}).filter(key => {
+    const current = new Date(`${key}T12:00:00`);
+    return current >= start && current <= end;
+  }).length;
+}
+function getCheatWeeklyLimit() {
+  const cfg = normalizeCheatConfig();
+  return Math.min(cfg.weeklyMax, cfg.hardMax);
+}
+function calcCheatExtraKcal(dateKey = (S.selDate || localDate()), type = resolveDayTypeForDate(dateKey)) {
+  const cfg = normalizeCheatConfig();
+  const target = S.macro?.[type]?.k || 0;
+  if (cfg.defaultMode === 'fixed') return Math.max(150, Math.min(800, Math.round(cfg.fixedKcal)));
+  const raw = target * (cfg.surplusPct / 100);
+  const rounded = Math.round(raw / 25) * 25;
+  return Math.max(250, Math.min(450, rounded || 0));
+}
+function getCheatAutoTriggerKcal(dateKey = (S.selDate || localDate()), type = resolveDayTypeForDate(dateKey)) {
+  const base = S.macro?.[type]?.k || 0;
+  return base + 250;
+}
+function getEffectiveKcalTarget(dateKey = (S.selDate || localDate()), type = resolveDayTypeForDate(dateKey)) {
+  const base = S.macro?.[type]?.k || 0;
+  const extra = getCheatMealForDate(dateKey)?.extraKcal || 0;
+  return base + extra;
+}
+function reconcileAutoCheatMeal(dateKey = (S.selDate || localDate()), type = resolveDayTypeForDate(dateKey), eatenKcal = 0) {
+  const cfg = normalizeCheatConfig();
+  if (!cfg.enabled) return { changed: false, cheat: getCheatMealForDate(dateKey) };
+
+  const current = getCheatMealForDate(dateKey);
+  const triggerAt = getCheatAutoTriggerKcal(dateKey, type);
+  const shouldAutoActivate = eatenKcal >= triggerAt;
+
+  if (current?.source === 'auto_surplus' && !shouldAutoActivate) {
+    delete S.cheatMealsByDate[dateKey];
+    syncDoneByDate(dateKey, type);
+    save();
+    return { changed: true, cheat: null };
+  }
+
+  if (current || !shouldAutoActivate) {
+    return { changed: false, cheat: current };
+  }
+
+  const weekCount = getWeekCheatCount(dateKey);
+  const limit = getCheatWeeklyLimit();
+  if (weekCount >= limit) return { changed: false, cheat: null };
+
+  const extraKcal = calcCheatExtraKcal(dateKey, type);
+  S.cheatMealsByDate[dateKey] = {
+    extraKcal,
+    label: 'Sgarro controllato',
+    source: 'auto_surplus',
+    triggerDeltaKcal: eatenKcal - (S.macro?.[type]?.k || 0),
+    createdAt: new Date().toISOString(),
+  };
+  syncDoneByDate(dateKey, type);
+  save();
+  return { changed: true, cheat: S.cheatMealsByDate[dateKey] };
+}
+function toggleCheatMeal(dateKey = (S.selDate || localDate())) {
+  const cfg = normalizeCheatConfig();
+  if (!cfg.enabled) {
+    toast('⚠️ Sgarri disattivati');
+    return;
+  }
+  const current = getCheatMealForDate(dateKey);
+  const dayType = resolveDayTypeForDate(dateKey);
+  if (current) {
+    delete S.cheatMealsByDate[dateKey];
+    syncDoneByDate(dateKey, dayType);
+    save();
+    renderTodayLog();
+    refreshTodayDerivedViews({ stats: true });
+    toast('↩️ Sgarro rimosso');
+    return;
+  }
+  const weekCount = getWeekCheatCount(dateKey);
+  const limit = getCheatWeeklyLimit();
+  if (weekCount >= limit) {
+    toast(`⚠️ Limite sgarri raggiunto: ${weekCount}/${limit}`);
+    return;
+  }
+  const extraKcal = calcCheatExtraKcal(dateKey, dayType);
+  S.cheatMealsByDate[dateKey] = {
+    extraKcal,
+    label: 'Sgarro controllato',
+    source: 'manual',
+    createdAt: new Date().toISOString(),
+  };
+  syncDoneByDate(dateKey, dayType);
+  save();
+  renderTodayLog();
+  refreshTodayDerivedViews({ stats: true });
+  toast(`🍕 Sgarro segnato: +${extraKcal} kcal`);
 }
 function refreshTodayDerivedViews({ greeting = true, calendar = true, stats = true } = {}) {
   const active = document.querySelector('.view.active')?.id;
@@ -674,15 +838,16 @@ function loadTemplateToLog(tmplId) {
 }
 function loadTemplateToMeal(tmplId, dateKey, mealIdx) {
   const t = S.templates.find(t=>t.id===tmplId); if (!t) return;
+  const dayType = resolveDayTypeForDate(dateKey);
   if (!S.foodLog[dateKey]) S.foodLog[dateKey] = {};
   if (!S.foodLog[dateKey][mealIdx]) S.foodLog[dateKey][mealIdx] = [];
   const existing = S.foodLog[dateKey][mealIdx];
   if (existing.length && !confirm(`Aggiungere "${t.name}" al log esistente?`)) return;
   S.foodLog[dateKey][mealIdx].push(...t.items.map(it=>({...it})));
-  syncLoggedMealState(dateKey, mealIdx, S.day);
+  syncLoggedMealState(dateKey, mealIdx, dayType);
   save();
-  refreshMealCard(S.day, mealIdx);
-  renderMacroStrip(S.day, S.meals[S.day], S.macro[S.day]);
+  refreshMealCard(dayType, mealIdx);
+  renderMacroStrip(dayType, S.meals[dayType], S.macro[dayType]);
   toast(`✅ ${t.name} caricato`);
 }
 
@@ -881,9 +1046,11 @@ function removeItem(type, mealIdx, itemIdx) {
 }
 function toggleLogSearch(domKey) {
   const el = document.getElementById('mls-'+domKey);
+  const panel = document.getElementById('mlp-'+domKey);
   if (!el) return;
   const isOpen = el.style.display !== 'none';
   el.style.display = isOpen ? 'none' : 'block';
+  if (panel) panel.classList.toggle('is-open', !isOpen);
   if (!isOpen) {
     const inp = document.getElementById('mlsi-'+domKey);
     if (inp) { inp.value=''; inp.focus(); }
@@ -930,6 +1097,10 @@ function refreshMealCard(type, mealIdx) {
   const completion = getDayCompletion(dateKey, type);
   const mealState = getCurrentMealState(type, dateKey);
   renderCurrentMealFocus(type, mealState, dateKey);
+  if (typeof renderCheatWidget === 'function') renderCheatWidget();
+  if (typeof renderTodaySignals === 'function') renderTodaySignals(type, dateKey);
+  if (typeof renderDashboardAlertSummary === 'function') renderDashboardAlertSummary(type, dateKey);
+  if (typeof renderSupportAlerts === 'function') renderSupportAlerts(type, dateKey);
   const dpLabel = document.getElementById('dp-label');
   const dpFill  = document.getElementById('dp-fill');
   if (dpLabel) dpLabel.textContent = `${completion.done} / ${completion.total} pasti`;
@@ -941,47 +1112,38 @@ function refreshMealCard(type, mealIdx) {
 }
 
 function removeLogItem(dateKey, mealIdx, itemIdx) {
+  const dayType = resolveDayTypeForDate(dateKey);
   S.foodLog[dateKey]?.[mealIdx]?.splice(itemIdx,1);
   if (!S.foodLog[dateKey]?.[mealIdx]?.length) {
     delete S.foodLog[dateKey]?.[mealIdx];
   }
-  syncDoneByDate(dateKey, S.day);
-  save(); refreshMealCard(S.day, mealIdx);
+  syncDoneByDate(dateKey, dayType);
+  save(); refreshMealCard(dayType, mealIdx);
 }
 
 function editLogItem(dateKey, mealIdx, itemIdx) {
   const item = S.foodLog[dateKey]?.[mealIdx]?.[itemIdx];
   if (!item) return;
   const kcal100 = item.kcal100;
+  const dayType = resolveDayTypeForDate(dateKey);
   showDayModal({
     icon: '✏️',
     title: item.name.length > 28 ? item.name.slice(0,28)+'…' : item.name,
     body: `<div class="edit-gram-row">
       <label class="edit-gram-label">Grammatura (g)</label>
       <div class="edit-gram-inputs">
-        <input id="edit-gram-inp" type="number" class="edit-gram-inp" value="${item.grams}" min="1" max="5000" step="1" style="font-size:16px">
+        <input id="edit-gram-inp" type="number" class="edit-gram-inp" value="${item.grams}" min="1" max="5000" step="1" data-kcal100="${kcal100}" style="font-size:16px">
         <span class="edit-gram-unit">g</span>
       </div>
       <div id="edit-gram-calc" class="edit-gram-calc">= ${Math.round(kcal100 * item.grams / 100)} kcal</div>
-    </div>
-    <script>
-      (function(){
-        const inp = document.getElementById('edit-gram-inp');
-        const calc = document.getElementById('edit-gram-calc');
-        inp.addEventListener('input', () => {
-          const g = +inp.value || 0;
-          calc.textContent = '= ' + Math.round(${kcal100} * g / 100) + ' kcal';
-        });
-        inp.select();
-      })();
-    <\/script>`,
+    </div>`,
     onConfirm: () => {
       const inp = document.getElementById('edit-gram-inp');
       const g = Math.round(+inp?.value || item.grams);
       if (g > 0 && S.foodLog[dateKey]?.[mealIdx]?.[itemIdx]) {
         S.foodLog[dateKey][mealIdx][itemIdx].grams = g;
         save();
-        refreshMealCard(S.day, mealIdx);
+        refreshMealCard(dayType, mealIdx);
       }
     }
   });
@@ -1072,6 +1234,18 @@ function focusTodayNotes() {
   if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
   setTimeout(() => notes?.focus(), 180);
 }
+function focusTodayCheat() {
+  if (typeof renderCheatWidget === 'function') renderCheatWidget();
+  const cheatCard = document.getElementById('today-cheat-card');
+  const cheatWrap = document.getElementById('cheat-widget');
+  const target = cheatCard || cheatWrap || document.querySelector('.today-support-panel');
+  if (!target) return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => {
+    pulseTodayElement('#today-cheat-card', 'ui-glow');
+    pulseTodayElement('#cheat-widget', 'ui-glow');
+  }, 150);
+}
 
 function openFoodSuggestion(remK, remP, remC, remF) {
   const suggestion = suggestFood(+remK, +remP, +remC, +remF);
@@ -1106,83 +1280,186 @@ function openFoodSuggestion(remK, remP, remC, remF) {
 }
 
 function clearLogMeal(dateKey, mealIdx) {
+  const dayType = resolveDayTypeForDate(dateKey);
+  const hasItems = !!S.foodLog[dateKey]?.[mealIdx]?.length;
+  if (!hasItems) return;
+  if (!confirm('Vuoi davvero azzerare tutti gli alimenti di questo pasto?')) return;
   if (S.foodLog[dateKey]) delete S.foodLog[dateKey][mealIdx];
-  syncDoneByDate(dateKey, S.day);
-  save(); refreshMealCard(S.day, mealIdx);
+  syncDoneByDate(dateKey, dayType);
+  save(); refreshMealCard(dayType, mealIdx);
+}
+
+function normalizeMacroDetailMetric(value, unit) {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return unit === 'kcal'
+    ? Math.round(safeValue)
+    : Math.round(safeValue * 10) / 10;
+}
+
+function formatMacroDetailMetric(value, unit) {
+  const normalized = normalizeMacroDetailMetric(value, unit);
+  return `${normalized.toLocaleString('it-IT', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: unit === 'kcal' ? 0 : 1
+  })} ${unit}`;
 }
 
 function openMacroDetail(macroKey) {
   const type    = S.day;
-  const meals   = S.meals[type];
+  const meals   = S.meals[type] || [];
   const dateKey = S.selDate || localDate();
   const dayLog  = S.foodLog[dateKey] || {};
-  const tgt     = S.macro[type];
+  const tgt     = S.macro[type] || {};
+  const effectiveTargetK = typeof getEffectiveKcalTarget === 'function'
+    ? getEffectiveKcalTarget(dateKey, type)
+    : tgt.k;
+  const kcalExtra = Math.max(0, (effectiveTargetK || 0) - (tgt.k || 0));
 
   const macroMeta = {
-    prot: { lbl: 'Proteine', icon: '🥩', field: 'p100', unit: 'g', tgt: tgt.p },
-    carb: { lbl: 'Carboidrati', icon: '🍚', field: 'c100', unit: 'g', tgt: tgt.c },
-    fat:  { lbl: 'Grassi', icon: '🧈', field: 'f100', unit: 'g', tgt: tgt.f },
+    kcal: {
+      lbl: 'Calorie',
+      icon: '🔥',
+      field: 'kcal100',
+      unit: 'kcal',
+      tgt: effectiveTargetK || 0,
+      minValue: 1,
+      roundEach: true,
+      targetLabel: 'Obiettivo oggi',
+      targetNote: kcalExtra > 0
+        ? `${formatMacroDetailMetric(tgt.k || 0, 'kcal')} base + ${formatMacroDetailMetric(kcalExtra, 'kcal')} sgarro`
+        : ''
+    },
+    prot: {
+      lbl: 'Proteine',
+      icon: '🥩',
+      field: 'p100',
+      unit: 'g',
+      tgt: tgt.p || 0,
+      minValue: 0.05,
+      roundEach: false,
+      targetLabel: 'Target giorno'
+    },
+    carb: {
+      lbl: 'Carboidrati',
+      icon: '🍚',
+      field: 'c100',
+      unit: 'g',
+      tgt: tgt.c || 0,
+      minValue: 0.05,
+      roundEach: false,
+      targetLabel: 'Target giorno'
+    },
+    fat: {
+      lbl: 'Grassi',
+      icon: '🧈',
+      field: 'f100',
+      unit: 'g',
+      tgt: tgt.f || 0,
+      minValue: 0.05,
+      roundEach: false,
+      targetLabel: 'Target giorno'
+    },
   };
   const meta = macroMeta[macroKey];
   if (!meta) return;
 
+  const sections = [];
   let totalMacro = 0;
-  let rows = '';
+
+  const buildSection = (mealName, items) => {
+    const foodRows = (items || []).map(it => {
+      const grams = Number(it?.grams || 0);
+      const rawValue = Number(it?.[meta.field] || 0) * grams / 100;
+      const value = meta.roundEach ? normalizeMacroDetailMetric(rawValue, meta.unit) : rawValue;
+      return {
+        name: it?.name || 'Alimento',
+        grams,
+        value,
+      };
+    }).filter(row => row.grams > 0 && row.value >= meta.minValue)
+      .sort((a, b) => b.value - a.value);
+
+    if (!foodRows.length) return;
+
+    const mealTotal = foodRows.reduce((sum, row) => sum + row.value, 0);
+    totalMacro += mealTotal;
+    sections.push({
+      mealName,
+      mealTotal,
+      foodRows,
+    });
+  };
 
   meals.forEach((meal, i) => {
-    const items = dayLog[i] || [];
-    if (!items.length) return;
-    const mealTotal = items.reduce((sum, it) => sum + it[meta.field] * it.grams / 100, 0);
-    totalMacro += mealTotal;
-    rows += `<div class="md-meal-block">
-      <div class="md-meal-name">${htmlEsc(meal.name)}</div>`;
-    items.forEach(it => {
-      const val = Math.round(it[meta.field] * it.grams / 100 * 10) / 10;
-      rows += `<div class="md-food-row">
-        <span class="md-food-name">${htmlEsc(it.name)}</span>
-        <span class="md-food-val">${val}${meta.unit}</span>
-      </div>`;
-    });
-    rows += `<div class="md-meal-total">${meal.name}: ${Math.round(mealTotal*10)/10}${meta.unit}</div>
-    </div>`;
+    buildSection(meal.name, dayLog[i] || []);
   });
 
   // Pasti extra
   const _activeExtra = S.extraMealsActive?.[dateKey] || {};
   const extraDefs = { merenda: 'Merenda', spuntino: 'Spuntino' };
   Object.keys(_activeExtra).forEach(xKey => {
-    const items = dayLog[xKey] || [];
-    if (!items.length) return;
-    const mealTotal = items.reduce((sum, it) => sum + it[meta.field] * it.grams / 100, 0);
-    totalMacro += mealTotal;
-    rows += `<div class="md-meal-block">
-      <div class="md-meal-name">${extraDefs[xKey] || xKey}</div>`;
-    items.forEach(it => {
-      const val = Math.round(it[meta.field] * it.grams / 100 * 10) / 10;
-      rows += `<div class="md-food-row">
-        <span class="md-food-name">${htmlEsc(it.name)}</span>
-        <span class="md-food-val">${val}${meta.unit}</span>
-      </div>`;
-    });
-    rows += `<div class="md-meal-total">Totale: ${Math.round(mealTotal*10)/10}${meta.unit}</div>
-    </div>`;
+    buildSection(extraDefs[xKey] || xKey, dayLog[xKey] || []);
   });
 
-  if (!rows) rows = `<div class="md-empty">Nessun alimento loggato oggi.</div>`;
+  let rows = sections.map(section => `
+    <div class="md-meal-block">
+      <div class="md-meal-head">
+        <div class="md-meal-name">${htmlEsc(section.mealName)}</div>
+        <div class="md-meal-total">${formatMacroDetailMetric(section.mealTotal, meta.unit)}</div>
+      </div>
+      <div class="md-food-list">
+        ${section.foodRows.map(row => `
+          <div class="md-food-row">
+            <div class="md-food-copy">
+              <span class="md-food-name">${htmlEsc(row.name)}</span>
+              <span class="md-food-meta">${formatMacroDetailMetric(row.grams, 'g')} loggati</span>
+            </div>
+            <span class="md-food-val">${formatMacroDetailMetric(row.value, meta.unit)}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
 
-  const rem = meta.tgt - Math.round(totalMacro * 10) / 10;
-  const remTxt = rem > 0 ? `–${Math.round(rem*10)/10}g mancanti` : rem < 0 ? `+${Math.round(Math.abs(rem)*10)/10}g in più` : 'Obiettivo raggiunto ✓';
-  const remCls = rem < 0 ? 'err' : rem < meta.tgt * 0.15 ? 'warn' : 'ok';
+  if (!rows) rows = `<div class="md-empty">Nessun alimento loggato oggi per questo riepilogo.</div>`;
+
+  const rem = (meta.tgt || 0) - totalMacro;
+  const remCls = rem < 0 ? 'err' : rem < (meta.tgt || 0) * 0.15 ? 'warn' : 'ok';
+  const remTxt = rem > 0
+    ? `${formatMacroDetailMetric(rem, meta.unit)} mancanti`
+    : rem < 0
+      ? `${formatMacroDetailMetric(Math.abs(rem), meta.unit)} in più`
+      : 'Obiettivo raggiunto';
 
   showDayModal({
     icon: meta.icon,
     title: meta.lbl,
-    body: `<div class="md-summary">
-        <span class="md-total">${Math.round(totalMacro*10)/10}${meta.unit}</span>
-        <span class="md-rem ${remCls}">/ ${meta.tgt}${meta.unit} · ${remTxt}</span>
-      </div>
-      <div class="md-body">${rows}</div>`,
-    noButtons: true
+    body: `<div class="md-shell ${macroKey}">
+        <div class="md-summary">
+          <div class="md-summary-copy">
+            <div class="md-summary-kicker">Totale oggi</div>
+            <div class="md-total-row">
+              <span class="md-total">${formatMacroDetailMetric(totalMacro, meta.unit)}</span>
+            </div>
+          </div>
+          <div class="md-balance ${remCls}">
+            <span class="md-balance-lbl">${meta.targetLabel}</span>
+            <span class="md-balance-val">${formatMacroDetailMetric(meta.tgt || 0, meta.unit)}</span>
+            ${meta.targetNote ? `<span class="md-balance-note">${meta.targetNote}</span>` : ''}
+            <span class="md-rem ${remCls}">${remTxt}</span>
+          </div>
+        </div>
+        <div class="md-body-head">
+          <div class="md-body-copy">
+            <div class="md-body-kicker">Dettaglio per pasto</div>
+            <div class="md-body-note">Alimenti ordinati dal contributo piu alto al piu basso.</div>
+          </div>
+        </div>
+        <div class="md-body">${rows}</div>
+      </div>`,
+    noButtons: true,
+    eyebrow: 'Recap alimenti',
+    modalClass: 'day-modal-detail'
   });
 }
 
@@ -1198,6 +1475,20 @@ function loadPlanToLog(dateKey, mealIdx, type) {
 }
 let _ffSearchResults = [];
 let _ffSearchTimer = null;
+let _editGramPreviewBound = false;
+
+function bindEditGramPreview() {
+  if (_editGramPreviewBound) return;
+  document.addEventListener('input', (event) => {
+    if (event.target?.id !== 'edit-gram-inp') return;
+    const calc = document.getElementById('edit-gram-calc');
+    if (!calc) return;
+    const kcal100 = parseFloat(event.target.dataset.kcal100 || '0') || 0;
+    const grams = +event.target.value || 0;
+    calc.textContent = '= ' + Math.round(kcal100 * grams / 100) + ' kcal';
+  });
+  _editGramPreviewBound = true;
+}
 
 function onFfSearch(inp) {
   const q = inp.value.trim();
@@ -1254,17 +1545,19 @@ function addNoteTag(tag) {
   inp.focus();
   onNoteInput(inp);
 }
-function toggleSuppForm() {
-  const el = document.getElementById('supp-form');
+function toggleSuppForm(scope = 'today') {
+  const el = document.getElementById(`supp-form-${scope}`);
   if (el) { el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
 }
-function confirmAddSupp() {
-  const name = document.getElementById('sf-name')?.value.trim();
+function confirmAddSupp(scope = 'today') {
+  const name = document.getElementById(`sf-name-${scope}`)?.value.trim();
   if (!name) { toast('❌  Inserisci il nome'); return; }
-  const dose = document.getElementById('sf-dose')?.value.trim() || '---';
-  const when = document.getElementById('sf-when')?.value.trim() || 'mattina';
+  const dose = document.getElementById(`sf-dose-${scope}`)?.value.trim() || '---';
+  const when = document.getElementById(`sf-when-${scope}`)?.value.trim() || 'mattina';
   S.supplements.push({ id:'supp_'+Date.now(), name, dose, when, active:true });
-  save(); renderSupplements(); renderSuppToday(); toggleSuppForm();
+  save();
+  renderSupplements();
+  renderSuppToday();
   toast('✅  Integratore aggiunto');
 }
 function renderMeasCompare() {
@@ -1788,10 +2081,10 @@ function macroAlerts() {
     const meals = S.meals[type];
     const tgt   = S.macro[type];
     const label = type === 'on' ? 'ON' : 'OFF';
-    const totK = meals.reduce((s,_,i2)=>{const mm=mealMacros(S.meals[S.planTab][i2]);return s+mm.kcal;},0);
-  const totP = meals.reduce((s,_,i2)=>{const mm=mealMacros(S.meals[S.planTab][i2]);return s+mm.p;},0);
-  const totC = meals.reduce((s,_,i2)=>{const mm=mealMacros(S.meals[S.planTab][i2]);return s+mm.c;},0);
-  const totF = meals.reduce((s,_,i2)=>{const mm=mealMacros(S.meals[S.planTab][i2]);return s+mm.f;},0);
+    const totK = meals.reduce((s,_,i2)=>{const mm=mealMacros(S.meals[type][i2]);return s+mm.kcal;},0);
+  const totP = meals.reduce((s,_,i2)=>{const mm=mealMacros(S.meals[type][i2]);return s+mm.p;},0);
+  const totC = meals.reduce((s,_,i2)=>{const mm=mealMacros(S.meals[type][i2]);return s+mm.c;},0);
+  const totF = meals.reduce((s,_,i2)=>{const mm=mealMacros(S.meals[type][i2]);return s+mm.f;},0);
     const dK = totK - tgt.k;
     const dP = totP - tgt.p;
     const dC = totC - tgt.c;
@@ -1826,6 +2119,10 @@ function initAll() {
   migrateFlatMealsToItems(S);
   normalizeLegacyMealIcons(S);
   finalizeBootstrapState(S, hadSaved);
+  normalizeCheatConfig(S.cheatConfig);
+  if (!S.cheatMealsByDate || typeof S.cheatMealsByDate !== 'object' || Array.isArray(S.cheatMealsByDate)) {
+    S.cheatMealsByDate = {};
+  }
   save(); // salva subito con le icone aggiornate
 
   ensureMealPlannerState('on');
@@ -1845,6 +2142,7 @@ function initAll() {
   }
 }
 initAll();
+bindEditGramPreview();
 syncTodayGreetingAutoRefresh();
 document.addEventListener('visibilitychange', syncTodayGreetingAutoRefresh);
 

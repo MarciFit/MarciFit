@@ -86,18 +86,113 @@ function getStorageStatus() {
 function _isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
+function _isFiniteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+function _isNullableNumber(value) {
+  return value == null || _isFiniteNumber(value);
+}
+function _isNullableString(value) {
+  return value == null || typeof value === 'string';
+}
+function _validateMacroDay(day, label) {
+  if (!_isPlainObject(day)) return { ok: false, code: `macro_${label}_invalid`, detail: `I macro ${label.toUpperCase()} non sono in formato valido.` };
+  if (!['p', 'c', 'f', 'k'].every(key => _isFiniteNumber(day[key]))) {
+    return { ok: false, code: `macro_${label}_fields_invalid`, detail: `I macro ${label.toUpperCase()} contengono valori non validi.` };
+  }
+  return { ok: true };
+}
+function _validateMealPlannerBranch(branch, label) {
+  if (!_isPlainObject(branch)) return { ok: false, code: `mealplanner_${label}_invalid`, detail: `Lo stato planner ${label.toUpperCase()} non e valido.` };
+  if (!(branch.mealIdx == null || Number.isInteger(branch.mealIdx))) {
+    return { ok: false, code: `mealplanner_${label}_mealidx_invalid`, detail: `Il mealIdx del planner ${label.toUpperCase()} non e valido.` };
+  }
+  if (typeof branch.prompt !== 'string') {
+    return { ok: false, code: `mealplanner_${label}_prompt_invalid`, detail: `Il prompt del planner ${label.toUpperCase()} non e valido.` };
+  }
+  if (typeof branch.useFavorites !== 'boolean' || typeof branch.useTemplates !== 'boolean') {
+    return { ok: false, code: `mealplanner_${label}_flags_invalid`, detail: `Le opzioni del planner ${label.toUpperCase()} non sono valide.` };
+  }
+  if (!Array.isArray(branch.results)) {
+    return { ok: false, code: `mealplanner_${label}_results_invalid`, detail: `I risultati del planner ${label.toUpperCase()} non sono in formato valido.` };
+  }
+  return { ok: true };
+}
+function _validateCheatConfig(config) {
+  if (!_isPlainObject(config)) return { ok: false, code: 'cheatconfig_invalid', detail: 'La configurazione sgarri non e valida.' };
+  if ('enabled' in config && typeof config.enabled !== 'boolean') return { ok: false, code: 'cheatconfig_enabled_invalid', detail: 'Il flag sgarri non e valido.' };
+  if ('weeklyMax' in config && !Number.isInteger(config.weeklyMax)) return { ok: false, code: 'cheatconfig_weeklymax_invalid', detail: 'Il limite settimanale sgarri non e valido.' };
+  if ('hardMax' in config && !Number.isInteger(config.hardMax)) return { ok: false, code: 'cheatconfig_hardmax_invalid', detail: 'Il limite massimo sgarri non e valido.' };
+  if ('defaultMode' in config && !['surplus_pct', 'fixed'].includes(config.defaultMode)) return { ok: false, code: 'cheatconfig_mode_invalid', detail: 'La modalita sgarro non e valida.' };
+  if ('surplusPct' in config && !_isFiniteNumber(config.surplusPct)) return { ok: false, code: 'cheatconfig_pct_invalid', detail: 'La percentuale sgarro non e valida.' };
+  if ('fixedKcal' in config && !_isFiniteNumber(config.fixedKcal)) return { ok: false, code: 'cheatconfig_fixedkcal_invalid', detail: 'Le kcal fisse dello sgarro non sono valide.' };
+  return { ok: true };
+}
 function validateImportedState(state) {
   if (!_isPlainObject(state)) return { ok: false, code: 'root_invalid', detail: 'Il file importato non contiene un oggetto valido.' };
+  if ('day' in state && !['on', 'off'].includes(state.day)) return { ok: false, code: 'day_invalid', detail: 'Il tipo giorno non e valido.' };
+  if ('planTab' in state && !['on', 'off'].includes(state.planTab)) return { ok: false, code: 'plantab_invalid', detail: 'Il tab piano non e valido.' };
+  if ('statsRange' in state && !['7d', '30d', '8w', 'all'].includes(state.statsRange)) return { ok: false, code: 'statsrange_invalid', detail: 'Il range statistiche non e valido.' };
+  if ('selDate' in state && !_isNullableString(state.selDate)) return { ok: false, code: 'seldate_invalid', detail: 'La data selezionata non e valida.' };
+  if ('onDays' in state && !Array.isArray(state.onDays)) return { ok: false, code: 'ondays_invalid', detail: 'I giorni ON non sono in formato valido.' };
   if ('meals' in state) {
     if (!_isPlainObject(state.meals)) return { ok: false, code: 'meals_invalid', detail: 'La struttura dei pasti non e valida.' };
     if ('on' in state.meals && !Array.isArray(state.meals.on)) return { ok: false, code: 'meals_on_invalid', detail: 'I pasti ON non sono in formato valido.' };
     if ('off' in state.meals && !Array.isArray(state.meals.off)) return { ok: false, code: 'meals_off_invalid', detail: 'I pasti OFF non sono in formato valido.' };
+  }
+  if ('anagrafica' in state) {
+    if (!_isPlainObject(state.anagrafica)) return { ok: false, code: 'anagrafica_invalid', detail: 'L anagrafica non e in formato valido.' };
+    const ana = state.anagrafica;
+    if ('nome' in ana && typeof ana.nome !== 'string') return { ok: false, code: 'anagrafica_nome_invalid', detail: 'Il nome anagrafica non e valido.' };
+    if ('sesso' in ana && !['m', 'f'].includes(ana.sesso)) return { ok: false, code: 'anagrafica_sesso_invalid', detail: 'Il sesso anagrafica non e valido.' };
+    if ('eta' in ana && !_isNullableNumber(ana.eta)) return { ok: false, code: 'anagrafica_eta_invalid', detail: 'L eta anagrafica non e valida.' };
+    if ('altezza' in ana && !_isNullableNumber(ana.altezza)) return { ok: false, code: 'anagrafica_altezza_invalid', detail: 'L altezza anagrafica non e valida.' };
+    if ('peso' in ana && !_isNullableNumber(ana.peso)) return { ok: false, code: 'anagrafica_peso_invalid', detail: 'Il peso anagrafica non e valido.' };
+    if ('grassoCorporeo' in ana && !_isNullableNumber(ana.grassoCorporeo)) return { ok: false, code: 'anagrafica_grasso_invalid', detail: 'Il grasso corporeo non e valido.' };
+    if ('professione' in ana && !_isNullableString(ana.professione)) return { ok: false, code: 'anagrafica_professione_invalid', detail: 'La professione non e valida.' };
+    if ('allenamentiSett' in ana && !_isNullableString(ana.allenamentiSett)) return { ok: false, code: 'anagrafica_allenamenti_invalid', detail: 'La frequenza allenamenti non e valida.' };
+  }
+  if ('goal' in state) {
+    if (!_isPlainObject(state.goal)) return { ok: false, code: 'goal_invalid', detail: 'L obiettivo non e in formato valido.' };
+    if ('phase' in state.goal && !['bulk', 'cut', 'mantieni'].includes(state.goal.phase)) return { ok: false, code: 'goal_phase_invalid', detail: 'La fase obiettivo non e valida.' };
+    if ('startDate' in state.goal && !_isNullableString(state.goal.startDate)) return { ok: false, code: 'goal_startdate_invalid', detail: 'La data inizio obiettivo non e valida.' };
+    if ('targetWeight' in state.goal && !_isNullableNumber(state.goal.targetWeight)) return { ok: false, code: 'goal_targetweight_invalid', detail: 'Il peso target non e valido.' };
+    if ('notes' in state.goal && !_isNullableString(state.goal.notes)) return { ok: false, code: 'goal_notes_invalid', detail: 'Le note obiettivo non sono valide.' };
+  }
+  if ('macro' in state) {
+    if (!_isPlainObject(state.macro)) return { ok: false, code: 'macro_invalid', detail: 'La struttura macro non e valida.' };
+    const onValidation = _validateMacroDay(state.macro.on, 'on');
+    if (!onValidation.ok) return onValidation;
+    const offValidation = _validateMacroDay(state.macro.off, 'off');
+    if (!offValidation.ok) return offValidation;
   }
   if ('templates' in state && !Array.isArray(state.templates)) return { ok: false, code: 'templates_invalid', detail: 'La libreria template non e in formato valido.' };
   if ('weightLog' in state && !Array.isArray(state.weightLog)) return { ok: false, code: 'weightlog_invalid', detail: 'Il log peso non e in formato valido.' };
   if ('measurements' in state && !Array.isArray(state.measurements)) return { ok: false, code: 'measurements_invalid', detail: 'Le misurazioni non sono in formato valido.' };
   if ('notes' in state && !_isPlainObject(state.notes)) return { ok: false, code: 'notes_invalid', detail: 'Le note non sono in formato valido.' };
   if ('water' in state && !_isPlainObject(state.water)) return { ok: false, code: 'water_invalid', detail: 'I dati acqua non sono in formato valido.' };
+  if ('cheatMealsByDate' in state && !_isPlainObject(state.cheatMealsByDate)) return { ok: false, code: 'cheatmeals_invalid', detail: 'Gli sgarri salvati non sono in formato valido.' };
+  if ('cheatConfig' in state) {
+    const cheatValidation = _validateCheatConfig(state.cheatConfig);
+    if (!cheatValidation.ok) return cheatValidation;
+  }
+  if ('supplements' in state && !Array.isArray(state.supplements)) return { ok: false, code: 'supplements_invalid', detail: 'Gli integratori non sono in formato valido.' };
+  if ('suppChecked' in state && !_isPlainObject(state.suppChecked)) return { ok: false, code: 'suppchecked_invalid', detail: 'Lo stato integratori non e valido.' };
+  if ('foodLog' in state && !_isPlainObject(state.foodLog)) return { ok: false, code: 'foodlog_invalid', detail: 'Il food log non e in formato valido.' };
+  if ('doneByDate' in state && !_isPlainObject(state.doneByDate)) return { ok: false, code: 'donebydate_invalid', detail: 'Lo stato giornaliero non e in formato valido.' };
+  if ('favoriteFoods' in state && !Array.isArray(state.favoriteFoods)) return { ok: false, code: 'favoritefoods_invalid', detail: 'I cibi preferiti non sono in formato valido.' };
+  if ('customFoods' in state && !Array.isArray(state.customFoods)) return { ok: false, code: 'customfoods_invalid', detail: 'I cibi personalizzati non sono in formato valido.' };
+  if ('mealPlanner' in state) {
+    if (!_isPlainObject(state.mealPlanner)) return { ok: false, code: 'mealplanner_invalid', detail: 'Lo stato del meal planner non e valido.' };
+    if ('on' in state.mealPlanner) {
+      const onValidation = _validateMealPlannerBranch(state.mealPlanner.on, 'on');
+      if (!onValidation.ok) return onValidation;
+    }
+    if ('off' in state.mealPlanner) {
+      const offValidation = _validateMealPlannerBranch(state.mealPlanner.off, 'off');
+      if (!offValidation.ok) return offValidation;
+    }
+  }
   return { ok: true };
 }
 

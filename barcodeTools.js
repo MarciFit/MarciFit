@@ -9,6 +9,7 @@ let _bcLookupController = null;
 let _bcResolvedCode = null;
 let _bcLastDetectedCode = null;
 let _bcScanLoopToken = 0;
+let _bcOpenToken = 0;
 const _bcProductCache = {};
 const _BC_FRAME_ASPECT = 220 / 84;
 const _BC_SCAN_MODES = {
@@ -532,8 +533,11 @@ function _focusBarcodeTextFallback() {
     return;
   }
 
-  const { mealIdx } = _bcCtx;
-  const domKey = typeof mealIdx === 'string' ? `extra-${mealIdx}` : `${S.day}-${mealIdx}`;
+  const { mealIdx, dateKey } = _bcCtx;
+  const dayType = typeof resolveDayTypeForDate === 'function'
+    ? resolveDayTypeForDate(dateKey)
+    : S.day;
+  const domKey = typeof mealIdx === 'string' ? `extra-${mealIdx}` : `${dayType}-${mealIdx}`;
   closeBarcode();
   setTimeout(() => {
     const card = document.getElementById(`mc-${domKey}`);
@@ -790,6 +794,7 @@ function showBcResult() {
 }
 
 function openBarcode(dateKey, mealIdx) {
+  _bcOpenToken += 1;
   _bcCtx = dateKey != null ? { dateKey, mealIdx } : null;
   _bcItem = null;
   _bcResolvedCode = null;
@@ -805,20 +810,39 @@ function openBarcode(dateKey, mealIdx) {
   _resetBarcodeFeedback();
   modal.style.display = 'flex';
   if (typeof lockUiScroll === 'function') lockUiScroll();
-  startBcCamera();
+  startBcCamera(_bcOpenToken);
 }
 
-async function startBcCamera() {
+async function startBcCamera(openToken = _bcOpenToken) {
   try {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('API fotocamera non supportata da questo browser');
+    }
     _bcStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
     });
+    if (openToken !== _bcOpenToken) {
+      _bcStream.getTracks().forEach(t => t.stop());
+      _bcStream = null;
+      return;
+    }
     const v = document.getElementById('bc-video');
+    if (!v) {
+      _bcStream.getTracks().forEach(t => t.stop());
+      _bcStream = null;
+      return;
+    }
     v.srcObject = _bcStream;
     await v.play();
+    if (openToken !== _bcOpenToken) {
+      _bcStream.getTracks().forEach(t => t.stop());
+      _bcStream = null;
+      return;
+    }
     _bcScanning = true;
     scanBarcode();
   } catch(e) {
+    if (openToken !== _bcOpenToken) return;
     _setBarcodeStatus(
       e.name === 'NotAllowedError'
         ? '❌  Permesso fotocamera negato. Abilitalo nelle impostazioni browser.'
@@ -882,17 +906,20 @@ function confirmBarcodeItem() {
   const item = { ..._bcItem, grams };
   if (_bcCtx) {
     const { dateKey, mealIdx } = _bcCtx;
+    const dayType = typeof resolveDayTypeForDate === 'function'
+      ? resolveDayTypeForDate(dateKey)
+      : S.day;
     if (!S.foodLog[dateKey]) S.foodLog[dateKey] = {};
     if (!S.foodLog[dateKey][mealIdx]) S.foodLog[dateKey][mealIdx] = [];
     S.foodLog[dateKey][mealIdx].push(item);
-    syncLoggedMealState(dateKey, mealIdx, S.day);
+    syncLoggedMealState(dateKey, mealIdx, dayType);
     save();
     closeBarcode();
     toast('✅  ' + item.name + ' aggiunto');
-    refreshMealCard(S.day, mealIdx);
+    refreshMealCard(dayType, mealIdx);
     requestAnimationFrame(() => {
       if (typeof scrollMealCardIntoView === 'function') {
-        scrollMealCardIntoView(S.day, mealIdx, { behavior: 'smooth', focusAdd: true });
+        scrollMealCardIntoView(dayType, mealIdx, { behavior: 'smooth', focusAdd: true });
       }
     });
   } else {
@@ -909,6 +936,7 @@ function closeBarcode() {
   _bcResolvedCode = null;
   _bcLastDetectedCode = null;
   _bcScanLoopToken += 1;
+  _bcOpenToken += 1;
   if (_bcLookupController) {
     try { _bcLookupController.abort(); } catch(e) {}
     _bcLookupController = null;
