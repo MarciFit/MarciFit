@@ -6,6 +6,11 @@
 const LS_KEY = 'piano_federico_v2';
 let _saveTimer;
 
+function currentStorageKey() {
+  if (typeof authGetAppStorageKey === 'function') return authGetAppStorageKey(LS_KEY);
+  return LS_KEY;
+}
+
 const USER_STATE_KEYS = [
   'checked','altSel','weightLog','notes','noteSearch','profHist',
   'profilo','anagrafica','macro','meals','alts','onDays','calOffset','selDate',
@@ -13,6 +18,7 @@ const USER_STATE_KEYS = [
   'lastCheckin','barcodeCache','foodCache','foodSearchLearn','foodLog','templates','customFoods','water',
   'cheatMealsByDate','cheatConfig',
   'favoriteFoods','mealPlanner'
+  ,'authEntryCompleted','onboardingCompleted','onboardingVersion'
 ];
 
 function applyValidatedState(saved) {
@@ -28,10 +34,11 @@ function applyValidatedState(saved) {
 }
 
 // Salva lo stato su localStorage
-function save() {
+function save(options = {}) {
   try {
     const raw = JSON.stringify(S);
-    localStorage.setItem(LS_KEY, raw);
+    localStorage.setItem(currentStorageKey(), raw);
+    if (typeof authOnLocalStateSaved === 'function') authOnLocalStateSaved(raw, options);
     mfDebug('storage', 'save ok', { bytes: raw.length });
   } catch(e) {
     mfError('storage', 'save failed', { name: e?.name, message: e?.message });
@@ -48,13 +55,14 @@ function saveSoon() {
 function loadSaved() {
   _resetStorageLoadStatus();
   try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) {
+    const storageKey = currentStorageKey();
+    const resolved = localStorage.getItem(storageKey);
+    if (!resolved) {
       mfDebug('storage', 'load skipped: no saved state');
       return false;
     }
     _storageStatus.hadSavedState = true;
-    const saved = JSON.parse(raw);
+    const saved = JSON.parse(resolved);
     const validation = validateImportedState(saved);
     if (!validation.ok) {
       _setStorageLoadError(validation.code, validation.detail);
@@ -64,7 +72,7 @@ function loadSaved() {
 
     applyValidatedState(saved);
 
-    mfDebug('storage', 'load ok', { keys: Object.keys(saved).length, bytes: raw.length });
+    mfDebug('storage', 'load ok', { keys: Object.keys(saved).length, bytes: resolved.length });
     return true;
   } catch(e) {
     _setStorageLoadError('json_parse_failed', e?.message || 'JSON non valido');
@@ -82,7 +90,8 @@ function clearStorage() {
     danger: true,
     onConfirm: () => {
       mfWarn('storage', 'clear storage requested');
-      localStorage.removeItem(LS_KEY);
+      localStorage.removeItem(currentStorageKey());
+      if (typeof authClearLocalStateMeta === 'function') authClearLocalStateMeta();
       location.reload();
     },
   });

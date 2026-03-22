@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=119">
+<link rel="stylesheet" href="style.css?v=130">
 </head>
 <body>
 <div class="app">
@@ -27,6 +27,7 @@
   </div>
   <div class="nav-actions">
     <button class="btn btn-ghost" onclick="printDay()"><i data-lucide="printer" class="nav-action-icon"></i>Stampa</button>
+    <div id="nav-auth-slot"></div>
   </div>
 </div>
 <div class="nav-tabs">
@@ -289,6 +290,10 @@
     <div class="prog-sub profile-sub">Parametri, obiettivo, fabbisogno e preferenze alimentari in un unico spazio piu ordinato e personale.</div>
   </div>
 
+  <div class="stat-section profile-section">
+    <div id="profile-account-slot"></div>
+  </div>
+
   <!-- Card: Anagrafica + Obiettivo + Fabbisogno -->
   <div class="stat-section profile-section profile-section-primary">
     <div class="prof-card-box" id="prof-card"></div>
@@ -457,13 +462,21 @@
 <!-- Calendar month/year picker -->
 <div id="cal-picker" style="display:none;position:fixed;inset:0;background:rgba(24,20,16,.42);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:500;align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)closeCalPicker()"></div>
 
+<!-- Auth entry -->
+<div id="auth-entry" class="auth-entry-ov" style="display:none"></div>
+
+<!-- Welcome onboarding -->
+<div id="welcome-onboarding" class="welcome-ov" style="display:none"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.7.4/dist/quagga.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="debugTools.js?v=3"></script>
-<script src="storage.js?v=33"></script>
+<script src="authSync.js?v=9"></script>
+<script src="storage.js?v=37"></script>
 <script src="nutritionLogic.js?v=54"></script>
-<script src="uiComponents.js?v=97"></script>
-<script src="bootstrapTools.js?v=1"></script>
-<script src="app.js?v=74"></script>
+<script src="uiComponents.js?v=102"></script>
+<script src="bootstrapTools.js?v=3"></script>
+<script src="app.js?v=84"></script>
 <script src="barcodeTools.js?v=14"></script>
 <script>lucide.createIcons();</script>
 </body>

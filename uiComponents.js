@@ -20,6 +20,22 @@ function actionCtaIconHTML(icon) {
   return `<span class="action-cta-mark"><span class="action-cta-circle">${icon}</span><span class="action-cta-plus">+</span></span>`;
 }
 
+function getMealTimelineCandidates(type, dateKey) {
+  const meals = S.meals[type] || [];
+  const extraKeys = getVisibleExtraMealKeys(dateKey);
+  const candidates = [];
+  meals.forEach((meal, i) => {
+    candidates.push({ key: i, isExtra: false, name: meal.name, time: meal.time });
+    if (i === 0 && extraKeys.has('merenda')) {
+      candidates.push({ key: 'merenda', isExtra: true, name: EXTRA_MEALS.merenda.name, time: EXTRA_MEALS.merenda.time });
+    }
+    if (i === meals.length - 1 && extraKeys.has('spuntino')) {
+      candidates.push({ key: 'spuntino', isExtra: true, name: EXTRA_MEALS.spuntino.name, time: EXTRA_MEALS.spuntino.time });
+    }
+  });
+  return candidates;
+}
+
 function extraMealAddBtnHTML(key, label) {
   return `<button class="extra-meal-add-row" onclick="toggleExtraMeal('${key}')">
     <span class="extra-meal-line"></span>
@@ -114,6 +130,14 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
     return {k:acc.k+Math.round(it.kcal100*g), p:acc.p+it.p100*g, c:acc.c+it.c100*g, f:acc.f+it.f100*g};
   }, {k:0,p:0,c:0,f:0});
   const _hasLog = _logItems.length > 0;
+  const _laterMealHasLog = (() => {
+    if (mode !== 'today' || !_hasLog) return false;
+    const timeline = getMealTimelineCandidates(type, _logKey);
+    const currentIdx = timeline.findIndex(entry => !entry.isExtra && entry.key === i);
+    if (currentIdx === -1) return false;
+    const dayLog = S.foodLog[_logKey] || {};
+    return timeline.slice(currentIdx + 1).some(entry => Array.isArray(dayLog[entry.key]) && dayLog[entry.key].length > 0);
+  })();
   const done  = _hasLog;
   const getMealProgressState = () => {
     if (mode !== 'today') return { label: '', cls: '' };
@@ -124,6 +148,7 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
     const ratio = _logMac.k / targetK;
     if (ratio >= 1.02) return { label: 'Oltre', cls: 'is-over' };
     if (ratio >= 0.9) return { label: 'Completo', cls: 'is-complete' };
+    if (_laterMealHasLog) return { label: 'Completo', cls: 'is-complete' };
     if (ratio >= 0.45) return { label: 'In corso', cls: 'is-progress' };
     return { label: 'Avviato', cls: 'is-started' };
   };
@@ -1322,10 +1347,10 @@ function renderGreeting(type, now) {
         <div class="tg-mobile-meta">
           ${dayChip}
           ${cheatBadge}
-          ${streakBadge}
         </div>
         <div class="tg-hello">${saluto}, <em>${nome}.</em></div>
         <div class="tg-subtext">${getGreetingSubtext(h, type, streak)}</div>
+        <div class="tg-streak-row">${streakBadge}</div>
       </div>
     </div>
     <div class="tg-hero-body">
@@ -1655,14 +1680,10 @@ function renderWeekCal(now) {
 
   const weekMetaEl = document.getElementById('week-cal-meta');
   if (weekMetaEl) {
-    const workoutCount = dayModels.filter(day => day.visualOn).length;
-    const restCount = 7 - workoutCount;
     const overrideCount = dayModels.filter(day => day.hasOverride).length;
     const cheatCount = dayModels.filter(day => day.cheat).length;
     const fullCount = dayModels.filter(day => day.isFull).length;
     const chips = [
-      `<span class="week-meta-chip workout"><strong>${workoutCount}</strong> Workout</span>`,
-      `<span class="week-meta-chip rest"><strong>${restCount}</strong> Rest</span>`,
       fullCount ? `<span class="week-meta-chip progress"><strong>${fullCount}</strong> completi</span>` : '',
       overrideCount ? `<span class="week-meta-chip override"><strong>${overrideCount}</strong> modifiche <span class="week-meta-dot" aria-hidden="true"></span></span>` : '',
       cheatCount ? `<span class="week-meta-chip cheat"><strong>${cheatCount}</strong> sgarro <span class="week-meta-dot" aria-hidden="true"></span></span>` : '',
@@ -1890,18 +1911,7 @@ function getCurrentMealState(type, dateKey) {
   const isTodayView = !S.selDate || S.selDate === localDate();
   if (!isTodayView) return { index: -1, kind: 'none' };
 
-  const meals = S.meals[type] || [];
-  const extraKeys = getVisibleExtraMealKeys(dateKey);
-  const candidates = [];
-  meals.forEach((meal, i) => {
-    candidates.push({ key: i, isExtra: false, name: meal.name, time: meal.time });
-    if (i === 0 && extraKeys.has('merenda')) {
-      candidates.push({ key: 'merenda', isExtra: true, name: EXTRA_MEALS.merenda.name, time: EXTRA_MEALS.merenda.time });
-    }
-    if (i === meals.length - 1 && extraKeys.has('spuntino')) {
-      candidates.push({ key: 'spuntino', isExtra: true, name: EXTRA_MEALS.spuntino.name, time: EXTRA_MEALS.spuntino.time });
-    }
-  });
+  const candidates = getMealTimelineCandidates(type, dateKey);
 
   const nowMins = new Date().getHours()*60 + new Date().getMinutes();
   for (const candidate of candidates) {
@@ -3222,6 +3232,7 @@ function renderProfile() {
   renderAnagrafica();
   renderOnDaysPicker();
   renderSupplements();
+  if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
 }
 function drawChart(log, opts = {}) {
   const el = document.getElementById('w-canvas');
@@ -4047,11 +4058,11 @@ function renderAnagrafica() {
     </div>
     <div class="anag-section-title">Anagrafica</div>
     <div class="anag-grid">
-      <div class="anag-field anag-field-wide">
+      <div class="anag-field anag-field-name">
         <label class="anag-label">Nome</label>
         <input id="anag-nome" class="anag-input" value="${htmlEsc(a.nome||'')}" oninput="_updateFabbisognoPreview()">
       </div>
-      <div class="anag-field">
+      <div class="anag-field anag-field-sex">
         <label class="anag-label">Sesso</label>
         <div class="sesso-toggle">
           <button class="sesso-btn${a.sesso==='m'?' active':''}" data-s="m" onclick="setAnagSesso('m')">M</button>

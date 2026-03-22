@@ -59,6 +59,9 @@ const S = {
     on: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
     off:{ mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
   },
+  authEntryCompleted: null,
+  onboardingCompleted: null,
+  onboardingVersion: 1,
   templates: [
     {id:'t1',name:'Colazione standard',tag:'colazione',mealType:'colazione',items:[
       {name:'Yogurt greco 0%',brand:'Fage',grams:200,kcal100:57,p100:10,c100:3.5,f100:0.2},
@@ -349,7 +352,7 @@ function scheduleGreetingStateTransition(prevType, nextType) {
   }, 780);
 }
 
-function showDayModal({icon, title, body, onConfirm, danger = false, noButtons = false, eyebrow = '', modalClass = ''}) {
+function showDayModal({icon, title, body, onConfirm, danger = false, noButtons = false, eyebrow = '', modalClass = '', confirmText = 'Procedi comunque', cancelText = 'Annulla'}) {
   document.getElementById('day-modal-icon').textContent  = icon;
   const eyebrowEl = document.getElementById('day-modal-kicker');
   if (eyebrowEl) {
@@ -362,7 +365,10 @@ function showDayModal({icon, title, body, onConfirm, danger = false, noButtons =
   const bodyEl = document.getElementById('day-modal-body');
   bodyEl.innerHTML = body;
   const confirmBtn = document.getElementById('day-modal-confirm');
+  const cancelBtn = document.querySelector('#day-modal-footer .day-modal-btn-secondary');
+  confirmBtn.textContent = confirmText;
   confirmBtn.style.background = danger ? 'var(--red)' : 'var(--ink)';
+  if (cancelBtn) cancelBtn.textContent = cancelText;
   const footer  = document.getElementById('day-modal-footer');
   const closeX  = document.getElementById('day-modal-close-x');
   const card    = document.getElementById('day-modal-card');
@@ -382,6 +388,42 @@ function showDayModal({icon, title, body, onConfirm, danger = false, noButtons =
     closeDayModal();
     if (fn) fn();
   };
+}
+
+function formatAuthConflictTime(iso) {
+  if (!iso) return 'data non disponibile';
+  try {
+    return new Date(iso).toLocaleString('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch (_) {
+    return 'data non disponibile';
+  }
+}
+
+function askAuthStateConflictChoice(conflict) {
+  return new Promise(resolve => {
+    showDayModal({
+      icon: '☁️',
+      eyebrow: 'Sync account',
+      title: 'Scegli quale versione usare',
+      body: `Abbiamo trovato dati sia <strong>su questo dispositivo</strong> sia <strong>nel cloud</strong>.<br><br><strong>Dispositivo:</strong> ${htmlEsc(formatAuthConflictTime(conflict.localUpdatedAt))}<br><strong>Cloud:</strong> ${htmlEsc(formatAuthConflictTime(conflict.remoteUpdatedAt))}<br><br>Puoi continuare con i dati del cloud oppure tenere quelli del dispositivo e sincronizzarli sopra il cloud.`,
+      confirmText: 'Usa cloud',
+      cancelText: 'Tieni dispositivo',
+      onConfirm: () => resolve('remote'),
+      modalClass: 'day-modal-detail',
+    });
+    const cancelBtn = document.querySelector('#day-modal-footer .day-modal-btn-secondary');
+    if (cancelBtn) {
+      cancelBtn.onclick = () => {
+        closeDayModal();
+        resolve('local');
+      };
+    }
+  });
 }
 function closeDayModal() {
   document.getElementById('day-modal-ov').style.display = 'none';
@@ -1719,6 +1761,7 @@ function goView(name) {
   if (name==='stats')   renderStats();
   if (name==='profilo') renderProfile();
   if (name==='today')   renderToday();
+  if (typeof renderAuthNav === 'function') renderAuthNav();
   syncTodayGreetingAutoRefresh();
 }
 
@@ -1871,9 +1914,565 @@ function saveAnagrafica() {
       if (pr) pr.v = S.anagrafica.peso + ' kg';
     }
   }
+  syncProfileRowsFromAnagrafica();
   save();
+  if (typeof authEnsureRemoteProfile === 'function') authEnsureRemoteProfile().catch(() => {});
+  if (typeof authQueueStateSync === 'function') authQueueStateSync();
   rerender();
   toast('✅ Profilo salvato — macro aggiornati');
+}
+
+let _welcomeState = null;
+let _authEntryState = null;
+
+function syncProfileRowsFromAnagrafica() {
+  const setRow = (label, value) => {
+    const row = S.profilo.find(r => r.l === label);
+    if (row) row.v = value;
+  };
+  const professionLabel = PROFESSIONI.find(p => p.key === S.anagrafica.professione)?.label || 'Da definire';
+  const allenamentiLabel = ALLENAMENTI.find(a => a.key === S.anagrafica.allenamentiSett)?.desc || 'Da definire';
+  if (S.anagrafica.nome) setRow('Nome', S.anagrafica.nome);
+  if (S.anagrafica.eta) setRow('Età', `${S.anagrafica.eta} anni`);
+  if (S.anagrafica.altezza) setRow('Altezza', `${S.anagrafica.altezza} cm`);
+  if (S.anagrafica.peso) setRow('Peso attuale', `${S.anagrafica.peso} kg`);
+  setRow('Professione', professionLabel);
+  setRow('Attività fisica', allenamentiLabel);
+}
+
+function onboardingFreqFromDays(days) {
+  const count = Array.isArray(days) ? days.length : 0;
+  if (count <= 0) return '0';
+  if (count <= 2) return '1-2';
+  if (count <= 4) return '3-4';
+  if (count <= 6) return '5-6';
+  return '7+';
+}
+
+function getWelcomeDraft() {
+  const days = Array.isArray(S.onDays) && S.onDays.length ? [...S.onDays] : [1, 3, 5];
+  return {
+    nome: S.anagrafica?.nome || '',
+    sesso: S.anagrafica?.sesso || 'm',
+    eta: S.anagrafica?.eta || '',
+    altezza: S.anagrafica?.altezza || '',
+    peso: S.anagrafica?.peso || '',
+    grassoCorporeo: S.anagrafica?.grassoCorporeo ?? '',
+    professione: S.anagrafica?.professione || 'desk_sedentary',
+    onDays: days,
+    phase: S.goal?.phase || 'mantieni',
+  };
+}
+
+function getWelcomePreview(data = getWelcomeDraft()) {
+  const ana = {
+    nome: data.nome || '',
+    sesso: data.sesso || 'm',
+    eta: parseInt(data.eta, 10) || null,
+    altezza: parseInt(data.altezza, 10) || null,
+    peso: parseFloat(data.peso) || null,
+    grassoCorporeo: data.grassoCorporeo === '' ? null : (parseFloat(data.grassoCorporeo) || null),
+    professione: data.professione || 'desk_sedentary',
+    allenamentiSett: onboardingFreqFromDays(data.onDays || []),
+  };
+  return computeNutrition(ana, { phase: data.phase || 'mantieni' });
+}
+
+function renderAuthEntry() {
+  const el = document.getElementById('auth-entry');
+  if (!el) return;
+  if (S.authEntryCompleted || S.onboardingCompleted) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
+  const mode = _authEntryState.mode || 'gateway';
+
+  let body = '';
+  if (mode === 'gateway') {
+    body = `
+      <div class="auth-entry-kicker">Accesso</div>
+      <div class="auth-entry-title">Come vuoi iniziare?</div>
+      <div class="auth-entry-sub">Puoi usare MarciFit subito oppure creare un account per salvare e sincronizzare i tuoi dati tra dispositivi.</div>
+      <div class="auth-entry-stack">
+        <div class="auth-entry-benefits">
+          <span class="auth-entry-benefit">Backup sicuro</span>
+          <span class="auth-entry-benefit">Sync multi-device</span>
+          <span class="auth-entry-benefit">Guest supportato</span>
+        </div>
+        <button class="auth-entry-choice primary" onclick="openAuthMode('signup')">
+          <div class="auth-entry-choice-title">Crea account</div>
+          <div class="auth-entry-choice-body">Per salvare profilo, pasti e progressi nel cloud.</div>
+        </button>
+        <button class="auth-entry-choice secondary" onclick="openAuthMode('login')">
+          <div class="auth-entry-choice-title">Accedi</div>
+          <div class="auth-entry-choice-body">Se hai già un account, riparti subito dai tuoi dati.</div>
+        </button>
+        <button class="auth-entry-choice guest" onclick="continueAsGuest()">
+          <div class="auth-entry-choice-title">Continua senza account</div>
+          <div class="auth-entry-choice-body">Usa l’app subito in locale. Potrai creare un account più avanti.</div>
+        </button>
+      </div>`;
+  } else if (mode === 'signup') {
+    body = `
+      <div class="auth-entry-kicker">Crea account</div>
+      <div class="auth-entry-title">Salva i tuoi dati</div>
+      <div class="auth-entry-sub">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Registrazione reale attiva con Supabase.' : 'Registrazione pronta in locale. Se configuri Supabase, questo stesso flow userà il cloud.'}</div>
+      <div class="auth-entry-form">
+        <div class="auth-entry-field">
+          <label class="auth-entry-label">Email</label>
+          <input class="auth-entry-input" type="email" value="${htmlEsc(_authEntryState.email)}" oninput="setAuthField('email', this.value)" placeholder="nome@email.com">
+        </div>
+        <div class="auth-entry-field">
+          <label class="auth-entry-label">Password</label>
+          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.password)}" oninput="setAuthField('password', this.value)" placeholder="Almeno 8 caratteri">
+        </div>
+        <div class="auth-entry-field">
+          <label class="auth-entry-label">Conferma password</label>
+          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.confirmPassword)}" oninput="setAuthField('confirmPassword', this.value)" placeholder="Ripeti la password">
+        </div>
+        <div class="auth-entry-callout">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'L’account verrà creato nel cloud e i dati potranno sincronizzarsi tra dispositivi.' : 'Per ora l’account viene creato in locale su questo dispositivo. Puoi attivare Supabase dalla card Account in Profilo.'}</div>
+      </div>`;
+  } else {
+    body = `
+      <div class="auth-entry-kicker">Accedi</div>
+      <div class="auth-entry-title">Rientra nel tuo profilo</div>
+      <div class="auth-entry-sub">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Accesso reale attivo con Supabase.' : 'Accesso locale attivo. Se configuri Supabase, da qui userai il cloud senza cambiare flusso.'}</div>
+      <div class="auth-entry-form">
+        <div class="auth-entry-field">
+          <label class="auth-entry-label">Email</label>
+          <input class="auth-entry-input" type="email" value="${htmlEsc(_authEntryState.email)}" oninput="setAuthField('email', this.value)" placeholder="nome@email.com">
+        </div>
+        <div class="auth-entry-field">
+          <label class="auth-entry-label">Password</label>
+          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.password)}" oninput="setAuthField('password', this.value)" placeholder="La tua password">
+        </div>
+        <button class="auth-entry-inline-link" type="button" onclick="requestPasswordReset()">Password dimenticata?</button>
+        <div class="auth-entry-callout">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Se il cloud contiene già un profilo, MarciFit lo userà come base e manterrà anche la cache locale del dispositivo.' : 'Ogni account usa un salvataggio locale separato. Puoi attivare Supabase dalla card Account in Profilo per usare il cloud.'}</div>
+      </div>`;
+  }
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="auth-entry-shell">
+      <div class="auth-entry-top">
+        <div class="auth-entry-mark">${mode === 'gateway' ? 'Ingresso' : mode === 'signup' ? 'Registrazione' : 'Accesso'}</div>
+        ${mode !== 'gateway' ? `<button class="auth-entry-back" onclick="openAuthMode('gateway')">Indietro</button>` : ''}
+      </div>
+      <div class="auth-entry-card">
+        ${body}
+      </div>
+      <div class="auth-entry-foot">
+        ${mode === 'gateway' ? '' : `<button class="auth-entry-btn primary" onclick="submitAuthPlaceholder('${mode}')">${mode === 'signup' ? 'Crea account' : 'Accedi'}</button>`}
+        ${mode !== 'gateway' ? `<button class="auth-entry-btn secondary" onclick="continueAsGuest()">Continua senza account</button>` : ''}
+      </div>
+      ${mode === 'gateway' ? `<div class="auth-entry-note">Potrai sempre creare un account più avanti senza perdere il lavoro fatto in locale.</div>` : ''}
+    </div>`;
+  lockUiScroll();
+}
+
+function openAuthEntry() {
+  if (S.authEntryCompleted || S.onboardingCompleted) return;
+  if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
+  renderAuthEntry();
+}
+
+function closeAuthEntry() {
+  const el = document.getElementById('auth-entry');
+  if (el) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+  }
+  unlockUiScroll(true);
+}
+
+function openAuthMode(mode) {
+  if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
+  _authEntryState.mode = mode;
+  renderAuthEntry();
+}
+
+function setAuthField(key, value) {
+  if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
+  _authEntryState[key] = value;
+}
+
+function continueAsGuest() {
+  S.authEntryCompleted = true;
+  save();
+  closeAuthEntry();
+  if (typeof renderAuthNav === 'function') renderAuthNav();
+  if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+  openWelcomeOnboarding();
+}
+
+async function requestPasswordReset() {
+  const email = String(_authEntryState?.email || '').trim();
+  if (!email) {
+    toast('⚠️ Inserisci prima l’email');
+    return;
+  }
+  const result = typeof authSendPasswordReset === 'function'
+    ? await authSendPasswordReset(email)
+    : { ok: false, message: 'Reset password non disponibile' };
+  toast(`${result.ok ? '✉️' : '⚠️'} ${result.message}`);
+}
+
+async function submitAuthPlaceholder(mode) {
+  const email = String(_authEntryState?.email || '').trim();
+  const password = String(_authEntryState?.password || '');
+  if (!email) { toast('⚠️ Inserisci l’email'); return; }
+  if (!password) { toast('⚠️ Inserisci la password'); return; }
+  if (mode === 'signup') {
+    const confirmPassword = String(_authEntryState?.confirmPassword || '');
+    if (password !== confirmPassword) {
+      toast('⚠️ Le password non coincidono');
+      return;
+    }
+    const result = typeof signUpWithEmail === 'function'
+      ? await signUpWithEmail(email, password)
+      : { ok: false, message: 'Auth non disponibile' };
+    if (!result.ok) {
+      toast(`⚠️ ${result.message}`);
+      return;
+    }
+    if (result.pendingConfirmation) {
+      if (typeof renderAuthNav === 'function') renderAuthNav();
+      if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+      toast(`✉️ ${result.message}`);
+      openAuthMode('login');
+      return;
+    }
+    S.authEntryCompleted = true;
+    save();
+    if (typeof authSyncStateToCloud === 'function') await authSyncStateToCloud(true);
+    toast('✅ Account creato');
+    location.reload();
+    return;
+  }
+  const result = typeof signInWithEmail === 'function'
+    ? await signInWithEmail(email, password)
+    : { ok: false, message: 'Auth non disponibile' };
+  if (!result.ok) {
+    toast(`⚠️ ${result.message}`);
+    return;
+  }
+  toast('✅ Accesso effettuato');
+  location.reload();
+}
+
+function renderWelcomeOnboarding() {
+  const el = document.getElementById('welcome-onboarding');
+  if (!el) return;
+  if (S.onboardingCompleted || !S.authEntryCompleted) {
+    el.style.display = 'none';
+    return;
+  }
+  if (!_welcomeState) _welcomeState = { step: 0, data: getWelcomeDraft() };
+
+  const step = _welcomeState.step;
+  const data = _welcomeState.data;
+  const direction = _welcomeState.direction || 'forward';
+  const preview = getWelcomePreview(data);
+  const DOW = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+  const professionChoices = [
+    { key: 'desk_sedentary', title: 'Poco', body: 'Lavoro sedentario e pochi spostamenti' },
+    { key: 'standing', title: 'Abbastanza', body: 'Ti muovi spesso durante la giornata' },
+    { key: 'physical_light', title: 'Molto', body: 'Giornate attive o lavoro fisico' },
+  ];
+  const goalChoices = [
+    { key: 'bulk', title: 'Bulk', body: 'Per spingere la crescita muscolare', cls: 'goal-bulk' },
+    { key: 'cut', title: 'Cut', body: 'Per perdere grasso mantenendo più massa possibile', cls: 'goal-cut' },
+    { key: 'mantieni', title: 'Mantieni', body: 'Per restare stabile e performante', cls: 'goal-maintain' },
+  ];
+  const progress = `Passo ${step + 1} di 6`;
+
+  let body = '';
+  if (step === 0) {
+    body = `
+      <div class="welcome-step-head">
+        <div class="welcome-kicker">Benvenuto</div>
+        <div class="welcome-title">Benvenuto in MarciFit</div>
+        <div class="welcome-sub">Impostiamo il tuo profilo iniziale per personalizzare kcal, macro e giorni Workout/Rest. Bastano pochi step.</div>
+      </div>
+      <div class="welcome-stack">
+        <div class="welcome-pills">
+          <span class="welcome-pill">Workout/Rest personalizzati</span>
+          <span class="welcome-pill">Kcal e macro su misura</span>
+          <span class="welcome-pill">Setup iniziale guidato</span>
+        </div>
+        ${preview ? `
+          <div class="welcome-preview">
+            <div class="welcome-preview-card workout">
+              <div class="welcome-preview-kicker">Giorno Workout</div>
+              <div class="welcome-preview-kcal">${preview.macroOn.k} kcal</div>
+              <div class="welcome-preview-macros">P ${preview.macroOn.p}g · C ${preview.macroOn.c}g · F ${preview.macroOn.f}g</div>
+            </div>
+            <div class="welcome-preview-card rest">
+              <div class="welcome-preview-kicker">Giorno Rest</div>
+              <div class="welcome-preview-kcal">${preview.macroOff.k} kcal</div>
+              <div class="welcome-preview-macros">P ${preview.macroOff.p}g · C ${preview.macroOff.c}g · F ${preview.macroOff.f}g</div>
+            </div>
+          </div>` : ''}
+      </div>`;
+  } else if (step === 1) {
+    body = `
+      <div class="welcome-step-head">
+        <div class="welcome-kicker">Partiamo da te</div>
+        <div class="welcome-title">I tuoi dati base</div>
+        <div class="welcome-sub">Servono per stimare il tuo fabbisogno iniziale in modo sensato.</div>
+      </div>
+      <div class="welcome-stack">
+        <div class="welcome-grid">
+          <div class="welcome-field wide">
+            <label class="welcome-label">Nome</label>
+            <input class="welcome-input" value="${htmlEsc(data.nome)}" oninput="welcomeSetField('nome', this.value)" placeholder="Come ti chiami?">
+          </div>
+          <div class="welcome-field">
+            <label class="welcome-label">Sesso</label>
+            <select class="welcome-select" onchange="welcomeSetField('sesso', this.value)">
+              <option value="m"${data.sesso === 'm' ? ' selected' : ''}>Uomo</option>
+              <option value="f"${data.sesso === 'f' ? ' selected' : ''}>Donna</option>
+            </select>
+          </div>
+          <div class="welcome-field">
+            <label class="welcome-label">Età</label>
+            <div class="welcome-inline">
+              <input class="welcome-input" type="number" min="10" max="99" value="${htmlEsc(data.eta)}" oninput="welcomeSetField('eta', this.value)">
+              <span class="welcome-unit">anni</span>
+            </div>
+          </div>
+          <div class="welcome-field">
+            <label class="welcome-label">Altezza</label>
+            <div class="welcome-inline">
+              <input class="welcome-input" type="number" min="100" max="250" value="${htmlEsc(data.altezza)}" oninput="welcomeSetField('altezza', this.value)">
+              <span class="welcome-unit">cm</span>
+            </div>
+          </div>
+          <div class="welcome-field">
+            <label class="welcome-label">Peso</label>
+            <div class="welcome-inline">
+              <input class="welcome-input" type="number" min="30" max="300" step="0.1" value="${htmlEsc(data.peso)}" oninput="welcomeSetField('peso', this.value)">
+              <span class="welcome-unit">kg</span>
+            </div>
+          </div>
+          <div class="welcome-field wide">
+            <label class="welcome-label">% Grasso corporeo <span style="font-weight:500;text-transform:none;letter-spacing:0">(opz.)</span></label>
+            <div class="welcome-inline">
+              <input class="welcome-input" type="number" min="3" max="60" step="0.1" value="${htmlEsc(data.grassoCorporeo)}" oninput="welcomeSetField('grassoCorporeo', this.value)" placeholder="Se la conosci">
+              <span class="welcome-unit">%</span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  } else if (step === 2) {
+    body = `
+      <div class="welcome-step-head">
+        <div class="welcome-kicker">Stile di vita</div>
+        <div class="welcome-title">Quanto ti muovi durante la giornata?</div>
+        <div class="welcome-sub">Ci aiuta a stimare meglio il dispendio calorico oltre agli allenamenti.</div>
+      </div>
+      <div class="welcome-choice-grid">
+        ${professionChoices.map(choice => `
+          <button class="welcome-choice${data.professione === choice.key ? ' active' : ''}" onclick="welcomeSetField('professione','${choice.key}', true)">
+            <div class="welcome-choice-title">${choice.title}</div>
+            <div class="welcome-choice-body">${choice.body}</div>
+          </button>
+        `).join('')}
+      </div>`;
+  } else if (step === 3) {
+    body = `
+      <div class="welcome-step-head">
+        <div class="welcome-kicker">Allenamento</div>
+        <div class="welcome-title">Quali giorni ti alleni di solito?</div>
+        <div class="welcome-sub">Impostiamo i tuoi giorni Workout. Potrai cambiarli ogni giorno anche dalla dashboard.</div>
+      </div>
+      <div class="welcome-stack">
+        <div class="welcome-days">
+          ${DOW.map((label, idx) => `
+            <button class="welcome-day-btn${data.onDays.includes(idx) ? ' active' : ''}" onclick="welcomeToggleDay(${idx})">${label}</button>
+          `).join('')}
+        </div>
+        <div class="welcome-note">Allenamenti stimati: ${ALLENAMENTI.find(a => a.key === onboardingFreqFromDays(data.onDays))?.desc || 'Da definire'}</div>
+      </div>`;
+  } else if (step === 4) {
+    body = `
+      <div class="welcome-step-head">
+        <div class="welcome-kicker">Obiettivo</div>
+        <div class="welcome-title">Qual è il tuo obiettivo in questa fase?</div>
+        <div class="welcome-sub">MarciFit adatterà kcal e macro in base a questa scelta.</div>
+      </div>
+      <div class="welcome-choice-grid">
+        ${goalChoices.map(choice => `
+          <button class="welcome-choice ${choice.cls}${data.phase === choice.key ? ' active' : ''}" onclick="welcomeSetField('phase','${choice.key}', true)">
+            <div class="welcome-choice-title">${choice.title}</div>
+            <div class="welcome-choice-body">${choice.body}</div>
+          </button>
+        `).join('')}
+      </div>`;
+  } else {
+    body = `
+      <div class="welcome-step-head">
+        <div class="welcome-kicker">Setup iniziale</div>
+        <div class="welcome-title">Ecco il tuo profilo iniziale</div>
+        <div class="welcome-sub">Da qui l’app inizierà a personalizzare giornata, macro e calendario.</div>
+      </div>
+      <div class="welcome-stack">
+        <div class="welcome-summary">
+          <div class="welcome-summary-row">
+            <div class="welcome-summary-label">Nome</div>
+            <div class="welcome-summary-value">${htmlEsc(data.nome || '—')}</div>
+          </div>
+          <div class="welcome-summary-row">
+            <div class="welcome-summary-label">Movimento</div>
+            <div class="welcome-summary-value">${htmlEsc(PROFESSIONI.find(p => p.key === data.professione)?.label || '—')}</div>
+          </div>
+          <div class="welcome-summary-row">
+            <div class="welcome-summary-label">Obiettivo</div>
+            <div class="welcome-summary-value">${htmlEsc(goalChoices.find(g => g.key === data.phase)?.title || '—')}</div>
+          </div>
+          <div class="welcome-summary-row">
+            <div class="welcome-summary-label">Workout</div>
+            <div class="welcome-summary-value">${data.onDays.length ? data.onDays.map(d => DOW[d]).join(' · ') : 'Nessuno'}</div>
+          </div>
+        </div>
+        ${preview ? `
+          <div class="welcome-preview">
+            <div class="welcome-preview-card workout">
+              <div class="welcome-preview-kicker">Giorno Workout</div>
+              <div class="welcome-preview-kcal">${preview.macroOn.k} kcal</div>
+              <div class="welcome-preview-macros">P ${preview.macroOn.p}g · C ${preview.macroOn.c}g · F ${preview.macroOn.f}g</div>
+            </div>
+            <div class="welcome-preview-card rest">
+              <div class="welcome-preview-kicker">Giorno Rest</div>
+              <div class="welcome-preview-kcal">${preview.macroOff.k} kcal</div>
+              <div class="welcome-preview-macros">P ${preview.macroOff.p}g · C ${preview.macroOff.c}g · F ${preview.macroOff.f}g</div>
+            </div>
+          </div>` : ''}
+      </div>`;
+  }
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="welcome-shell is-${direction}">
+      <div class="welcome-top">
+        <div class="welcome-progress">${progress}</div>
+      </div>
+      <div class="welcome-card welcome-card-step-${step === 5 ? 'final' : 'form'}">
+        ${body}
+      </div>
+      <div class="welcome-foot">
+        ${step > 0 ? `<button class="welcome-btn secondary" onclick="welcomePrevStep()">Indietro</button>` : ''}
+        <button class="welcome-btn primary" onclick="${step === 5 ? 'completeWelcomeOnboarding()' : 'welcomeNextStep()'}">${step === 5 ? 'Entra in MarciFit' : 'Continua'}</button>
+      </div>
+      ${step === 0 ? `<div class="welcome-note">Ci vogliono meno di 2 minuti.</div>` : ''}
+    </div>`;
+  _welcomeState.direction = 'forward';
+  lockUiScroll();
+}
+
+function openWelcomeOnboarding() {
+  if (S.onboardingCompleted || !S.authEntryCompleted) return;
+  if (!_welcomeState) _welcomeState = { step: 0, data: getWelcomeDraft() };
+  renderWelcomeOnboarding();
+}
+
+function closeWelcomeOnboarding() {
+  const el = document.getElementById('welcome-onboarding');
+  if (el) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+  }
+  unlockUiScroll(true);
+}
+
+function welcomeSetField(key, value, rerender = false) {
+  if (!_welcomeState) _welcomeState = { step: 0, data: getWelcomeDraft() };
+  _welcomeState.data[key] = value;
+  if (rerender) renderWelcomeOnboarding();
+}
+
+function welcomeToggleDay(dow) {
+  if (!_welcomeState) _welcomeState = { step: 0, data: getWelcomeDraft() };
+  const days = new Set(_welcomeState.data.onDays || []);
+  if (days.has(dow)) {
+    if (days.size === 1) {
+      toast('Seleziona almeno un giorno Workout');
+      return;
+    }
+    days.delete(dow);
+  } else {
+    days.add(dow);
+  }
+  _welcomeState.data.onDays = [...days].sort((a, b) => a - b);
+  renderWelcomeOnboarding();
+}
+
+function validateWelcomeStep(step, data) {
+  if (step === 1) {
+    if (!String(data.nome || '').trim()) return 'Inserisci il tuo nome';
+    if (!parseInt(data.eta, 10)) return 'Inserisci l’età';
+    if (!parseInt(data.altezza, 10)) return 'Inserisci l’altezza';
+    if (!parseFloat(data.peso)) return 'Inserisci il peso';
+  }
+  if (step === 3 && (!Array.isArray(data.onDays) || !data.onDays.length)) {
+    return 'Seleziona almeno un giorno Workout';
+  }
+  return '';
+}
+
+function welcomeNextStep() {
+  if (!_welcomeState) _welcomeState = { step: 0, data: getWelcomeDraft() };
+  const err = validateWelcomeStep(_welcomeState.step, _welcomeState.data);
+  if (err) {
+    toast(`⚠️ ${err}`);
+    return;
+  }
+  _welcomeState.direction = 'forward';
+  _welcomeState.step = Math.min(5, _welcomeState.step + 1);
+  renderWelcomeOnboarding();
+}
+
+function welcomePrevStep() {
+  if (!_welcomeState) return;
+  _welcomeState.direction = 'backward';
+  _welcomeState.step = Math.max(0, _welcomeState.step - 1);
+  renderWelcomeOnboarding();
+}
+
+async function completeWelcomeOnboarding() {
+  if (!_welcomeState) return;
+  const data = _welcomeState.data;
+  const preview = getWelcomePreview(data);
+  S.anagrafica.nome = String(data.nome || '').trim();
+  S.anagrafica.sesso = data.sesso || 'm';
+  S.anagrafica.eta = parseInt(data.eta, 10) || null;
+  S.anagrafica.altezza = parseInt(data.altezza, 10) || null;
+  S.anagrafica.peso = parseFloat(data.peso) || null;
+  S.anagrafica.grassoCorporeo = data.grassoCorporeo === '' ? null : (parseFloat(data.grassoCorporeo) || null);
+  S.anagrafica.professione = data.professione || 'desk_sedentary';
+  S.anagrafica.allenamentiSett = onboardingFreqFromDays(data.onDays || []);
+  S.goal.phase = data.phase || 'mantieni';
+  S.onDays = [...(data.onDays || [1, 3, 5])].sort((a, b) => a - b);
+  if (preview) {
+    S.macro.on = preview.macroOn;
+    S.macro.off = preview.macroOff;
+  }
+  syncProfileRowsFromAnagrafica();
+  S.onboardingCompleted = true;
+  S.onboardingVersion = 1;
+  const todayType = getScheduledDayType(localDate());
+  S.day = todayType;
+  S.planTab = todayType;
+  save();
+  if (typeof authEnsureRemoteProfile === 'function') await authEnsureRemoteProfile();
+  if (typeof authSyncStateToCloud === 'function') await authSyncStateToCloud(true);
+  closeWelcomeOnboarding();
+  _welcomeState = null;
+  goView('today');
+  renderProfile();
+  toast('✅ Profilo iniziale creato');
 }
 function updateMealTime(idx) {
   const startEl = document.getElementById(`mt-start-${idx}`);
@@ -2135,7 +2734,22 @@ function macroAlerts() {
 
   return a;
 }
-function initAll() {
+async function initAll() {
+  if (typeof authInit === 'function') await authInit();
+  let authConflictChoice = null;
+  let authConflictData = null;
+  if (typeof authHydrateLocalCacheFromRemote === 'function') {
+    const hydrateResult = await authHydrateLocalCacheFromRemote();
+    if (hydrateResult?.conflict) {
+      authConflictData = hydrateResult;
+      authConflictChoice = await askAuthStateConflictChoice(hydrateResult);
+      if (authConflictChoice === 'remote' && typeof authStoreRemoteStateLocally === 'function') {
+        authStoreRemoteStateLocally(hydrateResult.remoteState, hydrateResult.remoteUpdatedAt);
+      } else if (authConflictChoice === 'local' && typeof authMarkLocalStatePreferred === 'function') {
+        authMarkLocalStatePreferred(hydrateResult.remoteUpdatedAt);
+      }
+    }
+  }
   const hadSaved = loadSaved();
   const storageStatus = typeof getMarciFitStorageStatus === 'function' ? getMarciFitStorageStatus() : null;
   sanitizeMealIcons(S);
@@ -2149,7 +2763,10 @@ function initAll() {
   if (!S.cheatMealsByDate || typeof S.cheatMealsByDate !== 'object' || Array.isArray(S.cheatMealsByDate)) {
     S.cheatMealsByDate = {};
   }
-  save(); // salva subito con le icone aggiornate
+  save({ skipCloudSync: true }); // salva subito con le icone aggiornate senza forzare sync al bootstrap
+  if (authIsAuthenticated && authIsAuthenticated()) {
+    S.authEntryCompleted = true;
+  }
 
   ensureMealPlannerState('on');
   ensureMealPlannerState('off');
@@ -2165,6 +2782,18 @@ function initAll() {
     toast('⚠️  Ripristino dati non riuscito');
   } else if (hadSaved) {
     toast('✅  Dati ripristinati');
+  }
+  if (typeof renderAuthNav === 'function') renderAuthNav();
+  if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+  if (authConflictChoice === 'local' && authConflictData && typeof authSyncStateToCloud === 'function') {
+    await authSyncStateToCloud(true);
+    toast('☁️ Dati del dispositivo sincronizzati sul cloud');
+  } else if (authConflictChoice === 'remote') {
+    toast('☁️ Dati cloud caricati');
+  }
+  if (!S.onboardingCompleted) {
+    if (!S.authEntryCompleted) openAuthEntry();
+    else openWelcomeOnboarding();
   }
 }
 initAll();

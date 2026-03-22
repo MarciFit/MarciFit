@@ -59,6 +59,8 @@ function ensureBootstrapDefaults(state) {
       off: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
     };
   }
+  if (typeof state.authEntryCompleted !== 'boolean') state.authEntryCompleted = false;
+  if (typeof state.onboardingVersion !== 'number') state.onboardingVersion = 1;
   if (state.checked) delete state.checked;
 }
 
@@ -128,6 +130,12 @@ function normalizeLegacyMealIcons(state) {
 
 function finalizeBootstrapState(state, hadSaved) {
   state.selDate = null;
+  if (typeof state.authEntryCompleted !== 'boolean') {
+    state.authEntryCompleted = !!hadSaved;
+  }
+  if (typeof state.onboardingCompleted !== 'boolean') {
+    state.onboardingCompleted = !!hadSaved;
+  }
   if (!hadSaved) {
     const dow = new Date().getDay();
     state.day = state.onDays.includes(dow) ? 'on' : 'off';
