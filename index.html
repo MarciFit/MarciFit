@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=74">
+<link rel="stylesheet" href="style.css?v=119">
 </head>
 <body>
 <div class="app">
@@ -52,23 +52,43 @@
     <div id="today-alerts-summary"></div>
     <div class="today-dashboard-grid">
       <div class="today-dashboard-block today-summary-card">
-        <div class="today-dashboard-block-title">Riepilogo giornata</div>
+        <div class="today-dashboard-block-head support-mini-head">
+          <div class="support-mini-head-copy">
+            <div class="support-mini-kicker">Dashboard</div>
+            <div class="support-mini-title-row">
+              <div class="support-mini-title">Riepilogo giornata</div>
+            </div>
+          </div>
+        </div>
         <div class="macro-strip" id="macro-strip"></div>
         <div class="today-recap-divider"></div>
         <div class="dp-compact">
-          <span id="dp-label" class="dp-compact-label">0 / 4 pasti</span>
+          <div class="dp-compact-copy">
+            <span class="dp-compact-kicker">Progress pasti</span>
+            <span id="dp-label" class="dp-compact-label">0 su 4 completati</span>
+          </div>
           <div class="dp-bar"><div class="dp-fill" id="dp-fill" style="width:0%"></div></div>
-          <button class="dp-info-btn" onmouseenter="showPastiDistTip(this)" onmouseleave="hideTip('tip-pasti-dist')" onclick="showPastiDistTip(this)" title="Info distribuzione calorie">i</button>
-          <button class="dp-print-btn" onclick="printDay()" title="Stampa / PDF"><i data-lucide="printer" style="width:14px;height:14px;stroke-width:2"></i></button>
+          <div class="dp-compact-actions">
+            <button class="dp-info-btn" onmouseenter="showPastiDistTip(this)" onmouseleave="hideTip('tip-pasti-dist')" onclick="showPastiDistTip(this)" title="Info distribuzione calorie">i</button>
+            <button class="dp-print-btn" onclick="printDay()" title="Stampa / PDF"><i data-lucide="printer" style="width:14px;height:14px;stroke-width:2"></i></button>
+          </div>
         </div>
       </div>
       <div class="today-dashboard-block today-week-card">
-        <div class="today-dashboard-block-title">Settimana</div>
+        <div class="today-dashboard-block-head support-mini-head">
+          <div class="support-mini-head-copy">
+            <div class="support-mini-kicker">Dashboard</div>
+            <div class="support-mini-title-row">
+              <div class="support-mini-title">Settimana</div>
+            </div>
+          </div>
+        </div>
         <div class="cal-nav">
           <button class="cal-nav-btn" id="cal-prev" onclick="calMove(-1)">&#x2039;</button>
           <span class="cal-nav-title" id="cal-title" onclick="openCalPicker()"></span>
           <button class="cal-nav-btn" id="cal-next" onclick="calMove(+1)">&#x203A;</button>
         </div>
+        <div class="week-cal-meta" id="week-cal-meta"></div>
         <div class="week-cal" id="week-cal"></div>
       </div>
     </div>
@@ -77,16 +97,26 @@
   <div id="current-meal-focus"></div>
 
   <div class="today-flow-head">
-    <div class="today-flow-kicker">Timeline pasti</div>
-    <div class="today-flow-sub">L'ordine resta temporale: dalla prima finestra utile fino alla chiusura della giornata.</div>
+    <div class="support-mini-head-copy">
+      <div class="support-mini-kicker">Oggi</div>
+      <div class="support-mini-title-row">
+        <div class="support-mini-title">Timeline pasti</div>
+      </div>
+      <div class="support-mini-sub">L'ordine resta temporale: dalla prima finestra utile fino alla chiusura della giornata.</div>
+    </div>
   </div>
 
   <div class="meals-list" id="meals-today"></div>
 
   <div class="today-support-panel">
     <div class="today-support-head">
-      <div class="today-flow-kicker">Supporto giornata</div>
-      <div class="today-flow-sub">Routine e promemoria restano vicini al flusso del giorno, ma con un peso piu calmo.</div>
+      <div class="support-mini-head-copy">
+        <div class="support-mini-kicker">Oggi</div>
+        <div class="support-mini-title-row">
+          <div class="support-mini-title">Supporto giornata</div>
+        </div>
+        <div class="support-mini-sub">Routine e promemoria restano vicini al flusso del giorno, ma con un peso piu calmo.</div>
+      </div>
     </div>
     <div class="today-support-layout">
       <div class="today-support-primary">
@@ -99,9 +129,15 @@
       </div>
       <div class="today-support-secondary">
         <div class="notes-section notes-section-secondary">
-          <div class="notes-header">
-            <span class="notes-label">Note del giorno</span>
-            <span class="notes-autosave" id="notes-autosave"></span>
+          <div class="notes-header support-mini-head">
+            <div class="support-mini-head-copy">
+              <div class="support-mini-kicker">Supporto giornata</div>
+              <div class="support-mini-title-row">
+                <span class="support-mini-title">Note del giorno</span>
+                <span class="support-mini-state idle notes-autosave" id="notes-autosave"></span>
+              </div>
+              <div class="support-mini-sub">Annota solo i segnali che vuoi ritrovare piu tardi.</div>
+            </div>
           </div>
           <div class="notes-input-group">
             <div class="note-tags">
@@ -134,8 +170,11 @@
   <div class="piano-section">
     <div class="piano-section-head">
       <div class="piano-section-copy">
-        <span class="piano-section-title">Piano Pasti</span>
-        <span class="piano-section-sub">Modifica il piano ON/OFF e usa l'helper sul pasto che ti interessa in questo momento.</span>
+        <span class="support-mini-kicker">Piano</span>
+        <div class="support-mini-title-row">
+          <span class="support-mini-title">Piano Pasti</span>
+        </div>
+        <span class="support-mini-sub">Modifica il piano ON/OFF e usa l'helper sul pasto che ti interessa in questo momento.</span>
       </div>
     </div>
     <div id="piano-macros-summary" class="piano-macros-summary"></div>
@@ -147,8 +186,11 @@
   <div class="piano-section">
     <div class="piano-section-head">
       <div class="piano-section-copy">
-        <span class="piano-section-title">Libreria Template</span>
-        <span class="piano-section-sub">Salva pasti ricorrenti e richiamali velocemente quando compili i pasti in Oggi.</span>
+        <span class="support-mini-kicker">Piano</span>
+        <div class="support-mini-title-row">
+          <span class="support-mini-title">Libreria Template</span>
+        </div>
+        <span class="support-mini-sub">Salva pasti ricorrenti e richiamali velocemente quando compili i pasti in Oggi.</span>
       </div>
       <button class="btn btn-ghost piano-add-btn" onclick="openNewTemplate()">+ Nuovo</button>
     </div>
@@ -156,7 +198,15 @@
     <div id="tmpl-list"></div>
     <!-- New/edit form -->
     <div id="tmpl-form" class="tmpl-form-shell" style="display:none">
-      <div class="tmpl-form-title" id="tmpl-form-title">Nuovo template</div>
+      <div class="tmpl-form-head support-mini-head">
+        <div class="support-mini-head-copy">
+          <div class="support-mini-kicker">Template</div>
+          <div class="support-mini-title-row">
+            <div class="support-mini-title tmpl-form-title" id="tmpl-form-title">Nuovo template</div>
+          </div>
+          <div class="support-mini-sub">Componi un pasto riutilizzabile e richiamalo velocemente quando compili la giornata.</div>
+        </div>
+      </div>
       <div class="ed-grid" style="margin-bottom:10px">
         <div class="ed-field"><label>Nome</label><input id="tf-name" type="text" placeholder="es. Colazione standard"></div>
         <div class="ed-field" style="grid-column:1/-1">
@@ -246,19 +296,16 @@
 
   <!-- Card: Orari pasti -->
   <div class="stat-section profile-section">
-    <div class="stat-section-title">Orari pasti</div>
     <div class="prof-card-box" id="prof-times-card"></div>
   </div>
 
   <!-- Card: Cibi preferiti -->
   <div class="stat-section profile-section">
-    <div class="stat-section-title">Cibi preferiti</div>
     <div class="prof-card-box" id="prof-foods-card"></div>
   </div>
 
   <!-- Card: Integratori -->
   <div class="stat-section profile-section">
-    <div class="stat-section-title">Integratori</div>
     <div class="prof-card-box" id="supps-card"></div>
   </div>
 
@@ -269,8 +316,16 @@
 
   <!-- Giorni allenamento -->
   <div class="stat-section profile-section">
-    <div class="stat-section-title">Giorni di allenamento</div>
-    <div class="profile-inline-card">
+    <div class="profile-inline-card profile-inline-card-days">
+      <div class="profile-card-head support-mini-head">
+        <div class="support-mini-head-copy">
+          <div class="support-mini-kicker">Profilo</div>
+          <div class="support-mini-title-row">
+            <div class="support-mini-title">Giorni di allenamento</div>
+          </div>
+          <div class="support-mini-sub">Definisci i giorni Workout predefiniti: il calendario e i target giornalieri si aggiornano di conseguenza.</div>
+        </div>
+      </div>
       <div class="profile-inline-copy">Seleziona i giorni ON &#x2014; il calendario si aggiorna automaticamente.</div>
       <div id="ondays-picker" style="display:flex;gap:6px;flex-wrap:wrap"></div>
     </div>
@@ -278,24 +333,34 @@
 
   <!-- Dati & backup -->
   <div class="stat-section profile-section">
-    <div class="stat-section-title">Dati & backup</div>
-    <div class="backup-grid">
-      <button class="backup-card" onclick="loadJSON()">
-        <span class="backup-emoji">📂</span>
-        <span class="backup-label">Carica JSON</span>
-      </button>
-      <button class="backup-card" onclick="exportJSON()">
-        <span class="backup-emoji">💾</span>
-        <span class="backup-label">Esporta JSON</span>
-      </button>
-      <button class="backup-card" onclick="exportPy()">
-        <span class="backup-emoji">⬇️</span>
-        <span class="backup-label">Esporta Python</span>
-      </button>
-      <button class="backup-card backup-card-danger" onclick="clearStorage()">
-        <span class="backup-emoji">🗑️</span>
-        <span class="backup-label">Reset dati</span>
-      </button>
+    <div class="profile-inline-card profile-inline-card-backup">
+      <div class="profile-card-head support-mini-head">
+        <div class="support-mini-head-copy">
+          <div class="support-mini-kicker">Profilo</div>
+          <div class="support-mini-title-row">
+            <div class="support-mini-title">Dati & backup</div>
+          </div>
+          <div class="support-mini-sub">Importa, esporta o ripristina i dati del progetto in modo sicuro.</div>
+        </div>
+      </div>
+      <div class="backup-grid">
+        <button class="backup-card" onclick="loadJSON()">
+          <span class="backup-emoji">📂</span>
+          <span class="backup-label">Carica JSON</span>
+        </button>
+        <button class="backup-card" onclick="exportJSON()">
+          <span class="backup-emoji">💾</span>
+          <span class="backup-label">Esporta JSON</span>
+        </button>
+        <button class="backup-card" onclick="exportPy()">
+          <span class="backup-emoji">⬇️</span>
+          <span class="backup-label">Esporta Python</span>
+        </button>
+        <button class="backup-card backup-card-danger" onclick="clearStorage()">
+          <span class="backup-emoji">🗑️</span>
+          <span class="backup-label">Reset dati</span>
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -366,16 +431,7 @@
       Inquadra il codice a barre del prodotto
     </div>
     <div id="bc-actions" class="bc-actions" style="display:none"></div>
-    <div id="bc-result" class="bc-result">
-      <div id="bc-product-name" class="bc-product-name"></div>
-      <div id="bc-product-meta" class="bc-product-meta"></div>
-      <div class="fsr-gram-row bc-gram-row">
-        <span class="fsr-gram-label bc-gram-label" id="bc-gram-label">Grammi</span>
-        <input type="number" class="fsr-gram-input" id="bc-gram-input" value="100" min="1" max="2000" step="1">
-        <span class="fsr-gram-calc" id="bc-gram-calc">= &#x2014; kcal</span>
-        <button class="fsr-gram-add" onclick="confirmBarcodeItem()">Aggiungi</button>
-      </div>
-    </div>
+    <div id="bc-result" class="bc-result"></div>
   </div>
 </div>
 
@@ -399,16 +455,16 @@
 </div>
 
 <!-- Calendar month/year picker -->
-<div id="cal-picker" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center" onclick="if(event.target===this)closeCalPicker()"></div>
+<div id="cal-picker" style="display:none;position:fixed;inset:0;background:rgba(24,20,16,.42);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:500;align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)closeCalPicker()"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.7.4/dist/quagga.min.js"></script>
 <script src="debugTools.js?v=3"></script>
 <script src="storage.js?v=33"></script>
 <script src="nutritionLogic.js?v=54"></script>
-<script src="uiComponents.js?v=71"></script>
+<script src="uiComponents.js?v=97"></script>
 <script src="bootstrapTools.js?v=1"></script>
-<script src="app.js?v=71"></script>
-<script src="barcodeTools.js?v=13"></script>
+<script src="app.js?v=74"></script>
+<script src="barcodeTools.js?v=14"></script>
 <script>lucide.createIcons();</script>
 </body>
 </html>

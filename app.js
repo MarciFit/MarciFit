@@ -235,6 +235,9 @@ function refreshTodayAlertSurfaces() {
   const active = document.querySelector('.view.active')?.id;
   if (active !== 'view-today') return;
   const dateKey = S.selDate || localDate();
+  const mealState = getCurrentMealState(S.day, dateKey);
+  const alertModel = splitTodayAlerts(S.day, dateKey);
+  renderCurrentMealFocus(S.day, mealState, dateKey, alertModel);
   renderDashboardAlertSummary(S.day, dateKey);
   renderSupportAlerts(S.day, dateKey);
 }
@@ -1019,7 +1022,7 @@ function addWater(delta) {
 }
 function toggleSuppActive(i) {
   S.supplements[i].active = !S.supplements[i].active;
-  save(); renderSupplements(); renderSuppToday();
+  save(); renderSupplements(); renderSuppToday(); refreshTodayAlertSurfaces();
 }
 function updateItemGrams(type, mealIdx, itemIdx, val) {
   const g = Math.round(parseFloat(val)||0);
@@ -1096,14 +1099,15 @@ function refreshMealCard(type, mealIdx) {
   const dateKey = S.selDate || localDate();
   const completion = getDayCompletion(dateKey, type);
   const mealState = getCurrentMealState(type, dateKey);
-  renderCurrentMealFocus(type, mealState, dateKey);
+  const alertModel = splitTodayAlerts(type, dateKey);
+  renderCurrentMealFocus(type, mealState, dateKey, alertModel);
   if (typeof renderCheatWidget === 'function') renderCheatWidget();
   if (typeof renderTodaySignals === 'function') renderTodaySignals(type, dateKey);
   if (typeof renderDashboardAlertSummary === 'function') renderDashboardAlertSummary(type, dateKey);
   if (typeof renderSupportAlerts === 'function') renderSupportAlerts(type, dateKey);
   const dpLabel = document.getElementById('dp-label');
   const dpFill  = document.getElementById('dp-fill');
-  if (dpLabel) dpLabel.textContent = `${completion.done} / ${completion.total} pasti`;
+  if (dpLabel) dpLabel.textContent = `${completion.done} su ${completion.total} completati`;
   if (dpFill)  dpFill.style.width  = `${completion.total ? (completion.done/completion.total)*100 : 0}%`;
 
   refreshTodayDerivedViews({ greeting: true, calendar: true, stats: true });
@@ -1952,7 +1956,24 @@ function renderCalPicker() {
   const yr = S._pickerYear;
   const now = new Date();
   const curMonth = now.getMonth(), curYear = now.getFullYear();
+  const todayDow = now.getDay();
+  const todayMonOff = todayDow === 0 ? -6 : 1 - todayDow;
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() + todayMonOff);
+  thisMonday.setHours(0,0,0,0);
+  const displayedMonday = new Date(thisMonday);
+  displayedMonday.setDate(thisMonday.getDate() + S.calOffset * 7);
+  const displayedMonth = displayedMonday.getMonth();
+  const displayedYear = displayedMonday.getFullYear();
   picker.innerHTML = `<div class="cal-picker-box">
+    <div class="cal-picker-top">
+      <div class="cal-picker-kicker">Calendario</div>
+      <div class="cal-picker-title-row">
+        <div class="cal-picker-title">${MONTHS[displayedMonth]}</div>
+        <span class="cal-picker-chip">${displayedYear === curYear && displayedMonth === curMonth ? 'oggi' : 'in vista'}</span>
+      </div>
+      <div class="cal-picker-sub">Scegli il mese da mostrare nel calendario settimanale e aggiorna subito la griglia sopra.</div>
+    </div>
     <div class="cal-picker-header">
       <button class="cal-picker-arrow" onclick="S._pickerYear--;renderCalPicker()">&#x2039;</button>
       <span class="cal-picker-year">${yr}</span>
@@ -1961,12 +1982,17 @@ function renderCalPicker() {
     <div class="cal-picker-months">
       ${MONTHS_SHORT.map((m,i) => {
         const isCur = i === curMonth && yr === curYear;
-        return `<button class="cal-picker-month${isCur?' cur':''}" onclick="pickerGoMonth(${yr},${i})">${m}</button>`;
+        const isActive = i === displayedMonth && yr === displayedYear;
+        const note = isActive ? 'in vista' : (isCur ? 'oggi' : '');
+        return `<button class="cal-picker-month${isCur?' cur':''}${isActive?' active':''}" onclick="pickerGoMonth(${yr},${i})">
+          <span class="cal-picker-month-label">${m}</span>
+          <span class="cal-picker-month-note">${note}</span>
+        </button>`;
       }).join('')}
     </div>
     <div class="cal-picker-actions">
-      <button class="btn btn-ghost" onclick="closeCalPicker()">Annulla</button>
-      <button class="btn" style="background:var(--on);color:#fff" onclick="pickerGoToday()">Oggi</button>
+      <button class="cal-picker-action is-secondary" onclick="closeCalPicker()">Chiudi</button>
+      <button class="cal-picker-action is-primary" onclick="pickerGoToday()">Vai a oggi</button>
     </div>
   </div>`;
 }

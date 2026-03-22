@@ -773,19 +773,134 @@ function showBcResult() {
     closeBarcode();
     return;
   }
-  document.getElementById('bc-product-name').textContent = _bcItem.name;
-  document.getElementById('bc-product-meta').textContent =
-    (_bcItem.brand ? _bcItem.brand + ' · ' : '') +
-    (_bcItem.quantity ? _bcItem.quantity + ' · ' : '') +
-    _bcItem.kcal100 + ' kcal · P ' + _bcItem.p100 + 'g · C ' + _bcItem.c100 + 'g · G ' + _bcItem.f100 + 'g per 100g';
+  const resultEl = document.getElementById('bc-result');
+  if (!resultEl) return;
+  const portions = (typeof FOOD_PORTIONS !== 'undefined' ? FOOD_PORTIONS : [
+    { label: 'Cucchiaino', g: 5 },
+    { label: 'Cucchiaio',  g: 15 },
+    { label: 'Fetta',      g: 30 },
+    { label: 'Porzione',   g: 100 },
+    { label: 'Tazza',      g: 240 },
+  ]);
+  const portionChips = portions.map(p =>
+    `<button class="fsr-portion${p.g === 100 ? ' sel' : ''}" data-g="${p.g}">${p.label}<span class="fsr-portion-g">${p.g}g</span></button>`
+  ).join('');
+  const p100 = Math.round((_bcItem.p100 || 0) * 10) / 10;
+  const c100 = Math.round((_bcItem.c100 || 0) * 10) / 10;
+  const f100 = Math.round((_bcItem.f100 || 0) * 10) / 10;
+  const metaBadges = [
+    `<span class="fsr-gp-badge">Barcode</span>`,
+    _bcItem.barcode ? `<span class="fsr-gp-badge">${_bcItem.barcode}</span>` : '',
+  ].filter(Boolean).join('');
+
+  let remRowHTML = '';
+  if (_bcCtx) {
+    const { dateKey, mealIdx } = _bcCtx;
+    const dayType = typeof resolveDayTypeForDate === 'function' ? resolveDayTypeForDate(dateKey) : S.day;
+    const tgtK = S.macro?.[dayType]?.k || 0;
+    let eatenK = 0;
+    const dayLog = S.foodLog[dateKey] || {};
+    Object.values(dayLog).forEach(items => {
+      if (Array.isArray(items)) items.forEach(it => { eatenK += Math.round(it.kcal100 * it.grams / 100); });
+    });
+    const dayRemaining = tgtK - eatenK;
+
+    let mealRemaining = null;
+    if (typeof mealIdx === 'number') {
+      const meals = S.meals[dayType] || [];
+      const thisMeal = meals[mealIdx];
+      if (thisMeal) {
+        const totalPlanK = meals.reduce((s, ml) => s + (mealMacros(ml).kcal || 0), 0);
+        const scale = (tgtK > 0 && totalPlanK > 0) ? tgtK / totalPlanK : 1;
+        const mealTarget = Math.round(mealMacros(thisMeal).kcal * scale);
+        const mealLog = S.foodLog[dateKey]?.[mealIdx] || [];
+        const mealEaten = mealLog.reduce((s, it) => s + Math.round(it.kcal100 * it.grams / 100), 0);
+        mealRemaining = mealTarget - mealEaten;
+      }
+    }
+    remRowHTML = `<div class="fsr-rem-row">` +
+      (mealRemaining !== null ? `<span class="fsr-rem-lbl">Pasto:</span><span class="fsr-meal-rem-val ${mealRemaining < 0 ? 'err' : mealRemaining < 80 ? 'warn' : 'ok'}">${mealRemaining - _bcItem.kcal100} kcal rim.</span><span class="fsr-rem-sep">·</span>` : '') +
+      (tgtK > 0 ? `<span class="fsr-rem-lbl">Giorno:</span><span class="fsr-rem-val ok">${dayRemaining - _bcItem.kcal100} kcal rim.</span>` : '') +
+    `</div>`;
+  }
+
+  resultEl.innerHTML = `
+    <div class="bc-result-shell">
+      <div class="fsr-gp-info">
+        <div class="fsr-gp-head">
+          <div class="fsr-gp-copy">
+            <div id="bc-product-name" class="fsr-gram-name">${_bcItem.name}</div>
+            <div id="bc-product-meta" class="fsr-gp-brand${_bcItem.brand ? '' : ' fsr-gp-brand-muted'}">${_bcItem.brand ? `${_bcItem.brand}${_bcItem.quantity ? ` · ${_bcItem.quantity}` : ''}` : (_bcItem.quantity || 'Brand non specificato')}</div>
+          </div>
+          <div class="fsr-gp-badges">${metaBadges}</div>
+        </div>
+        <div class="fsr-gp-macro-title">Valori nutrizionali per 100g</div>
+        <div class="fsr-gp-macro-grid">
+          <div class="fsr-gp-macro-card kcal"><span class="fsr-gp-macro-k">🔥</span><span class="fsr-gp-macro-v">${_bcItem.kcal100}</span><span class="fsr-gp-macro-u">kcal</span><span class="fsr-gp-macro-l">per 100g</span></div>
+          <div class="fsr-gp-macro-card"><span class="fsr-gp-macro-k">🥩</span><span class="fsr-gp-macro-v">${p100}</span><span class="fsr-gp-macro-u">g</span><span class="fsr-gp-macro-l">Proteine</span></div>
+          <div class="fsr-gp-macro-card"><span class="fsr-gp-macro-k">🍚</span><span class="fsr-gp-macro-v">${c100}</span><span class="fsr-gp-macro-u">g</span><span class="fsr-gp-macro-l">Carboidrati</span></div>
+          <div class="fsr-gp-macro-card"><span class="fsr-gp-macro-k">🧈</span><span class="fsr-gp-macro-v">${f100}</span><span class="fsr-gp-macro-u">g</span><span class="fsr-gp-macro-l">Grassi</span></div>
+        </div>
+      </div>
+      <div class="fsr-gp-action bc-gp-action">
+        <div class="fsr-gp-action-head">Inserisci quantita</div>
+        <div class="fsr-portions">${portionChips}</div>
+        <div class="fsr-gram-custom">
+          <div class="fsr-gram-input-wrap">
+            <input type="number" class="fsr-gram-input" id="bc-gram-input" value="100" min="1" max="5000" step="1">
+            <span class="fsr-gram-unit">g</span>
+          </div>
+          <span class="fsr-gram-calc" id="bc-gram-calc">= 100 kcal</span>
+          <button class="fsr-gram-add" onclick="confirmBarcodeItem()">Aggiungi</button>
+        </div>
+        <div class="fsr-gp-live">
+          <span class="fsr-gp-live-lbl">Con questa quantita</span>
+          <span class="fsr-gp-live-val">
+            <strong class="fsr-gp-live-k" id="bc-live-k">${_bcItem.kcal100} kcal</strong>
+            <span class="fsr-gp-live-sep">·</span>
+            <span class="fsr-gp-live-m">P <span id="bc-live-p">${p100}</span>g</span>
+            <span class="fsr-gp-live-sep">·</span>
+            <span class="fsr-gp-live-m">C <span id="bc-live-c">${c100}</span>g</span>
+            <span class="fsr-gp-live-sep">·</span>
+            <span class="fsr-gp-live-m">G <span id="bc-live-f">${f100}</span>g</span>
+          </span>
+        </div>
+        ${remRowHTML}
+      </div>
+    </div>`;
   _setBarcodeStatus('✅ Prodotto trovato!', 'success');
   _renderBarcodeActions([]);
   const gi = document.getElementById('bc-gram-input');
   const gc = document.getElementById('bc-gram-calc');
+  const liveK = document.getElementById('bc-live-k');
+  const liveP = document.getElementById('bc-live-p');
+  const liveC = document.getElementById('bc-live-c');
+  const liveF = document.getElementById('bc-live-f');
+  const updateLive = grams => {
+    const g = Math.max(1, Math.round(grams || 0));
+    const kcal = Math.round(_bcItem.kcal100 * g / 100);
+    const p = Math.round((_bcItem.p100 || 0) * g / 100 * 10) / 10;
+    const c = Math.round((_bcItem.c100 || 0) * g / 100 * 10) / 10;
+    const f = Math.round((_bcItem.f100 || 0) * g / 100 * 10) / 10;
+    gc.textContent = `= ${kcal} kcal`;
+    if (liveK) liveK.textContent = `${kcal} kcal`;
+    if (liveP) liveP.textContent = p;
+    if (liveC) liveC.textContent = c;
+    if (liveF) liveF.textContent = f;
+  };
   gi.value = 100;
-  gc.textContent = '= ' + _bcItem.kcal100 + ' kcal';
-  gi.oninput = () => { gc.textContent = '= ' + Math.round(_bcItem.kcal100 * (+gi.value || 0) / 100) + ' kcal'; };
-  document.getElementById('bc-result').style.display = 'block';
+  updateLive(100);
+  gi.oninput = () => updateLive(+gi.value || 0);
+  resultEl.querySelectorAll('.fsr-portion').forEach(btn => {
+    btn.onclick = () => {
+      resultEl.querySelectorAll('.fsr-portion').forEach(b => b.classList.remove('sel'));
+      btn.classList.add('sel');
+      gi.value = btn.dataset.g;
+      updateLive(+btn.dataset.g || 0);
+      gi.focus();
+    };
+  });
+  resultEl.style.display = 'block';
   if (_bcStream) {
     _bcStream.getTracks().forEach(t => t.stop());
     _bcStream = null;
