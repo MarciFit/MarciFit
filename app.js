@@ -32,10 +32,7 @@ const S = {
   // ? ?  Obiettivo / fase ? ? 
   goal: { phase: 'bulk', startDate: null, targetWeight: null, notes: '' },
   // ? ?  Integratori ? ? 
-  supplements: [
-    { id:'creatina', name:'Creatina Creapure', dose:'3 g', when:'mattina', active:true },
-    { id:'vitd',     name:'Vitamina D',        dose:'---', when:'mattina', active:false },
-  ],
+  supplements: [],
   cheatMealsByDate: {},
   cheatConfig: {
     enabled: true,
@@ -80,23 +77,21 @@ const S = {
     ]},
   ],
   profilo: [
-    {l:'Nome',              v:'Federico Marci',       n:''},
-    {l:'Età',               v:'23 anni',              n:'Giovane adulto, metabolismo reattivo'},
-    {l:'Altezza',           v:'163 cm',               n:'Costituzione compatta'},
-    {l:'Peso attuale',      v:'64 kg',                n:'BMI 24,1 · normopeso'},
-    {l:'Professione',       v:'Aeronautica Italiana', n:'Lavoro sedentario 8 h/giorno'},
-    {l:'Sonno',             v:'6–7 h/notte',          n:'Sottoottimale; alloggio condiviso'},
-    {l:'Attività fisica',   v:'3–4 allenim./sett.',   n:'Palestra strength training; ~5.800 passi/gg'},
-    {l:'Fastidio digestivo',v:'3/10 (baseline)',      n:'Precedente reflusso'},
-    {l:'Creatina Creapure', v:'3 g/die · da oggi',    n:'Continuare senza interruzioni'},
-    {l:'Vitamina D',        v:'Carente (2 anni fa)',  n:'Rifare le analisi prima di integrare'},
+    {l:'Nome',              v:'Da impostare',         n:''},
+    {l:'Età',               v:'Da impostare',         n:''},
+    {l:'Altezza',           v:'Da impostare',         n:''},
+    {l:'Peso attuale',      v:'Da impostare',         n:''},
+    {l:'Professione',       v:'Da impostare',         n:''},
+    {l:'Sonno',             v:'Da impostare',         n:''},
+    {l:'Attività fisica',   v:'Da impostare',         n:''},
+    {l:'Fastidio digestivo',v:'Da impostare',         n:''},
   ],
   anagrafica: {
-    nome:            'Federico Marci',
+    nome:            '',
     sesso:           'm',
-    eta:             23,
-    altezza:         163,
-    peso:            64,
+    eta:             null,
+    altezza:         null,
+    peso:            null,
     grassoCorporeo:  null,
     professione:     'desk_sedentary',
     allenamentiSett: '3-4',
@@ -114,7 +109,7 @@ const S = {
         {name:'Miele',                grams:15,  kcal100:304, p100:0.3, c100:82,  f100:0},
         {name:'Caffè nero',           grams:0,   kcal100:2,   p100:0.1, c100:0,   f100:0},
       ]},
-      {icon:'🍽️ ',name:'Pranzo a mensa', time:'12:30 – 13:00',               items:[
+      {icon:'🍽️ ',name:'Pranzo',         time:'12:30 – 13:00',               items:[
         {name:'Pasta/riso secco',     grams:100, kcal100:355, p100:12,  c100:72,  f100:1.5},
         {name:'Olio EVO',             grams:10,  kcal100:884, p100:0,   c100:0,   f100:100},
         {name:'Parmigiano',           grams:10,  kcal100:392, p100:33,  c100:0,   f100:28},
@@ -140,7 +135,7 @@ const S = {
         {name:'Miele',                grams:10,  kcal100:304, p100:0.3, c100:82,  f100:0},
         {name:'Caffè nero',           grams:0,   kcal100:2,   p100:0.1, c100:0,   f100:0},
       ]},
-      {icon:'🍽️ ',name:'Pranzo a mensa',   time:'12:30 – 13:00',items:[
+      {icon:'🍽️ ',name:'Pranzo',           time:'12:30 – 13:00',items:[
         {name:'Pasta/riso secco',     grams:90,  kcal100:355, p100:12,  c100:72,  f100:1.5},
         {name:'Olio EVO',             grams:10,  kcal100:884, p100:0,   c100:0,   f100:100},
         {name:'Parmigiano',           grams:10,  kcal100:392, p100:33,  c100:0,   f100:28},

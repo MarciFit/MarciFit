@@ -1209,7 +1209,7 @@ function renderGreeting(type, now) {
                   'luglio','agosto','settembre','ottobre','novembre','dicembre'];
   const h = now.getHours();
   const saluto = h < 12 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera';
-  const nomeCompleto = S.anagrafica?.nome || S.profilo.find(r=>r.l==='Nome')?.v || 'Federico Marci';
+  const nomeCompleto = S.anagrafica?.nome || S.profilo.find(r=>r.l==='Nome')?.v || 'Atleta';
   const nome = nomeCompleto.split(' ')[0];
 
   // Aggiorna nav-sub con il nome

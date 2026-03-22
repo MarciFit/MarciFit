@@ -146,6 +146,10 @@ function authResolveSupabaseConfig() {
   return null;
 }
 
+function authHasEmbeddedSupabaseConfig() {
+  return !!(window.MARCI_SUPABASE_URL && window.MARCI_SUPABASE_ANON_KEY);
+}
+
 function authCanUseSupabase() {
   const cfg = authResolveSupabaseConfig();
   return !!(cfg?.url && cfg?.anonKey && window.supabase?.createClient);
@@ -629,6 +633,7 @@ function renderProfileAccountCard() {
   const el = document.getElementById('profile-account-slot');
   if (!el) return;
   const cfg = authResolveSupabaseConfig();
+  const hasEmbeddedConfig = authHasEmbeddedSupabaseConfig();
   const syncLabel = authFormatSyncTime(AUTH.lastSyncedAt || authReadStateMeta().lastSyncedAt);
   const status = authStatusMeta();
   if (authIsAuthenticated()) {
@@ -656,7 +661,7 @@ function renderProfileAccountCard() {
             <button class="auth-account-btn" onclick="signOutUser()">Logout</button>
           </div>
         </div>
-        ${AUTH.provider !== 'supabase' && cfg ? `<div class="profile-account-note">Supabase è già configurato. Esci e rientra con email e password per usare il cloud.</div>` : ''}
+        ${AUTH.provider !== 'supabase' && cfg ? `<div class="profile-account-note">${hasEmbeddedConfig ? 'Il cloud è già attivo in app. Esci e rientra con email e password per usare il tuo account.' : 'Supabase è già configurato. Esci e rientra con email e password per usare il cloud.'}</div>` : ''}
       </div>`;
   } else {
     const providerReady = authCanUseSupabase() ? 'Supabase pronto' : 'Locale mock';
@@ -681,10 +686,10 @@ function renderProfileAccountCard() {
           <div class="profile-account-actions">
             <button class="auth-account-btn" onclick="openAuthEntry()">Accedi o crea account</button>
             <button class="auth-account-btn" onclick="authClearLocalAccounts()">Pulisci account locali</button>
-            ${cfg ? `<button class="auth-account-btn" onclick="authRemoveSupabaseConfig()">Usa solo locale</button>` : ''}
+            ${cfg && !hasEmbeddedConfig ? `<button class="auth-account-btn" onclick="authRemoveSupabaseConfig()">Usa solo locale</button>` : ''}
           </div>
         </div>
-        ${cfg ? '' : `
+        ${cfg || hasEmbeddedConfig ? '' : `
         <div class="profile-account-config">
           <div class="profile-account-config-title">Attiva Supabase</div>
           <div class="profile-account-config-sub">Inserisci Project URL e anon key per usare account reali e sync cloud.</div>

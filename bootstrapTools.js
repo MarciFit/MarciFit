@@ -40,10 +40,7 @@ function ensureBootstrapDefaults(state) {
   if (!state.measurements) state.measurements = [];
   if (!state.goal) state.goal = { phase: 'bulk', startDate: null, targetWeight: null, notes: '' };
   if (!state.supplements) {
-    state.supplements = [
-      { id: 'creatina', name: 'Creatina Creapure', dose: '3 g', when: 'mattina', active: true },
-      { id: 'vitd', name: 'Vitamina D', dose: '---', when: 'mattina', active: false },
-    ];
+    state.supplements = [];
   }
   if (!state.suppChecked) state.suppChecked = {};
   if (!state.doneByDate) state.doneByDate = {};
@@ -78,7 +75,7 @@ function migrateProfiloToAnagrafica(state) {
   if (state.anagrafica) return;
   const findP = lbl => state.profilo?.find(row => row.l === lbl)?.v || '';
   state.anagrafica = {
-    nome: findP('Nome') || 'Federico Marci',
+    nome: findP('Nome') || '',
     sesso: 'm',
     eta: parseInt(findP('Età')) || null,
     altezza: parseInt(findP('Altezza')) || null,
