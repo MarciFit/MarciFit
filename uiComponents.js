@@ -2732,6 +2732,22 @@ function getMeasurementsInsight(phase, weightDelta, deltas) {
   return 'Le misure corporee aggiungono contesto al peso: con piu rilevazioni nel range questa lettura diventera ancora piu utile.';
 }
 
+function computeStatsConsistencyScore(adherence, streak) {
+  const adherencePart = Math.round((adherence?.adherenceRate || 0) * 0.55);
+  const mealPart = Math.round((adherence?.mealRate || 0) * 0.2);
+  const hydrationPart = Math.round((adherence?.hydrationRate || 0) * 0.1);
+  const supplementPart = Math.round((adherence?.supplementRate || 0) * 0.05);
+  const streakPart = Math.round((Math.min(14, Math.max(0, streak || 0)) / 14) * 100 * 0.1);
+  return Math.max(0, Math.min(100, adherencePart + mealPart + hydrationPart + supplementPart + streakPart));
+}
+
+function getStatsScoreLabel(score) {
+  if (score >= 85) return 'Ottimo';
+  if (score >= 70) return 'Buono';
+  if (score >= 55) return 'Da consolidare';
+  return 'Instabile';
+}
+
 function getStatsPatterns(data) {
   const patterns = [];
   const prevAdh = data.previous?.adherence?.adherenceRate ?? null;
@@ -2851,6 +2867,8 @@ function getStatsRangeData(range = (S.statsRange || '30d')) {
   weight.insight = getWeightInsight(weight, adherence.adherenceRate);
 
   const avgActivePerWeek = Math.max(0, Math.min(7, Math.round(adherence.activeDays / Math.max(1, bounds.days / 7))));
+  const streak = calcStreak();
+  const consistencyScore = computeStatsConsistencyScore(adherence, streak);
   const hero = getStatsHero({ bounds, weight, adherence, previous });
   const measurementEntries = getMeasurementsForBounds(bounds);
   const measurementKeys = ['vita', 'fianchi', 'petto', 'braccio', 'coscia'];
@@ -2873,6 +2891,8 @@ function getStatsRangeData(range = (S.statsRange || '30d')) {
       weightValue: weight.delta == null ? 'n/d' : `${weight.delta > 0 ? '+' : ''}${weight.delta.toFixed(1)} kg`,
       adherenceValue: `${adherence.adherenceRate}%`,
       consistencyValue: `${avgActivePerWeek}/7`,
+      scoreValue: consistencyScore,
+      scoreLabel: getStatsScoreLabel(consistencyScore),
     },
   };
 }
@@ -2923,8 +2943,28 @@ function renderStatsHero(data) {
   if (!el) return;
   const toneClass = data.hero.tone === 'ok' ? ' tone-ok' : data.hero.tone === 'warn' ? ' tone-warn' : '';
   const streak = calcStreak();
+  const streakBadge = streakBadgeStyle(streak);
   el.innerHTML = `
     <div class="stats-hero${toneClass}">
+      <div class="stats-hero-top-cards">
+        <button class="stats-top-card streak${streak >= 7 ? ' is-good' : ''}" onmouseenter="showStreakTip(this, ${streak})" onmouseleave="hideTip('tip-streak')" onclick="showStreakTip(this, ${streak})">
+          <div class="stats-top-card-head">
+            <span class="stats-top-card-kicker">Streak</span>
+            <span class="stats-top-card-icon">${streakBadge.emoji}</span>
+          </div>
+          <div class="stats-top-card-main">${streak}</div>
+          <div class="stats-top-card-sub">${streak === 1 ? 'giorno di fila' : 'giorni di fila'}</div>
+        </button>
+        <button class="stats-top-card score${data.kpis.scoreValue >= 70 ? ' is-good' : data.kpis.scoreValue >= 55 ? ' is-warn' : ''}" onmouseenter="showStatsScoreTip(this, ${data.kpis.scoreValue})" onmouseleave="hideTip('tip-score')" onclick="showStatsScoreTip(this, ${data.kpis.scoreValue})">
+          <div class="stats-top-card-head">
+            <span class="stats-top-card-kicker">Score</span>
+            <span class="stats-top-card-icon">🎯</span>
+          </div>
+          <div class="stats-top-card-main">${data.kpis.scoreValue}</div>
+          <div class="stats-top-card-bar"><span class="stats-top-card-bar-fill" style="width:${data.kpis.scoreValue}%"></span></div>
+          <div class="stats-top-card-sub">${data.kpis.scoreLabel}</div>
+        </button>
+      </div>
       <div class="stats-hero-copy">
         <div class="support-mini-kicker">Stats</div>
         <div class="stats-hero-title-row">
@@ -2934,7 +2974,7 @@ function renderStatsHero(data) {
       </div>
       <div class="stats-hero-meta">
         <div class="stats-hero-meta-chip">Range · ${data.bounds.label}</div>
-        <div class="stats-hero-meta-chip">Streak · ${streak} giorni</div>
+        <div class="stats-hero-meta-chip">Score · ${data.kpis.scoreValue}/100</div>
       </div>
       <div class="stats-kpis">
         <div class="sc-card">
@@ -3798,6 +3838,30 @@ function showStreakTip(anchor, streak) {
       <div style="margin-top:8px;font-size:11px">Aderenza 28 gg: <strong>${adh}%</strong></div>
     </div>`;
   showTip('tip-streak', anchor);
+}
+
+function showStatsScoreTip(anchor, score) {
+  const tip = document.getElementById('tip-score');
+  if (!tip) return;
+  const data = getStatsRangeData(S.statsRange || '30d');
+  const scoreLabel = getStatsScoreLabel(score);
+  tip.innerHTML = `
+    <div class="tip-title">Score · Lettura rapida della costanza</div>
+    <div class="tip-desc">
+      Lo score combina <strong>aderenza</strong>, pasti completati, idratazione, integrazione e un piccolo bonus streak.<br><br>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+        <div style="text-align:center;background:var(--off-l);border-radius:6px;padding:8px 4px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;color:var(--ink)">${score}</div>
+          <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-top:2px">${scoreLabel}</div>
+        </div>
+        <div style="text-align:center;background:var(--on-l);border-radius:6px;padding:8px 4px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;color:var(--on)">${data.adherence.adherenceRate}%</div>
+          <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-top:2px">Aderenza</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:11px">Pasti completati: <strong>${data.adherence.mealRate}%</strong> · Acqua: <strong>${data.adherence.hydrationRate}%</strong> · Streak: <strong>${calcStreak()} giorni</strong></div>
+    </div>`;
+  showTip('tip-score', anchor);
 }
 // htmlEsc: safe for innerHTML content (escapes HTML entities)
 function htmlEsc(s) {

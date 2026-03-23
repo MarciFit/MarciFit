@@ -5,6 +5,7 @@ const AUTH_SESSION_KEY = 'marcifit_auth_session_v1';
 const AUTH_SUPABASE_CONFIG_KEY = 'marcifit_supabase_config_v1';
 const AUTH_STATE_META_KEY = 'marcifit_state_meta_v1';
 const AUTH_SYNC_DELAY_MS = 900;
+const AUTH_POST_LOGOUT_MODE_KEY = 'marcifit_post_logout_mode_v1';
 
 const AUTH = {
   status: 'guest',
@@ -300,6 +301,24 @@ function authParseRemoteState(rawState) {
   return typeof rawState === 'object' ? rawState : null;
 }
 
+function authHasMeaningfulState(state) {
+  if (!state || typeof state !== 'object') return false;
+  if (Array.isArray(state.weightLog) && state.weightLog.length > 0) return true;
+  if (Array.isArray(state.measurements) && state.measurements.length > 0) return true;
+  if (state.foodLog && typeof state.foodLog === 'object' && Object.keys(state.foodLog).length > 0) return true;
+  if (state.doneByDate && typeof state.doneByDate === 'object' && Object.keys(state.doneByDate).length > 0) return true;
+  if (state.notes && typeof state.notes === 'object' && Object.keys(state.notes).length > 0) return true;
+  if (state.water && typeof state.water === 'object' && Object.keys(state.water).length > 0) return true;
+  if (state.cheatMealsByDate && typeof state.cheatMealsByDate === 'object' && Object.keys(state.cheatMealsByDate).length > 0) return true;
+  if (Array.isArray(state.customFoods) && state.customFoods.length > 0) return true;
+  if (Array.isArray(state.favoriteFoods) && state.favoriteFoods.length > 0) return true;
+  if (state.onboardingCompleted) return true;
+  const profileName = String(state.anagrafica?.nome || '').trim();
+  if (profileName) return true;
+  if (Number.isFinite(Number(state.anagrafica?.peso)) && Number(state.anagrafica?.peso) > 0) return true;
+  return false;
+}
+
 function authStoreRemoteStateLocally(state, updatedAt) {
   try {
     const raw = JSON.stringify(state);
@@ -343,10 +362,11 @@ async function authHydrateLocalCacheFromRemote() {
 
   const localRaw = localStorage.getItem(authGetAppStorageKey(authCurrentBaseStorageKey()));
   const localMeta = authReadStateMeta();
+  const localState = authParseRemoteState(localRaw);
   const remoteAt = Date.parse(remote.row.updated_at || 0) || 0;
   const localAt = Date.parse(localMeta.updatedAt || 0) || 0;
-  const hasMeaningfulLocal = !!localRaw && !!localAt;
-  const hasMeaningfulRemote = !!remote.row.updated_at && !!remoteAt;
+  const hasMeaningfulLocal = authHasMeaningfulState(localState) && !!localAt;
+  const hasMeaningfulRemote = authHasMeaningfulState(remoteState) && !!remote.row.updated_at && !!remoteAt;
 
   if (hasMeaningfulLocal && hasMeaningfulRemote && remote.row.updated_at !== localMeta.remoteUpdatedAt && remoteAt !== localAt) {
     return {
@@ -358,7 +378,7 @@ async function authHydrateLocalCacheFromRemote() {
     };
   }
 
-  if (!localRaw || remoteAt > localAt) {
+  if (!hasMeaningfulLocal || !localRaw || remoteAt > localAt) {
     authStoreRemoteStateLocally(remoteState, remote.row.updated_at);
     return { ok: true, hydrated: true, source: 'remote' };
   }
@@ -461,6 +481,12 @@ async function signInWithEmail(email, password) {
       if (!user) return { ok: false, message: 'Accesso non riuscito' };
       authApplySupabaseUser(user);
       await authEnsureRemoteProfile();
+      const storageKey = authGetAppStorageKey(authCurrentBaseStorageKey());
+      const localRaw = localStorage.getItem(storageKey);
+      const localState = authParseRemoteState(localRaw);
+      if (!authHasMeaningfulState(localState)) {
+        authClearLocalStateMeta();
+      }
       return { ok: true, user: AUTH.user };
     } catch (err) {
       return { ok: false, message: err?.message || 'Errore Supabase' };
@@ -491,6 +517,12 @@ async function authSendPasswordReset(email) {
 }
 
 async function signOutUser() {
+  try {
+    sessionStorage.setItem(AUTH_POST_LOGOUT_MODE_KEY, 'login');
+  } catch (_) {}
+  if (window.S) {
+    window.S.authEntryCompleted = false;
+  }
   if (AUTH.provider === 'supabase' && authCanUseSupabase()) {
     try {
       const client = authGetSupabaseClient();
@@ -501,6 +533,23 @@ async function signOutUser() {
   }
   authSetGuestState();
   if (typeof location !== 'undefined') location.reload();
+}
+
+function confirmSignOutUser() {
+  if (typeof showDayModal !== 'function') {
+    signOutUser();
+    return;
+  }
+  showDayModal({
+    icon: '↩️',
+    eyebrow: 'Account',
+    title: 'Vuoi davvero uscire?',
+    body: 'Verrai disconnesso da questo dispositivo e tornerai alla schermata di accesso.',
+    confirmText: 'Esci dal profilo',
+    cancelText: 'Resta dentro',
+    danger: true,
+    onConfirm: () => { signOutUser(); },
+  });
 }
 
 function authOnLocalStateSaved(raw, options = {}) {
@@ -644,27 +693,27 @@ function renderProfileAccountCard() {
             <div class="support-mini-kicker">Account</div>
             <div class="support-mini-title-row">
               <div class="support-mini-title">Profilo connesso</div>
-              <span class="support-mini-state done">${authProviderLabel()}</span>
+              <span class="support-mini-state done">Connesso</span>
             </div>
-            <div class="support-mini-sub">Sessione attiva con provider ${authProviderLabel()}. ${AUTH.provider === 'supabase' ? `Ultimo sync: ${htmlEsc(syncLabel)}.` : 'I dati restano sul dispositivo finché non passi a Supabase.'}</div>
+            <div class="support-mini-sub">${AUTH.provider === 'supabase' ? `Account attivo con sincronizzazione disponibile. Ultimo aggiornamento: ${htmlEsc(syncLabel)}.` : 'Account attivo su questo dispositivo. Puoi collegare la sincronizzazione quando vuoi.'}</div>
           </div>
         </div>
         <div class="profile-account-status-row">
           <span class="profile-account-pill ${status.cls}">${htmlEsc(status.label)}</span>
-          <span class="profile-account-status-copy">${AUTH.provider === 'supabase' ? `Backup e sincronizzazione ${AUTH.lastSyncedAt ? 'attivi' : 'pronti'} per questo profilo.` : 'Questo account usa ancora solo il salvataggio locale del dispositivo.'}</span>
+          <span class="profile-account-status-copy">${AUTH.provider === 'supabase' ? 'I tuoi dati possono restare allineati e disponibili anche sugli altri dispositivi.' : 'Per ora questo profilo salva i dati solo qui sul dispositivo.'}</span>
         </div>
         <div class="profile-account-body">
           <div class="profile-account-email">${htmlEsc(AUTH.user.email)}</div>
           <div class="profile-account-actions">
-            ${AUTH.provider === 'supabase' ? `<button class="auth-account-btn" onclick="authSyncNow()">Sincronizza ora</button>` : cfg ? `<button class="auth-account-btn" onclick="openAuthEntry()">Accedi a Supabase</button>` : ''}
-            ${AUTH.provider === 'local_mock' ? `<button class="auth-account-btn" onclick="authClearLocalAccounts()">Pulisci account locali</button>` : ''}
-            <button class="auth-account-btn" onclick="signOutUser()">Logout</button>
+            ${AUTH.provider === 'supabase' ? `<button class="auth-account-btn" onclick="authSyncNow()">🔄 Sincronizza adesso</button>` : cfg ? `<button class="auth-account-btn" onclick="openAuthEntry()">☁️ Attiva sincronizzazione</button>` : ''}
+            ${AUTH.provider === 'local_mock' ? `<button class="auth-account-btn" onclick="authClearLocalAccounts()">🧹 Pulisci account locali</button>` : ''}
+            <button class="auth-account-btn auth-account-btn-danger" onclick="confirmSignOutUser()">↩️ Logout</button>
           </div>
         </div>
-        ${AUTH.provider !== 'supabase' && cfg ? `<div class="profile-account-note">${hasEmbeddedConfig ? 'Il cloud è già attivo in app. Esci e rientra con email e password per usare il tuo account.' : 'Supabase è già configurato. Esci e rientra con email e password per usare il cloud.'}</div>` : ''}
+        ${AUTH.provider !== 'supabase' && cfg ? `<div class="profile-account-note">${hasEmbeddedConfig ? 'La sincronizzazione è già pronta: esci e rientra con il tuo account per usarla.' : 'La sincronizzazione è configurata: esci e rientra con il tuo account per attivarla.'}</div>` : ''}
       </div>`;
   } else {
-    const providerReady = authCanUseSupabase() ? 'Supabase pronto' : 'Locale mock';
+    const providerReady = authCanUseSupabase() ? 'Sync pronta' : 'Solo dispositivo';
     el.innerHTML = `
       <div class="profile-inline-card profile-account-card">
         <div class="profile-card-head support-mini-head">
@@ -674,25 +723,25 @@ function renderProfileAccountCard() {
               <div class="support-mini-title">Stai usando MarciFit come guest</div>
               <span class="support-mini-state ${AUTH.needsEmailConfirmation ? 'pending' : 'idle'}">${AUTH.needsEmailConfirmation ? 'Conferma email' : providerReady}</span>
             </div>
-            <div class="support-mini-sub">${AUTH.needsEmailConfirmation ? 'Hai quasi finito: conferma la mail ricevuta e poi accedi per attivare il cloud.' : authCanUseSupabase() ? 'Registrazione e accesso useranno il cloud Supabase.' : 'Crea un account per salvare e sincronizzare i tuoi dati tra dispositivi.'}</div>
+            <div class="support-mini-sub">${AUTH.needsEmailConfirmation ? 'Hai quasi finito: conferma la mail ricevuta e poi accedi per attivare la sincronizzazione.' : authCanUseSupabase() ? 'Puoi entrare con il tuo account e tenere i dati disponibili anche sugli altri dispositivi.' : 'Crea un account per salvare e ritrovare i tuoi dati con piu continuita.'}</div>
           </div>
         </div>
         <div class="profile-account-status-row">
           <span class="profile-account-pill ${status.cls}">${htmlEsc(status.label)}</span>
-          <span class="profile-account-status-copy">${AUTH.needsEmailConfirmation ? 'Conferma la mail ricevuta e poi accedi per collegare il profilo al cloud.' : authCanUseSupabase() ? 'Il cloud è pronto: puoi creare o usare un account reale.' : 'Per ora l’app salva i dati solo sul dispositivo.'}</span>
+          <span class="profile-account-status-copy">${AUTH.needsEmailConfirmation ? 'Conferma la mail ricevuta e poi accedi per collegare il tuo profilo.' : authCanUseSupabase() ? 'La sincronizzazione è pronta: puoi accedere o creare un account.' : 'Per ora l’app salva i dati solo sul dispositivo.'}</span>
         </div>
         <div class="profile-account-body">
           <div class="profile-account-email">Dati salvati solo su questo dispositivo</div>
           <div class="profile-account-actions">
-            <button class="auth-account-btn" onclick="openAuthEntry()">Accedi o crea account</button>
-            <button class="auth-account-btn" onclick="authClearLocalAccounts()">Pulisci account locali</button>
-            ${cfg && !hasEmbeddedConfig ? `<button class="auth-account-btn" onclick="authRemoveSupabaseConfig()">Usa solo locale</button>` : ''}
+            <button class="auth-account-btn" onclick="openAuthEntry()">🔐 Accedi o crea account</button>
+            <button class="auth-account-btn" onclick="authClearLocalAccounts()">🧹 Pulisci account locali</button>
+            ${cfg && !hasEmbeddedConfig ? `<button class="auth-account-btn" onclick="authRemoveSupabaseConfig()">📱 Usa solo dispositivo</button>` : ''}
           </div>
         </div>
         ${cfg || hasEmbeddedConfig ? '' : `
         <div class="profile-account-config">
-          <div class="profile-account-config-title">Attiva Supabase</div>
-          <div class="profile-account-config-sub">Inserisci Project URL e anon key per usare account reali e sync cloud.</div>
+          <div class="profile-account-config-title">Attiva sincronizzazione</div>
+          <div class="profile-account-config-sub">Inserisci i parametri del progetto per abilitare accesso account e dati condivisi tra dispositivi.</div>
           <div class="profile-account-config-grid">
             <label class="profile-account-config-field">
               <span>Project URL</span>
@@ -704,7 +753,7 @@ function renderProfileAccountCard() {
             </label>
           </div>
           <div class="profile-account-actions">
-            <button class="auth-account-btn" onclick="authSubmitSupabaseConfig()">Salva configurazione</button>
+            <button class="auth-account-btn" onclick="authSubmitSupabaseConfig()">☁️ Salva configurazione</button>
           </div>
         </div>`}
       </div>`;

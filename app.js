@@ -412,17 +412,50 @@ function formatAuthConflictTime(iso) {
   }
 }
 
+function getAuthConflictBadge(conflict, source) {
+  const localAt = Date.parse(conflict?.localUpdatedAt || 0) || 0;
+  const remoteAt = Date.parse(conflict?.remoteUpdatedAt || 0) || 0;
+  if (!localAt || !remoteAt || localAt === remoteAt) return '';
+  if (source === 'local' && localAt > remoteAt) return '<span class="sync-choice-badge">piu recente</span>';
+  if (source === 'remote' && remoteAt > localAt) return '<span class="sync-choice-badge">piu recente</span>';
+  return '';
+}
+
 function askAuthStateConflictChoice(conflict) {
   return new Promise(resolve => {
+    const localTime = htmlEsc(formatAuthConflictTime(conflict.localUpdatedAt));
+    const remoteTime = htmlEsc(formatAuthConflictTime(conflict.remoteUpdatedAt));
     showDayModal({
-      icon: '☁️',
-      eyebrow: 'Sync account',
-      title: 'Scegli quale versione usare',
-      body: `Abbiamo trovato dati sia <strong>su questo dispositivo</strong> sia <strong>nel cloud</strong>.<br><br><strong>Dispositivo:</strong> ${htmlEsc(formatAuthConflictTime(conflict.localUpdatedAt))}<br><strong>Cloud:</strong> ${htmlEsc(formatAuthConflictTime(conflict.remoteUpdatedAt))}<br><br>Puoi continuare con i dati del cloud oppure tenere quelli del dispositivo e sincronizzarli sopra il cloud.`,
-      confirmText: 'Usa cloud',
-      cancelText: 'Tieni dispositivo',
+      icon: '🔄',
+      eyebrow: 'Accesso account',
+      title: 'Abbiamo trovato due versioni dei tuoi dati',
+      body: `
+        <div class="sync-choice-lead">Scegli da quale versione vuoi ripartire adesso.</div>
+        <div class="sync-choice-stack">
+          <div class="sync-choice-item">
+            <div class="sync-choice-item-top">
+              <span class="sync-choice-chip">Questo telefono</span>
+              ${getAuthConflictBadge(conflict, 'local')}
+            </div>
+            <div class="sync-choice-time">${localTime}</div>
+            <div class="sync-choice-copy">Mantieni i dati presenti su questo dispositivo e li rimandiamo poi nel cloud.</div>
+          </div>
+          <div class="sync-choice-sep">oppure</div>
+          <div class="sync-choice-item">
+            <div class="sync-choice-item-top">
+              <span class="sync-choice-chip">Cloud</span>
+              ${getAuthConflictBadge(conflict, 'remote')}
+            </div>
+            <div class="sync-choice-time">${remoteTime}</div>
+            <div class="sync-choice-copy">Carica i dati gia salvati online e usa quelli come base.</div>
+          </div>
+        </div>
+        <div class="sync-choice-foot">Non stai cancellando nulla adesso: stai solo scegliendo con quale versione continuare.</div>
+      `,
+      confirmText: 'Riparti dal cloud',
+      cancelText: 'Tieni questo telefono',
       onConfirm: () => resolve('remote'),
-      modalClass: 'day-modal-detail',
+      modalClass: 'day-modal-detail day-modal-sync-choice',
     });
     const cancelBtn = document.querySelector('#day-modal-footer .day-modal-btn-secondary');
     if (cancelBtn) {
@@ -3325,6 +3358,12 @@ function macroAlerts() {
   return a;
 }
 async function initAll() {
+  let postLogoutMode = null;
+  try {
+    postLogoutMode = sessionStorage.getItem('marcifit_post_logout_mode_v1');
+  } catch (_) {
+    postLogoutMode = null;
+  }
   if (typeof authInit === 'function') await authInit();
   let authConflictChoice = null;
   let authConflictData = null;
@@ -3383,7 +3422,15 @@ async function initAll() {
   } else if (authConflictChoice === 'remote') {
     toast('☁️ Dati cloud caricati');
   }
-  if (!S.onboardingCompleted) {
+  if (postLogoutMode === 'login') {
+    try {
+      sessionStorage.removeItem('marcifit_post_logout_mode_v1');
+    } catch (_) {}
+    S.authEntryCompleted = false;
+    if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
+    openAuthEntry(true);
+    openAuthMode('login');
+  } else if (!S.onboardingCompleted) {
     if (!S.authEntryCompleted) openAuthEntry(false);
     else openWelcomeOnboarding();
   }

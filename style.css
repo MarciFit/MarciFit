@@ -2463,6 +2463,47 @@ input,textarea{font-family:inherit}
   color:#756c61;background:rgba(255,255,255,.66);border:1px solid #e4d8c8;
   border-radius:999px;padding:5px 9px;
 }
+.stats-hero-top-cards{
+  display:flex;gap:8px;grid-column:2;justify-content:flex-end;
+}
+.stats-top-card{
+  min-width:124px;
+  padding:10px 11px 9px;
+  border-radius:16px;
+  border:1px solid #e7dfd4;
+  background:rgba(255,255,255,.84);
+  box-shadow:0 8px 20px rgba(23,20,14,.032);
+  display:flex;flex-direction:column;gap:3px;text-align:left;cursor:pointer;
+  transition:transform .14s ease, border-color .14s ease, background .14s ease;
+}
+.stats-top-card:hover{transform:translateY(-1px);background:#fffdfa}
+.stats-top-card.is-good{border-color:#bdd9c6;background:linear-gradient(180deg,#f6fbf8 0%,#fff 100%)}
+.stats-top-card.is-warn{border-color:#ead6b3;background:linear-gradient(180deg,#fff8ed 0%,#fff 100%)}
+.stats-top-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.stats-top-card-kicker{
+  font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8f8679;
+}
+.stats-top-card-icon{font-size:13px;line-height:1}
+.stats-top-card-main{
+  font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;line-height:1;color:var(--ink);
+}
+.stats-top-card-bar{
+  width:100%;
+  height:6px;
+  margin-top:4px;
+  border-radius:999px;
+  background:linear-gradient(180deg,#f3ebe0 0%,#eadfce 100%);
+  overflow:hidden;
+}
+.stats-top-card-bar-fill{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:linear-gradient(90deg,#d7a03a 0%,#a7b35f 52%,#5fa276 100%);
+}
+.stats-top-card-sub{
+  font-size:10.5px;font-weight:700;color:#655d54;line-height:1.3;
+}
 .stats-kpis{
   display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;
   grid-column:2;grid-row:1 / span 2;
@@ -4007,7 +4048,7 @@ input,textarea{font-family:inherit}
 
   /* --- VIEWS: sticky nav is in flow, just need bottom bar padding --- */
   .view{
-    padding:14px 10px calc(78px + env(safe-area-inset-bottom));
+    padding:14px 8px calc(78px + env(safe-area-inset-bottom));
     max-width:100%;
     margin-top:0;
   }
@@ -4037,6 +4078,11 @@ input,textarea{font-family:inherit}
   .day-modal-head{gap:10px;padding-right:24px}
   .day-modal-icon{width:40px;height:40px}
   .day-modal-card.day-modal-detail .day-modal-title{font-size:22px !important}
+  .sync-choice-item{padding:11px 12px;border-radius:16px}
+  .sync-choice-lead{font-size:13px;margin-bottom:10px}
+  .sync-choice-time{font-size:10px}
+  .sync-choice-copy{font-size:11.5px}
+  .sync-choice-foot{font-size:10.5px}
   .md-summary{grid-template-columns:1fr;padding:12px}
   .md-total{font-size:24px}
   .md-body-head{gap:8px}
@@ -4071,8 +4117,8 @@ input,textarea{font-family:inherit}
   .today-dashboard-head{margin-bottom:8px}
   .today-dashboard-sub{display:none}
   .today-dashboard-grid{grid-template-columns:1fr;gap:9px}
-  .today-dashboard-card{padding:12px 13px 13px}
-  .today-dashboard-block{padding:11px 11px 9px;border-radius:16px}
+  .today-dashboard-card{padding:12px 11px 13px}
+  .today-dashboard-block{padding:11px 10px 9px;border-radius:16px}
   .today-dashboard-block-head{margin-bottom:8px}
   .today-dashboard-card #today-alerts-summary{margin-top:5px;margin-bottom:8px}
   .today-alerts-summary-btn{gap:8px;padding:8px 9px}
@@ -4224,7 +4270,7 @@ input,textarea{font-family:inherit}
   .dp-compact-label{font-size:10.5px}
   .dp-bar{height:7px;min-width:88px}
   .dp-compact-actions{gap:5px}
-  .current-meal-focus{padding:12px 13px 12px;margin-bottom:12px;border-radius:18px}
+  .current-meal-focus{padding:12px 11px 12px;margin-bottom:12px;border-radius:18px}
   .current-meal-main{display:block}
   .current-meal-head .support-mini-kicker{display:none}
   .current-meal-head .support-mini-title-row{gap:6px}
@@ -4258,7 +4304,7 @@ input,textarea{font-family:inherit}
   .today-flow-head,.today-support-head{margin-bottom:8px}
   .today-flow-head .support-mini-sub,
   .today-support-head .support-mini-sub{display:none}
-  .today-support-panel{margin-top:14px;padding:12px 12px 13px;border-radius:18px}
+  .today-support-panel{margin-top:14px;padding:12px 10px 13px;border-radius:18px}
   .today-support-layout{grid-template-columns:1fr;gap:10px}
   .today-support-alerts-list{gap:5px}
   .today-context-alert-support{margin:0 0 5px}
@@ -5156,6 +5202,90 @@ input,textarea{font-family:inherit}
 .day-modal-card.day-modal-detail .day-modal-kicker{
   color:#756c61;
 }
+.day-modal-card.day-modal-sync-choice .day-modal-icon{
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(230,245,236,.95) 0%, rgba(230,245,236,0) 58%),
+    linear-gradient(180deg,#ffffff 0%,#f8fcf9 100%);
+  border-color:#d7e7dc;
+}
+.sync-choice-lead{
+  font-size:13.5px;
+  line-height:1.5;
+  color:var(--ink);
+  margin-bottom:12px;
+}
+.sync-choice-stack{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.sync-choice-item{
+  padding:12px 13px;
+  border-radius:18px;
+  border:1px solid #e7ddd1;
+  background:rgba(255,255,255,.82);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.85);
+}
+.sync-choice-item-top{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:6px;
+}
+.sync-choice-chip{
+  display:inline-flex;
+  align-items:center;
+  min-height:24px;
+  padding:4px 9px;
+  border-radius:999px;
+  background:#f7f1e8;
+  border:1px solid #eadccc;
+  color:#5f564c;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+}
+.sync-choice-badge{
+  display:inline-flex;
+  align-items:center;
+  min-height:22px;
+  padding:3px 8px;
+  border-radius:999px;
+  background:#eef8f0;
+  border:1px solid #cde2d3;
+  color:#1d7649;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+}
+.sync-choice-time{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  color:#7c6f63;
+  margin-bottom:6px;
+}
+.sync-choice-copy{
+  font-size:12px;
+  line-height:1.5;
+  color:var(--ink2);
+}
+.sync-choice-sep{
+  align-self:center;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:#988c80;
+}
+.sync-choice-foot{
+  margin-top:12px;
+  font-size:11px;
+  line-height:1.45;
+  color:#7b7167;
+}
 .md-shell{
   --md-accent:var(--on);
   --md-accent-soft:rgba(234,244,238,.76);
@@ -5631,6 +5761,15 @@ input,textarea{font-family:inherit}
   transition:transform .16s ease, background .16s ease, border-color .16s ease;
 }
 .auth-account-btn:hover{transform:translateY(-1px);background:#fffdfa}
+.auth-account-btn-danger{
+  border-color:#efc1c1;
+  background:#fff5f5;
+  color:var(--red);
+}
+.auth-account-btn-danger:hover{
+  background:#ffecec;
+  border-color:#e59b9b;
+}
 .profile-view .mt-card{
   background:rgba(255,251,246,.68);border:1px solid #e6dbcd;border-radius:20px;padding:6px 12px;
 }
@@ -5694,7 +5833,7 @@ input,textarea{font-family:inherit}
   .prog-head{margin-bottom:14px}
   .prog-title{font-size:20px;margin-bottom:2px}
   .prog-sub{font-size:11px}
-  .piano-section{padding:13px}
+  .piano-section{padding:12px}
   .meal-planner-head,
   .meal-planner-grid{display:flex;flex-direction:column}
   .meal-planner-target{justify-content:flex-start}
@@ -5717,8 +5856,20 @@ input,textarea{font-family:inherit}
   .tmpl-card-actions{flex-wrap:wrap}
   .tmpl-btn-del{margin-left:0}
   .stat-section{margin-bottom:14px}
-  .stats-panel{padding:12px}
-  .stats-hero{grid-template-columns:1fr;padding:12px;gap:8px 10px}
+  .stats-panel{padding:11px}
+  .stats-hero{grid-template-columns:1fr;padding:11px;gap:8px 10px}
+  .stats-hero-top-cards{
+    grid-column:1;
+    justify-content:flex-start;
+    overflow-x:auto;
+    padding-bottom:2px;
+    scrollbar-width:none;
+  }
+  .stats-hero-top-cards::-webkit-scrollbar{display:none}
+  .stats-top-card{flex:0 0 132px;min-width:132px;padding:9px 10px 8px}
+  .stats-top-card-main{font-size:20px}
+  .stats-top-card-bar{margin-top:3px;height:5px}
+  .stats-top-card-sub{font-size:10px}
   .stats-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;grid-column:auto;grid-row:auto}
   .sc-card{padding:12px 8px}
   .sc-val{font-size:22px}
@@ -5830,7 +5981,7 @@ input,textarea{font-family:inherit}
   .profile-account-actions{width:100%;justify-content:flex-start}
   .profile-view .prof-card-box,
   .profile-inline-card,
-  .profile-view .goal-card{padding:14px}
+  .profile-view .goal-card{padding:13px}
   .profile-view .anag-section-title{
     margin-bottom:8px;
   }
