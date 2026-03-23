@@ -5,31 +5,86 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TDEE / Macro engine — evidence-based
-// Fonti: Mifflin-St Jeor (1990), Katch-McArdle (1975), WHO/FAO/UNU (2004),
-//        ISSN Position Stand (2011), Helms et al. (2014)
+// Fonti: Mifflin-St Jeor (1990), Katch-McArdle (1975),
+//        linee guida practical su NEAT/EAT/TEF, ISSN Position Stand, Helms et al.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PROFESSIONI = [
-  { key: 'desk_sedentary', label: 'Scrivania — sedentario',         desc: 'Ufficio, IT, ricerca, studente',             palJob: 1.20 },
-  { key: 'desk_light',     label: 'Scrivania + spostamenti',        desc: 'Manager, medico ambulatoriale, commerciale', palJob: 1.30 },
-  { key: 'standing',       label: 'Prevalentemente in piedi',       desc: 'Insegnante, infermiere, commesso',            palJob: 1.45 },
-  { key: 'physical_light', label: 'Lavoro fisico leggero-moderato', desc: 'Tecnico, meccanico, militare non operativo',  palJob: 1.55 },
-  { key: 'physical_heavy', label: 'Lavoro fisico intenso',          desc: 'Muratore, corriere, operaio, militare',      palJob: 1.75 },
+  {
+    key: 'desk_sedentary',
+    label: 'Scrivania — sedentario',
+    desc: 'Ufficio, IT, ricerca, studente',
+    neat: { min: 100, base: 150, max: 200, label: 'Sedentario' },
+  },
+  {
+    key: 'desk_light',
+    label: 'Scrivania + spostamenti',
+    desc: 'Manager, medico ambulatoriale, commerciale',
+    neat: { min: 200, base: 260, max: 320, label: 'Low active' },
+  },
+  {
+    key: 'standing',
+    label: 'Prevalentemente in piedi',
+    desc: 'Insegnante, infermiere, commesso',
+    neat: { min: 260, base: 340, max: 430, label: 'Somewhat active' },
+  },
+  {
+    key: 'physical_light',
+    label: 'Lavoro fisico leggero-moderato',
+    desc: 'Tecnico, meccanico, militare non operativo',
+    neat: { min: 350, base: 450, max: 550, label: 'Active' },
+  },
+  {
+    key: 'physical_heavy',
+    label: 'Lavoro fisico intenso',
+    desc: 'Muratore, corriere, operaio, militare',
+    neat: { min: 450, base: 575, max: 700, label: 'Very active' },
+  },
 ];
 
 const ALLENAMENTI = [
-  { key: '0',   label: '0',   desc: 'Nessun allenamento strutturato', dPal: 0.00 },
-  { key: '1-2', label: '1–2', desc: '1–2 sessioni/sett.',             dPal: 0.10 },
-  { key: '3-4', label: '3–4', desc: '3–4 sessioni/sett.',             dPal: 0.20 },
-  { key: '5-6', label: '5–6', desc: '5–6 sessioni/sett.',             dPal: 0.30 },
-  { key: '7+',  label: '7+',  desc: 'Allenamento quotidiano',         dPal: 0.40 },
+  { key: '0',   label: '0',   desc: 'Nessun allenamento strutturato', sessions: 0,   kcalPerSession: { min: 0,   base: 0,   max: 0 } },
+  { key: '1-2', label: '1–2', desc: '1–2 sessioni/sett.',             sessions: 1.5, kcalPerSession: { min: 150, base: 225, max: 300 } },
+  { key: '3-4', label: '3–4', desc: '3–4 sessioni/sett.',             sessions: 3.5, kcalPerSession: { min: 175, base: 250, max: 325 } },
+  { key: '5-6', label: '5–6', desc: '5–6 sessioni/sett.',             sessions: 5.5, kcalPerSession: { min: 200, base: 275, max: 350 } },
+  { key: '7+',  label: '7+',  desc: 'Allenamento quotidiano',         sessions: 7,   kcalPerSession: { min: 225, base: 300, max: 400 } },
 ];
+
+const TEF_DEFAULT = 0.10;
+
+const STEP_ACTIVITY_BUCKETS = [
+  { key: 'sedentary', min: 0, max: 4999, neat: { min: 100, base: 150, max: 200, label: 'Sedentario' } },
+  { key: 'low_active', min: 5000, max: 7499, neat: { min: 200, base: 275, max: 350, label: 'Low active' } },
+  { key: 'somewhat_active', min: 7500, max: 9999, neat: { min: 250, base: 350, max: 450, label: 'Somewhat active' } },
+  { key: 'active', min: 10000, max: Infinity, neat: { min: 350, base: 475, max: 600, label: 'Active' } },
+];
+
+const PHASE_TARGETS = {
+  bulk: {
+    kcalOnOffset: 200,
+    kcalOffOffset: 100,
+    proteinPerKg: 1.7,
+    fatPerKg: 1.0,
+  },
+  cut: {
+    kcalOnOffset: -300,
+    kcalOffOffset: -450,
+    proteinPerKg: 2.0,
+    fatPerKg: 0.8,
+  },
+  mantieni: {
+    kcalOnOffset: 0,
+    kcalOffOffset: -100,
+    proteinPerKg: 1.6,
+    fatPerKg: 0.9,
+  },
+};
 
 // BMR: Katch-McArdle se % grasso disponibile, altrimenti Mifflin-St Jeor
 function calcBMR(ana) {
   const { peso, altezza, eta, sesso, grassoCorporeo } = ana;
   if (!peso || !altezza || !eta) return null;
-  if (grassoCorporeo != null && grassoCorporeo > 0) {
+  if (grassoCorporeo != null && grassoCorporeo >= 3 && grassoCorporeo <= 60) {
     const lbm = peso * (1 - grassoCorporeo / 100);
     return Math.round(370 + 21.6 * lbm);
   }
@@ -38,48 +93,100 @@ function calcBMR(ana) {
   return Math.round(sesso === 'f' ? base - 161 : base + 5);
 }
 
-// PAL = PAL_occupazione + Δ_esercizio (cap 2.50)
-function calcPAL(ana) {
+function getProfessionProfile(ana) {
   const prof = PROFESSIONI.find(p => p.key === ana.professione) || PROFESSIONI[0];
-  const all  = ALLENAMENTI.find(a => a.key === ana.allenamentiSett) || ALLENAMENTI[2];
-  return Math.min(+(prof.palJob + all.dPal).toFixed(2), 2.50);
+  return prof;
+}
+
+function getTrainingProfile(ana) {
+  const all = ALLENAMENTI.find(a => a.key === ana.allenamentiSett) || ALLENAMENTI[2];
+  return all;
+}
+
+function getStepsActivityBucket(steps) {
+  if (!(steps > 0)) return null;
+  return STEP_ACTIVITY_BUCKETS.find(bucket => steps >= bucket.min && steps <= bucket.max) || STEP_ACTIVITY_BUCKETS[STEP_ACTIVITY_BUCKETS.length - 1];
+}
+
+function blendNeatProfiles(primary, secondary) {
+  if (!secondary) return { ...primary, sourceLabel: primary.label };
+  return {
+    min: Math.round((primary.min + secondary.min) / 2),
+    base: Math.round((primary.base + secondary.base) / 2),
+    max: Math.round((primary.max + secondary.max) / 2),
+    label: secondary.label,
+    sourceLabel: `${primary.label} · ${secondary.label}`,
+  };
+}
+
+function calcActivityComponents(ana) {
+  const prof = getProfessionProfile(ana);
+  const all = getTrainingProfile(ana);
+  const stepsBucket = getStepsActivityBucket(ana.passiGiornalieri);
+  const neat = blendNeatProfiles(prof.neat, stepsBucket?.neat || null);
+  const eat = {
+    min: Math.round((all.kcalPerSession.min * all.sessions) / 7),
+    base: Math.round((all.kcalPerSession.base * all.sessions) / 7),
+    max: Math.round((all.kcalPerSession.max * all.sessions) / 7),
+    sessions: all.sessions,
+    label: all.desc,
+  };
+  return {
+    neat: {
+      min: neat.min,
+      base: neat.base,
+      max: neat.max,
+      label: neat.label,
+      source: prof.label,
+      sourceLabel: neat.sourceLabel,
+      steps: ana.passiGiornalieri || null,
+    },
+    eat,
+    tefPct: TEF_DEFAULT,
+  };
+}
+
+function calcEquivalentPal(ana) {
+  const bmr = calcBMR(ana);
+  if (!bmr) return null;
+  const tdee = calcTDEE(ana);
+  if (!tdee) return null;
+  return Math.round((tdee / bmr) * 100) / 100;
 }
 
 function calcTDEE(ana) {
   const bmr = calcBMR(ana);
   if (!bmr) return null;
-  return Math.round(bmr * calcPAL(ana));
+  const comps = calcActivityComponents(ana);
+  const pre = bmr + comps.neat.base + comps.eat.base;
+  return Math.round(pre / (1 - comps.tefPct));
+}
+
+function calcTDEERange(ana) {
+  const bmr = calcBMR(ana);
+  if (!bmr) return null;
+  const comps = calcActivityComponents(ana);
+  const low = Math.round((bmr + comps.neat.min + comps.eat.min) / (1 - comps.tefPct));
+  const high = Math.round((bmr + comps.neat.max + comps.eat.max) / (1 - comps.tefPct));
+  return { low, high };
 }
 
 // Calcola macro ON e OFF per il giorno dato il TDEE e il goal
 function calcMacros(tdee, peso, goal) {
   if (!tdee || !peso) return null;
   const phase = goal?.phase || 'mantieni';
+  const target = PHASE_TARGETS[phase] || PHASE_TARGETS.mantieni;
 
-  // Calorie target per giorno ON e OFF
-  const kcalOn  = phase === 'bulk'     ? tdee + 250
-                : phase === 'cut'      ? tdee - 300
-                : /* mantieni */        tdee;
-  const kcalOff = phase === 'bulk'     ? tdee
-                : phase === 'cut'      ? tdee - 500
-                : /* mantieni */        tdee - 100;
-
-  // Proteine (g/kg, invariate ON=OFF)
-  const protG = Math.round(
-    phase === 'cut' ? 2.3 * peso :
-    phase === 'bulk' ? 2.0 * peso :
-    1.8 * peso
-  );
+  const calibrationOffset = Math.round(goal?.calibrationOffsetKcal || 0);
+  const kcalOn = Math.round(tdee + target.kcalOnOffset + calibrationOffset);
+  const kcalOff = Math.round(tdee + target.kcalOffOffset + calibrationOffset);
+  const protG = Math.round(target.proteinPerKg * peso);
+  const fatG = Math.round(target.fatPerKg * peso);
 
   function buildDay(kcal) {
-    // Grassi: min 0.7g/kg, min 25% kcal; max 35% kcal
-    let fat = Math.max(0.7 * peso, kcal * 0.25 / 9);
-    fat = Math.min(fat, kcal * 0.35 / 9);
-    fat = Math.round(fat);
-    // Carboidrati: calorie residue
-    const carb = Math.max(0, Math.round((kcal - protG * 4 - fat * 9) / 4));
-    const kcalReal = Math.round(protG * 4 + carb * 4 + fat * 9);
-    return { p: protG, c: carb, f: fat, k: kcalReal };
+    const carb = Math.max(0, Math.round((kcal - protG * 4 - fatG * 9) / 4));
+    const kcalReal = Math.round(protG * 4 + carb * 4 + fatG * 9);
+    return { p: protG, c: carb, f: fatG, k: kcalReal };
   }
 
   return { macroOn: buildDay(kcalOn), macroOff: buildDay(kcalOff) };
@@ -89,13 +196,24 @@ function calcMacros(tdee, peso, goal) {
 function computeNutrition(ana, goal) {
   const bmr = calcBMR(ana);
   if (!bmr) return null;
-  const pal  = calcPAL(ana);
-  const tdee = Math.round(bmr * pal);
-  const formula = (ana.grassoCorporeo != null && ana.grassoCorporeo > 0)
+  const components = calcActivityComponents(ana);
+  const tdee = calcTDEE(ana);
+  const range = calcTDEERange(ana);
+  const equivalentPal = calcEquivalentPal(ana);
+  const formula = (ana.grassoCorporeo != null && ana.grassoCorporeo >= 3 && ana.grassoCorporeo <= 60)
     ? 'Katch-McArdle' : 'Mifflin-St Jeor';
   const macros = calcMacros(tdee, ana.peso, goal);
   if (!macros) return null;
-  return { bmr, pal, tdee, formula, ...macros };
+  return {
+    bmr,
+    pal: equivalentPal,
+    tdee,
+    tdeeRange: range,
+    formula,
+    components,
+    calibration: goal?.calibrationMeta || { offsetKcal: Math.round(goal?.calibrationOffsetKcal || 0), reason: '' },
+    ...macros,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

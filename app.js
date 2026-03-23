@@ -30,7 +30,7 @@ const S = {
   // ? ?  Misurazioni corpo (append-only, non sovrascrivono mai) ? ? 
   measurements: [],
   // ? ?  Obiettivo / fase ? ? 
-  goal: { phase: 'bulk', startDate: null, targetWeight: null, notes: '' },
+  goal: { phase: 'bulk', startDate: null, targetWeight: null, notes: '', calibrationOffsetKcal: 0, calibrationMeta: null },
   // ? ?  Integratori ? ? 
   supplements: [],
   cheatMealsByDate: {},
@@ -45,6 +45,7 @@ const S = {
   suppChecked: {},  // {'2026-03-17': ['creatina']}
   water: {},        // {'2026-03-17': 3}  (bicchieri)
   lastCheckin: null,
+  weeklyCheckinWarmupWeek: null,
   barcodeCache: {}, // { barcode: { barcode,name,brand,quantity,kcal100,p100,c100,f100,cachedAt } }
   foodCache: {},  // {query: [{name,brand,kcal100,p100,c100,f100,src}]}
   foodSearchLearn: {}, // { itemKey: { count, lastPickedAt, queries: { queryKey: count }, contexts: { key: count } } }
@@ -92,6 +93,7 @@ const S = {
     eta:             null,
     altezza:         null,
     peso:            null,
+    passiGiornalieri: null,
     grassoCorporeo:  null,
     professione:     'desk_sedentary',
     allenamentiSett: '3-4',
@@ -172,6 +174,17 @@ const S = {
     ],
   },
 };
+
+const ANAG_RULES = {
+  nome: { maxLength: 40 },
+  eta: { min: 10, max: 99, label: 'Età', unit: 'anni' },
+  altezza: { min: 120, max: 250, label: 'Altezza', unit: 'cm' },
+  peso: { min: 30, max: 300, label: 'Peso', unit: 'kg' },
+  passiGiornalieri: { min: 1000, max: 40000, label: 'Passi medi', unit: 'passi' },
+  grassoCorporeo: { min: 3, max: 60, label: 'Grasso corporeo', unit: '%' },
+};
+
+let _weeklyCheckinDeferredWeek = null;
 const TODAY_GREETING_REFRESH_MS = 30000;
 let _todayGreetingTimer = null;
 
@@ -945,8 +958,9 @@ function deleteAlt(altKey, j) {
 function addWeight() {
   const v = parseFloat(document.getElementById('w-in').value);
   if (isNaN(v) || v < 30 || v > 250) { toast('❌  Peso non valido'); return; }
-  const d = new Date().toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'});
-  S.weightLog.push({date:d, val:v});
+  upsertTodayWeightLog(v);
+  syncAnagraficaWeightFromLogs();
+  refreshNutritionTargetsFromState();
   // update profilo
   const wi = S.profilo.findIndex(r=>r.l==='Peso attuale');
   if (wi >= 0) { profSave('Peso attuale', S.profilo[wi].v); S.profilo[wi].v = v.toFixed(1)+' kg'; }
@@ -954,7 +968,13 @@ function addWeight() {
   save(); renderStats();
   toast('✅  Peso registrato');
 }
-function delWeight(idx) { S.weightLog.splice(idx,1); save(); renderStats(); }
+function delWeight(idx) {
+  S.weightLog.splice(idx, 1);
+  syncAnagraficaWeightFromLogs();
+  refreshNutritionTargetsFromState({ saveDeferred: false });
+  save();
+  renderStats();
+}
 function addMeasurement() {
   const get = id => { const v=parseFloat(document.getElementById(id)?.value); return isNaN(v)?null:v; };
   const m = {
@@ -972,8 +992,9 @@ function addMeasurement() {
   S.measurements.push(m);
   // Sync peso to weightLog if present
   if (m.peso) {
-    const d = new Date().toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'});
-    S.weightLog.push({date:d, val:m.peso});
+    upsertTodayWeightLog(m.peso);
+    syncAnagraficaWeightFromLogs();
+    refreshNutritionTargetsFromState();
     const wi = S.profilo.findIndex(r=>r.l==='Peso attuale');
     if (wi>=0) { profSave('Peso attuale', S.profilo[wi].v); S.profilo[wi].v=m.peso.toFixed(1)+' kg'; }
   }
@@ -981,36 +1002,52 @@ function addMeasurement() {
   toast('✅  Misurazioni registrate');
   renderStats();
 }
-function setGoalPhase(phase) {
+function setGoalPhase(phase, persist = true) {
   const PHASE_INFO = {
-    bulk:     'Surplus calorico (+250 kcal/ON) per massimizzare la crescita muscolare. I carboidrati aumentano nei giorni di allenamento.',
-    cut:      'Deficit calorico (−300 kcal ON / −500 kcal OFF) con proteine elevate (2.3 g/kg) per preservare la massa muscolare in fase di dimagrimento.',
-    mantieni: 'Intake vicino al TDEE (−100 kcal OFF) per mantenere composizione corporea e performance in palestra.',
+    bulk:     'Surplus moderato, proteine solide e grassi adeguati: i carboidrati assorbono la maggior parte dell energia extra nei giorni ON.',
+    cut:      'Deficit moderato con proteine piu alte e grassi essenziali stabili, per proteggere meglio massa magra e aderenza.',
+    mantieni: 'Intake vicino al mantenimento, con proteine a 1.6 g/kg e carboidrati come variabile residua.',
   };
-  S.goal.phase = phase;
-  save();
   document.querySelectorAll('.goal-phase-btn').forEach(b => {
-    const pid = b.getAttribute('onclick')?.match(/'(\w+)'/)?.[1];
+    const pid = b.dataset.phase;
     b.className = 'goal-phase-btn' + (pid === phase ? ' active-' + phase : '');
   });
   const descEl = document.getElementById('goal-phase-desc');
   if (descEl) descEl.textContent = PHASE_INFO[phase] || '';
+  if (!persist) return;
+  S.goal.phase = phase;
+  save();
   // Recalculate directly from S.anagrafica (no DOM read) so it works regardless of view state
-  const _r = computeNutrition(S.anagrafica, S.goal);
+  const _r = refreshNutritionTargetsFromState();
   if (_r) {
-    S.macro.on = _r.macroOn; S.macro.off = _r.macroOff; saveSoon();
     const fabEl = document.getElementById('fab-preview');
     if (fabEl) {
-      const { bmr, pal, tdee, formula, macroOn, macroOff } = _r;
+      const { bmr, pal, tdee, tdeeRange, formula, components, macroOn, macroOff, calibration } = _r;
       fabEl.innerHTML = `
         <div class="fab-row fab-row-top"><span class="fab-label">BMR</span><span class="fab-value">${bmr} kcal</span><span class="fab-note">${formula}</span></div>
-        <div class="fab-row"><span class="fab-label">PAL</span><span class="fab-value">${pal}</span><span class="fab-note">occupazione + allenamento</span></div>
-        <div class="fab-row fab-row-tdee"><span class="fab-label">TDEE</span><span class="fab-value">${tdee} kcal</span></div>
+        <div class="fab-row"><span class="fab-label">NEAT</span><span class="fab-value">${components.neat.base} kcal</span><span class="fab-note">${components.neat.label}</span></div>
+        <div class="fab-row"><span class="fab-label">EAT</span><span class="fab-value">${components.eat.base} kcal</span><span class="fab-note">media da allenamento</span></div>
+        <div class="fab-row"><span class="fab-label">TEF</span><span class="fab-value">${Math.round(components.tefPct * 100)}%</span><span class="fab-note">termogenesi del cibo</span></div>
+        <div class="fab-row fab-row-tdee"><span class="fab-label">TDEE</span><span class="fab-value">${tdee} kcal</span><span class="fab-note">${tdeeRange ? `${tdeeRange.low}–${tdeeRange.high} kcal · eq. PAL ${pal}` : `eq. PAL ${pal}`}</span></div>
+        ${calibration?.offsetKcal ? `<div class="fab-row"><span class="fab-label">Calibrazione 14g</span><span class="fab-value">${calibration.offsetKcal > 0 ? '+' : ''}${calibration.offsetKcal} kcal</span><span class="fab-note">${calibration.reason}</span></div>` : ''}
         <div class="fab-divider"></div>
         <div class="fab-day-row"><span class="fab-day-label on-lbl">Giorno ON</span><span class="fab-day-kcal">${macroOn.k} kcal</span><span class="fab-day-macros">P ${macroOn.p}g · C ${macroOn.c}g · F ${macroOn.f}g</span></div>
         <div class="fab-day-row"><span class="fab-day-label off-lbl">Giorno OFF</span><span class="fab-day-kcal">${macroOff.k} kcal</span><span class="fab-day-macros">P ${macroOff.p}g · C ${macroOff.c}g · F ${macroOff.f}g</span></div>`;
     }
   }
+}
+
+function saveGoalDetails() {
+  const startDate = document.getElementById('goal-start-date')?.value || null;
+  const rawTargetWeight = document.getElementById('goal-target-weight')?.value;
+  const targetWeight = rawTargetWeight === '' ? null : _parseNullableAnagNumber(rawTargetWeight);
+  const notes = String(document.getElementById('goal-notes')?.value || '').trim();
+  S.goal.startDate = startDate;
+  S.goal.targetWeight = targetWeight;
+  S.goal.notes = notes;
+  save();
+  renderGoalCard();
+  toast('✅ Obiettivo salvato');
 }
 function toggleSupp(id) {
   const key = S.selDate || localDate();
@@ -1638,11 +1675,23 @@ function renderMeasCompare() {
 }
 // ? ? ?  CHECK-IN SETTIMANALE ? ? ? 
 function checkWeeklyCheckin() {
-  // Show on Monday if not already shown this week
   const now = new Date();
   if (now.getDay() !== 1) return; // only Monday
   const todayStr = localDate(now);
   if (S.lastCheckin === todayStr) return;
+  const weekKey = getWeekStartKey(now);
+  if (!hasWeeklyCheckinContext()) {
+    S.weeklyCheckinWarmupWeek = weekKey;
+    saveSoon();
+    return;
+  }
+  if (S.weeklyCheckinWarmupWeek !== weekKey) {
+    S.weeklyCheckinWarmupWeek = weekKey;
+    _weeklyCheckinDeferredWeek = weekKey;
+    saveSoon();
+    return;
+  }
+  if (_weeklyCheckinDeferredWeek === weekKey) return;
 
   const streak = calcStreak();
   const lastW  = S.weightLog.length ? S.weightLog[S.weightLog.length-1].val : null;
@@ -1652,16 +1701,27 @@ function checkWeeklyCheckin() {
   const phaseLabel = {bulk:'Bulk',cut:'Cut',mantieni:'Mantenimento'}[S.goal?.phase]||'';
   const weeksSince = S.goal?.startDate ? Math.floor((now-new Date(S.goal.startDate+'T12:00:00'))/(7*86400000))+1 : null;
 
-  document.getElementById('checkin-title').textContent = weeksSince
-    ? `Settimana ${weeksSince} di ${phaseLabel} completata!`
-    : 'Settimana completata!';
+  const kicker = document.getElementById('checkin-kicker');
+  const title = document.getElementById('checkin-title');
+  const body = document.getElementById('checkin-body');
+  const stats = document.getElementById('checkin-stats');
+  if (!kicker || !title || !body || !stats) return;
+
+  kicker.textContent = weeksSince && phaseLabel
+    ? `Settimana ${weeksSince} · ${phaseLabel}`
+    : 'Check-in settimanale';
+  title.textContent = 'Nuova settimana, facciamo il punto?';
+
+  const statItems = [];
+  if (streak > 0) statItems.push(`<div class="checkin-stat"><span class="checkin-stat-label">Streak</span><strong>${streak} giorni</strong></div>`);
+  if (lastW != null) statItems.push(`<div class="checkin-stat"><span class="checkin-stat-label">Ultimo peso</span><strong>${lastW} kg</strong></div>`);
+  if (delta !== null) statItems.push(`<div class="checkin-stat"><span class="checkin-stat-label">Trend</span><strong>${+delta>0?'+':''}${delta} kg</strong></div>`);
+  stats.innerHTML = statItems.join('');
 
   const lines = [];
-  if (streak > 0) lines.push(`Streak attuale: <strong>${streak} giorni</strong> consecutivi`);
-  if (delta !== null) lines.push(`Peso: <strong>${+delta>0?'+':''}${delta} kg</strong> dall'inizio`);
-  lines.push('Vuoi registrare il peso di questa settimana?');
-
-  document.getElementById('checkin-body').innerHTML = lines.join('<br>');
+  lines.push('La settimana scorsa è chiusa: registrare il peso ora rende più puliti i grafici e più coerente il riepilogo.');
+  if (streak > 0) lines.push(`Stai portando avanti una continuità di <strong>${streak} giorni</strong>.`);
+  body.innerHTML = lines.join(' ');
   document.getElementById('checkin-modal').style.display = 'flex';
   lockUiScroll();
 }
@@ -1678,6 +1738,19 @@ function checkinGoMeasure() {
   goView('stats');
   setTimeout(()=>{ document.getElementById('w-in')?.focus(); }, 200);
 }
+
+function getWeekStartKey(date = new Date()) {
+  const d = new Date(date);
+  d.setHours(12, 0, 0, 0);
+  const mondayOffset = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - mondayOffset);
+  return localDate(d);
+}
+
+function hasWeeklyCheckinContext() {
+  if ((S.weightLog || []).length > 0) return true;
+  return Object.values(S.doneByDate || {}).some(entry => (entry?.activityCount || 0) > 0);
+}
 function onProf(i, v) {
   const lbl = S.profilo[i].l, old = S.profilo[i].v;
   if (v === old) return;
@@ -1692,6 +1765,8 @@ function onProf(i, v) {
       // Only add if different from last entry
       const last = S.weightLog[S.weightLog.length-1];
       if (!last || last.val !== num) S.weightLog.push({date:d, val:num});
+      syncAnagraficaWeightFromLogs();
+      refreshNutritionTargetsFromState();
     }
   }
   save();
@@ -1808,6 +1883,171 @@ function setAnagProf(key) {
   _updateFabbisognoPreview();
 }
 
+function parseWeightLogDateLocal(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return new Date(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3], 12);
+  const itMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (itMatch) return new Date(+itMatch[3], +itMatch[2] - 1, +itMatch[1], 12);
+  const parsed = new Date(dateStr);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getLatestLoggedWeightEntry() {
+  return (S.weightLog || [])
+    .map(entry => {
+      const dt = parseWeightLogDateLocal(entry.date);
+      const val = Number(entry.val);
+      return dt && Number.isFinite(val) ? { dt, val } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.dt - b.dt)
+    .pop() || null;
+}
+
+function syncAnagraficaWeightFromLogs(options = {}) {
+  const { preserveIfEmpty = true } = options;
+  if (!S.anagrafica) return null;
+  const latest = getLatestLoggedWeightEntry();
+  if (latest) {
+    S.anagrafica.peso = latest.val;
+    return latest.val;
+  }
+  if (!preserveIfEmpty) S.anagrafica.peso = null;
+  return S.anagrafica.peso ?? null;
+}
+
+function getTodayWeightLogDateLabel() {
+  return new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function upsertTodayWeightLog(value) {
+  if (value == null || String(value).trim() === '') return false;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return false;
+  const date = getTodayWeightLogDateLabel();
+  const existingIdx = (S.weightLog || []).findIndex(entry => entry?.date === date);
+  if (existingIdx >= 0) {
+    if (Number(S.weightLog[existingIdx]?.val) === num) return false;
+    S.weightLog[existingIdx] = { ...S.weightLog[existingIdx], date, val: num };
+    return true;
+  }
+  S.weightLog.push({ date, val: num });
+  return true;
+}
+
+function averageNumbers(values = []) {
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function getAutoCalibrationSummary(baseGoal = S.goal, currentWeight = S.anagrafica?.peso) {
+  const end = new Date();
+  end.setHours(12, 0, 0, 0);
+  const start = new Date(end);
+  start.setDate(end.getDate() - 13);
+  start.setHours(12, 0, 0, 0);
+
+  const entries = (S.weightLog || [])
+    .map(entry => {
+      const dt = parseWeightLogDateLocal(entry.date);
+      return dt && Number.isFinite(entry.val) ? { dt, val: Number(entry.val) } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.dt - b.dt)
+    .filter(entry => entry.dt >= start && entry.dt <= end);
+  const goalStart = baseGoal?.startDate ? new Date(`${baseGoal.startDate}T12:00:00`) : null;
+  const phaseEntries = goalStart instanceof Date && !Number.isNaN(goalStart.getTime())
+    ? entries.filter(entry => entry.dt >= goalStart)
+    : entries;
+
+  const phase = baseGoal?.phase || 'mantieni';
+  const fallback = {
+    eligible: false,
+    offsetKcal: 0,
+    reason: 'Servono almeno 14 giorni con piu pesate per auto-calibrare.',
+    deltaKg: null,
+    weeklyRatePct: null,
+    entries: phaseEntries.length,
+  };
+
+  if (phaseEntries.length < 4) return fallback;
+  const spanDays = Math.round((phaseEntries[phaseEntries.length - 1].dt - phaseEntries[0].dt) / 86400000);
+  if (spanDays < 10) return fallback;
+
+  const phaseWindowStart = goalStart instanceof Date && !Number.isNaN(goalStart.getTime()) && goalStart > start ? goalStart : start;
+  const split = new Date(phaseWindowStart);
+  split.setDate(phaseWindowStart.getDate() + 6);
+  const firstWeek = phaseEntries.filter(entry => entry.dt <= split).map(entry => entry.val);
+  const secondWeek = phaseEntries.filter(entry => entry.dt > split).map(entry => entry.val);
+  if (!firstWeek.length || !secondWeek.length) return fallback;
+
+  const avgStart = averageNumbers(firstWeek);
+  const avgEnd = averageNumbers(secondWeek);
+  const deltaKg = Number((avgEnd - avgStart).toFixed(2));
+  const refWeight = phaseEntries[phaseEntries.length - 1]?.val || Number(currentWeight) || 0;
+  const weeklyRatePct = refWeight > 0 ? Number(((deltaKg / refWeight) * 100).toFixed(2)) : null;
+
+  let offsetKcal = 0;
+  let reason = 'Trend coerente: nessun aggiustamento automatico.';
+  if (phase === 'cut') {
+    if (weeklyRatePct != null && weeklyRatePct <= -0.9) {
+      offsetKcal = 125;
+      reason = 'Cut troppo rapido nelle ultime 2 settimane: alzo di 125 kcal.';
+    } else if (weeklyRatePct != null && weeklyRatePct >= -0.2) {
+      offsetKcal = -125;
+      reason = 'Cut troppo lento o stabile nelle ultime 2 settimane: abbasso di 125 kcal.';
+    }
+  } else if (phase === 'bulk') {
+    if (weeklyRatePct != null && weeklyRatePct >= 0.4) {
+      offsetKcal = -125;
+      reason = 'Bulk troppo veloce nelle ultime 2 settimane: riduco di 125 kcal.';
+    } else if (weeklyRatePct != null && weeklyRatePct <= 0.05) {
+      offsetKcal = 125;
+      reason = 'Bulk troppo lento o fermo nelle ultime 2 settimane: alzo di 125 kcal.';
+    }
+  } else {
+    if (weeklyRatePct != null && weeklyRatePct <= -0.2) {
+      offsetKcal = 125;
+      reason = 'Peso in discesa in mantenimento: alzo di 125 kcal.';
+    } else if (weeklyRatePct != null && weeklyRatePct >= 0.2) {
+      offsetKcal = -125;
+      reason = 'Peso in salita in mantenimento: riduco di 125 kcal.';
+    }
+  }
+
+  return {
+    eligible: true,
+    offsetKcal,
+    reason,
+    deltaKg,
+    weeklyRatePct,
+    entries: phaseEntries.length,
+    windowDays: 14,
+  };
+}
+
+function getGoalWithAutoCalibration(baseGoal = S.goal, currentWeight = S.anagrafica?.peso) {
+  const calibration = getAutoCalibrationSummary(baseGoal, currentWeight);
+  return {
+    ...(baseGoal || {}),
+    calibrationOffsetKcal: calibration.eligible ? calibration.offsetKcal : 0,
+    calibrationMeta: calibration,
+  };
+}
+
+function refreshNutritionTargetsFromState(options = {}) {
+  const { saveDeferred = true } = options;
+  const calibratedGoal = getGoalWithAutoCalibration(S.goal, S.anagrafica?.peso);
+  S.goal = { ...S.goal, calibrationOffsetKcal: calibratedGoal.calibrationOffsetKcal, calibrationMeta: calibratedGoal.calibrationMeta };
+  const result = computeNutrition(S.anagrafica, S.goal);
+  if (!result) return null;
+  S.macro.on = result.macroOn;
+  S.macro.off = result.macroOff;
+  if (saveDeferred) saveSoon();
+  return result;
+}
+
 function toggleProfDropdown(e) {
   e.stopPropagation();
   const el = document.getElementById('pdrop');
@@ -1828,12 +2068,20 @@ function _readAnagForm() {
     const el = document.getElementById(id);
     return el ? el.value : '';
   };
-  S.anagrafica.nome           = v('anag-nome');
-  S.anagrafica.eta            = parseInt(v('anag-eta'))        || null;
-  S.anagrafica.altezza        = parseInt(v('anag-altezza'))    || null;
-  S.anagrafica.peso           = parseFloat(v('anag-peso'))     || null;
-  S.anagrafica.grassoCorporeo = parseFloat(v('anag-grasso'))   || null;
-  // professione managed via setAnagProf — already in S.anagrafica.professione
+  return {
+    ...S.anagrafica,
+    nome: v('anag-nome'),
+    eta: v('anag-eta'),
+    altezza: v('anag-altezza'),
+    peso: v('anag-peso'),
+    passiGiornalieri: v('anag-passi'),
+    grassoCorporeo: v('anag-grasso'),
+  };
+}
+
+function getPendingGoalPhase() {
+  const activeBtn = document.querySelector('.goal-phase-btn[data-phase][class*="active-"]');
+  return activeBtn?.dataset.phase || S.goal?.phase || 'mantieni';
 }
 
 function _stepAnagField(id, dir) {
@@ -1845,23 +2093,158 @@ function _stepAnagField(id, dir) {
   const val  = parseFloat(inp.value) || 0;
   const next = Math.min(max, Math.max(min, +(val + dir * step).toFixed(2)));
   inp.value  = next;
+  _handleAnagInput(id, { forceValidate: true });
   _updateFabbisognoPreview();
 }
 
+function _normalizeAnagName(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, ANAG_RULES.nome.maxLength);
+}
+
+function _parseNullableAnagNumber(value) {
+  if (value == null) return null;
+  const raw = String(value).replace(',', '.').trim();
+  if (!raw) return null;
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : null;
+}
+
+function validateAnagraficaDraft(rawDraft = {}, options = {}) {
+  const requireFields = new Set(options.requireFields || []);
+  const normalized = {
+    ...S.anagrafica,
+    ...rawDraft,
+    nome: _normalizeAnagName(rawDraft.nome),
+    eta: _parseNullableAnagNumber(rawDraft.eta),
+    altezza: _parseNullableAnagNumber(rawDraft.altezza),
+    peso: _parseNullableAnagNumber(rawDraft.peso),
+    passiGiornalieri: _parseNullableAnagNumber(rawDraft.passiGiornalieri),
+    grassoCorporeo: _parseNullableAnagNumber(rawDraft.grassoCorporeo),
+  };
+  const fieldErrors = {};
+
+  if (requireFields.has('nome') && !normalized.nome) {
+    fieldErrors.nome = 'Inserisci il tuo nome.';
+  } else if (String(rawDraft.nome || '').trim() && !normalized.nome) {
+    fieldErrors.nome = 'Inserisci un nome valido.';
+  }
+
+  [['eta', true], ['altezza', true], ['peso', false], ['passiGiornalieri', true], ['grassoCorporeo', false]].forEach(([key, integerOnly]) => {
+    const rules = ANAG_RULES[key];
+    const raw = rawDraft[key];
+    const hasValue = String(raw ?? '').trim() !== '';
+    const isRequired = requireFields.has(key);
+    const value = normalized[key];
+    if (!hasValue) {
+      if (isRequired) fieldErrors[key] = `Inserisci ${rules.label.toLowerCase()}.`;
+      return;
+    }
+    if (value == null) {
+      fieldErrors[key] = `${rules.label} non valida.`;
+      return;
+    }
+    if (integerOnly && !Number.isInteger(value)) {
+      fieldErrors[key] = `${rules.label} deve essere un numero intero.`;
+      return;
+    }
+    if (value < rules.min || value > rules.max) {
+      fieldErrors[key] = `${rules.label} deve essere tra ${rules.min} e ${rules.max} ${rules.unit}.`;
+    }
+  });
+
+  return {
+    ok: Object.keys(fieldErrors).length === 0,
+    normalized,
+    fieldErrors,
+    firstError: Object.values(fieldErrors)[0] || '',
+  };
+}
+
+function _getAnagFieldMeta(fieldKey) {
+  const map = {
+    nome: { inputId: 'anag-nome', errorId: 'anag-error-nome' },
+    eta: { inputId: 'anag-eta', errorId: 'anag-error-eta' },
+    altezza: { inputId: 'anag-altezza', errorId: 'anag-error-altezza' },
+    peso: { inputId: 'anag-peso', errorId: 'anag-error-peso' },
+    passiGiornalieri: { inputId: 'anag-passi', errorId: 'anag-error-passi' },
+    grassoCorporeo: { inputId: 'anag-grasso', errorId: 'anag-error-grasso' },
+  };
+  return map[fieldKey] || null;
+}
+
+function _setAnagFieldError(fieldKey, message = '') {
+  const meta = _getAnagFieldMeta(fieldKey);
+  if (!meta) return;
+  const input = document.getElementById(meta.inputId);
+  const error = document.getElementById(meta.errorId);
+  const field = input?.closest('.anag-field');
+  const hasError = !!message;
+  if (input) input.classList.toggle('is-invalid', hasError);
+  if (field) field.classList.toggle('is-invalid', hasError);
+  if (error) error.textContent = message;
+}
+
+function _syncNameCounterByIds(inputId, counterId) {
+  const input = document.getElementById(inputId);
+  const counter = document.getElementById(counterId);
+  if (!input || !counter) return;
+  const length = Math.min(String(input.value || '').length, ANAG_RULES.nome.maxLength);
+  counter.textContent = `${length}/${ANAG_RULES.nome.maxLength}`;
+  counter.classList.toggle('is-near-limit', length >= ANAG_RULES.nome.maxLength - 8);
+}
+
+function _renderAnagFieldErrors(fieldErrors = {}) {
+  ['nome', 'eta', 'altezza', 'peso', 'passiGiornalieri', 'grassoCorporeo'].forEach(key => {
+    _setAnagFieldError(key, fieldErrors[key] || '');
+  });
+}
+
+function _handleAnagInput(inputId, options = {}) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  if (inputId === 'anag-nome') {
+    const normalized = _normalizeAnagName(input.value);
+    if (input.value !== normalized) input.value = normalized;
+    _syncNameCounterByIds('anag-nome', 'anag-nome-count');
+  }
+  const fieldKey = {
+    'anag-nome': 'nome',
+    'anag-eta': 'eta',
+    'anag-altezza': 'altezza',
+    'anag-peso': 'peso',
+    'anag-passi': 'passiGiornalieri',
+    'anag-grasso': 'grassoCorporeo',
+  }[inputId];
+  if (!fieldKey) return;
+  if (options.forceValidate && ANAG_RULES[fieldKey] && fieldKey !== 'nome' && String(input.value || '').trim()) {
+    const parsed = _parseNullableAnagNumber(input.value);
+    if (parsed != null) {
+      const rules = ANAG_RULES[fieldKey];
+      const next = Math.min(rules.max, Math.max(rules.min, parsed));
+      input.value = ['eta', 'altezza'].includes(fieldKey) ? String(Math.round(next)) : String(next);
+    }
+  }
+  if (!options.forceValidate && !String(input.value || '').trim()) {
+    _setAnagFieldError(fieldKey, '');
+    return;
+  }
+  const validation = validateAnagraficaDraft(_readAnagForm());
+  _setAnagFieldError(fieldKey, validation.fieldErrors[fieldKey] || '');
+}
+
 function _updateFabbisognoPreview() {
-  _readAnagForm();
-  const result = computeNutrition(S.anagrafica, S.goal);
+  const validation = validateAnagraficaDraft(_readAnagForm());
+  const draft = validation.normalized;
   const el = document.getElementById('fab-preview');
   if (!el) return;
+  _renderAnagFieldErrors(validation.fieldErrors);
+  const draftGoal = { ...S.goal, phase: getPendingGoalPhase() };
+  const result = validation.ok ? computeNutrition(draft, getGoalWithAutoCalibration(draftGoal, draft.peso)) : null;
   if (!result) {
     el.innerHTML = `<div class="fab-empty">Completa i campi per vedere il fabbisogno calcolato.</div>`;
     return;
   }
-  // Auto-sync S.macro ogni volta che il profilo è completo e valido
-  S.macro.on  = result.macroOn;
-  S.macro.off = result.macroOff;
-  saveSoon();
-  const { bmr, pal, tdee, formula, macroOn, macroOff } = result;
+  const { bmr, pal, tdee, tdeeRange, formula, components, macroOn, macroOff, calibration } = result;
   const _isvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`;
   const phaseLabels = { bulk: 'Bulk — Massa', cut: 'Cut — Definizione', mantieni: 'Mantenimento' };
   const phaseLabel = phaseLabels[S.goal?.phase] || 'Mantenimento';
@@ -1872,14 +2255,26 @@ function _updateFabbisognoPreview() {
       <span class="fab-note">${formula}</span>
     </div>
     <div class="fab-row">
-      <span class="fab-label">PAL <button class="fab-info-btn" onmouseenter="showFabPalTip(this)" onmouseleave="hideTip('tip-fab-pal')" onclick="showFabPalTip(this)">${_isvg}</button></span>
-      <span class="fab-value">${pal}</span>
-      <span class="fab-note">occupazione + allenamento</span>
+      <span class="fab-label">NEAT <button class="fab-info-btn" onmouseenter="showFabPalTip(this)" onmouseleave="hideTip('tip-fab-pal')" onclick="showFabPalTip(this)">${_isvg}</button></span>
+      <span class="fab-value">${components.neat.base} kcal</span>
+      <span class="fab-note">${components.neat.label}</span>
+    </div>
+    <div class="fab-row">
+      <span class="fab-label">EAT <button class="fab-info-btn" onmouseenter="showFabPalTip(this)" onmouseleave="hideTip('tip-fab-pal')" onclick="showFabPalTip(this)">${_isvg}</button></span>
+      <span class="fab-value">${components.eat.base} kcal</span>
+      <span class="fab-note">media allenamento</span>
+    </div>
+    <div class="fab-row">
+      <span class="fab-label">TEF <button class="fab-info-btn" onmouseenter="showFabPalTip(this)" onmouseleave="hideTip('tip-fab-pal')" onclick="showFabPalTip(this)">${_isvg}</button></span>
+      <span class="fab-value">${Math.round(components.tefPct * 100)}%</span>
+      <span class="fab-note">termogenesi del cibo</span>
     </div>
     <div class="fab-row fab-row-tdee">
       <span class="fab-label">TDEE <button class="fab-info-btn" onmouseenter="showFabTdeeTip(this)" onmouseleave="hideTip('tip-fab-tdee')" onclick="showFabTdeeTip(this)">${_isvg}</button></span>
       <span class="fab-value">${tdee} kcal</span>
+      <span class="fab-note">${tdeeRange ? `${tdeeRange.low}–${tdeeRange.high} kcal · eq. PAL ${pal}` : `eq. PAL ${pal}`}</span>
     </div>
+    ${calibration?.offsetKcal ? `<div class="fab-row"><span class="fab-label">Calibrazione 14g</span><span class="fab-value">${calibration.offsetKcal > 0 ? '+' : ''}${calibration.offsetKcal} kcal</span><span class="fab-note">${calibration.reason}</span></div>` : ''}
     <div class="fab-divider"></div>
     <div class="fab-goal-header">
       <span class="fab-goal-phase">${phaseLabel}</span>
@@ -1898,11 +2293,17 @@ function _updateFabbisognoPreview() {
 }
 
 function saveAnagrafica() {
-  _readAnagForm();
-  const result = computeNutrition(S.anagrafica, S.goal);
+  const validation = validateAnagraficaDraft(_readAnagForm());
+  _renderAnagFieldErrors(validation.fieldErrors);
+  if (!validation.ok) {
+    toast(`⚠️ ${validation.firstError}`);
+    return;
+  }
+  S.anagrafica = validation.normalized;
+  S.goal.phase = getPendingGoalPhase();
+  upsertTodayWeightLog(S.anagrafica.peso);
+  const result = refreshNutritionTargetsFromState({ saveDeferred: false });
   if (result) {
-    S.macro.on  = result.macroOn;
-    S.macro.off = result.macroOff;
     // Sync peso: aggiorna anche S.profilo per retrocompat
     if (S.anagrafica.peso) {
       const pr = S.profilo.find(r => r.l === 'Peso attuale');
@@ -1927,11 +2328,11 @@ function syncProfileRowsFromAnagrafica() {
   };
   const professionLabel = PROFESSIONI.find(p => p.key === S.anagrafica.professione)?.label || 'Da definire';
   const allenamentiLabel = ALLENAMENTI.find(a => a.key === S.anagrafica.allenamentiSett)?.desc || 'Da definire';
-  if (S.anagrafica.nome) setRow('Nome', S.anagrafica.nome);
-  if (S.anagrafica.eta) setRow('Età', `${S.anagrafica.eta} anni`);
-  if (S.anagrafica.altezza) setRow('Altezza', `${S.anagrafica.altezza} cm`);
-  if (S.anagrafica.peso) setRow('Peso attuale', `${S.anagrafica.peso} kg`);
-  setRow('Professione', professionLabel);
+  setRow('Nome', S.anagrafica.nome || 'Da impostare');
+  setRow('Età', S.anagrafica.eta ? `${S.anagrafica.eta} anni` : 'Da impostare');
+  setRow('Altezza', S.anagrafica.altezza ? `${S.anagrafica.altezza} cm` : 'Da impostare');
+  setRow('Peso attuale', S.anagrafica.peso ? `${S.anagrafica.peso} kg` : 'Da impostare');
+  setRow('Professione', S.anagrafica.passiGiornalieri ? `${professionLabel} · ~${S.anagrafica.passiGiornalieri} passi/die` : professionLabel);
   setRow('Attività fisica', allenamentiLabel);
 }
 
@@ -1952,6 +2353,7 @@ function getWelcomeDraft() {
     eta: S.anagrafica?.eta || '',
     altezza: S.anagrafica?.altezza || '',
     peso: S.anagrafica?.peso || '',
+    passiGiornalieri: S.anagrafica?.passiGiornalieri || '',
     grassoCorporeo: S.anagrafica?.grassoCorporeo ?? '',
     professione: S.anagrafica?.professione || 'desk_sedentary',
     onDays: days,
@@ -1966,17 +2368,19 @@ function getWelcomePreview(data = getWelcomeDraft()) {
     eta: parseInt(data.eta, 10) || null,
     altezza: parseInt(data.altezza, 10) || null,
     peso: parseFloat(data.peso) || null,
+    passiGiornalieri: parseInt(data.passiGiornalieri, 10) || null,
     grassoCorporeo: data.grassoCorporeo === '' ? null : (parseFloat(data.grassoCorporeo) || null),
     professione: data.professione || 'desk_sedentary',
     allenamentiSett: onboardingFreqFromDays(data.onDays || []),
   };
-  return computeNutrition(ana, { phase: data.phase || 'mantieni' });
+  return computeNutrition(ana, { phase: data.phase || 'mantieni', calibrationOffsetKcal: 0, calibrationMeta: null });
 }
 
 function renderAuthEntry() {
   const el = document.getElementById('auth-entry');
   if (!el) return;
-  if (S.authEntryCompleted || S.onboardingCompleted) {
+  const forceOpen = !!_authEntryState?.forceOpen;
+  if (!forceOpen && (S.authEntryCompleted || S.onboardingCompleted)) {
     el.style.display = 'none';
     el.innerHTML = '';
     return;
@@ -1987,24 +2391,41 @@ function renderAuthEntry() {
   let body = '';
   if (mode === 'gateway') {
     body = `
-      <div class="auth-entry-kicker">Accesso</div>
-      <div class="auth-entry-title">Come vuoi iniziare?</div>
-      <div class="auth-entry-sub">Puoi usare MarciFit subito oppure creare un account per salvare e sincronizzare i tuoi dati tra dispositivi.</div>
+      <div class="auth-entry-kicker">Ingresso</div>
+      <div class="auth-entry-title">Scegli come entrare in MarciFit</div>
+      <div class="auth-entry-sub">Puoi iniziare subito in locale oppure attivare un account per tenere profilo, pasti e progressi sempre con te.</div>
       <div class="auth-entry-stack">
+        <div class="auth-entry-hero">
+          <div class="auth-entry-hero-badge">Pronto in meno di 2 minuti</div>
+          <div class="auth-entry-hero-title">Una base chiara oggi, continuità domani</div>
+          <div class="auth-entry-hero-copy">Allenamento, pasti e progressi partono subito. Se vuoi, il cloud entra dopo senza cambiare esperienza.</div>
+        </div>
         <div class="auth-entry-benefits">
-          <span class="auth-entry-benefit">Backup sicuro</span>
-          <span class="auth-entry-benefit">Sync multi-device</span>
-          <span class="auth-entry-benefit">Guest supportato</span>
+          <span class="auth-entry-benefit">☁️ Backup sicuro</span>
+          <span class="auth-entry-benefit">🔄 Sync multi-device</span>
+          <span class="auth-entry-benefit">⚡ Guest supportato</span>
         </div>
         <button class="auth-entry-choice primary" onclick="openAuthMode('signup')">
+          <div class="auth-entry-choice-top">
+            <span class="auth-entry-choice-icon">✨</span>
+            <span class="auth-entry-choice-tag">Consigliato</span>
+          </div>
           <div class="auth-entry-choice-title">Crea account</div>
-          <div class="auth-entry-choice-body">Per salvare profilo, pasti e progressi nel cloud.</div>
+          <div class="auth-entry-choice-body">Per salvare profilo, pasti e progressi nel cloud e ritrovarli su altri dispositivi.</div>
         </button>
         <button class="auth-entry-choice secondary" onclick="openAuthMode('login')">
+          <div class="auth-entry-choice-top">
+            <span class="auth-entry-choice-icon">🔐</span>
+            <span class="auth-entry-choice-tag">Rientra</span>
+          </div>
           <div class="auth-entry-choice-title">Accedi</div>
           <div class="auth-entry-choice-body">Se hai già un account, riparti subito dai tuoi dati.</div>
         </button>
         <button class="auth-entry-choice guest" onclick="continueAsGuest()">
+          <div class="auth-entry-choice-top">
+            <span class="auth-entry-choice-icon">🚀</span>
+            <span class="auth-entry-choice-tag">Subito</span>
+          </div>
           <div class="auth-entry-choice-title">Continua senza account</div>
           <div class="auth-entry-choice-body">Usa l’app subito in locale. Potrai creare un account più avanti.</div>
         </button>
@@ -2067,9 +2488,9 @@ function renderAuthEntry() {
   lockUiScroll();
 }
 
-function openAuthEntry() {
-  if (S.authEntryCompleted || S.onboardingCompleted) return;
+function openAuthEntry(forceOpen = true) {
   if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
+  _authEntryState.forceOpen = !!forceOpen;
   renderAuthEntry();
 }
 
@@ -2079,6 +2500,7 @@ function closeAuthEntry() {
     el.style.display = 'none';
     el.innerHTML = '';
   }
+  if (_authEntryState) _authEntryState.forceOpen = false;
   unlockUiScroll(true);
 }
 
@@ -2172,14 +2594,14 @@ function renderWelcomeOnboarding() {
   const preview = getWelcomePreview(data);
   const DOW = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
   const professionChoices = [
-    { key: 'desk_sedentary', title: 'Poco', body: 'Lavoro sedentario e pochi spostamenti' },
-    { key: 'standing', title: 'Abbastanza', body: 'Ti muovi spesso durante la giornata' },
-    { key: 'physical_light', title: 'Molto', body: 'Giornate attive o lavoro fisico' },
+    { key: 'desk_sedentary', icon: '🪑', title: 'Poco', body: 'Lavoro sedentario e pochi spostamenti', meta: 'Routine più statica' },
+    { key: 'standing', icon: '🚶', title: 'Abbastanza', body: 'Ti muovi spesso durante la giornata', meta: 'Attività distribuita' },
+    { key: 'physical_light', icon: '⚡', title: 'Molto', body: 'Giornate attive o lavoro fisico', meta: 'Dispendio più alto' },
   ];
   const goalChoices = [
-    { key: 'bulk', title: 'Bulk', body: 'Per spingere la crescita muscolare', cls: 'goal-bulk' },
-    { key: 'cut', title: 'Cut', body: 'Per perdere grasso mantenendo più massa possibile', cls: 'goal-cut' },
-    { key: 'mantieni', title: 'Mantieni', body: 'Per restare stabile e performante', cls: 'goal-maintain' },
+    { key: 'bulk', icon: '📈', title: 'Bulk', body: 'Per spingere la crescita muscolare', cls: 'goal-bulk', meta: 'Più spinta in allenamento' },
+    { key: 'cut', icon: '✂️', title: 'Cut', body: 'Per perdere grasso mantenendo più massa possibile', cls: 'goal-cut', meta: 'Definizione controllata' },
+    { key: 'mantieni', icon: '⚖️', title: 'Mantieni', body: 'Per restare stabile e performante', cls: 'goal-maintain', meta: 'Equilibrio e costanza' },
   ];
   const progress = `Passo ${step + 1} di 6`;
 
@@ -2187,29 +2609,65 @@ function renderWelcomeOnboarding() {
   if (step === 0) {
     body = `
       <div class="welcome-step-head">
-        <div class="welcome-kicker">Benvenuto</div>
-        <div class="welcome-title">Benvenuto in MarciFit</div>
-        <div class="welcome-sub">Impostiamo il tuo profilo iniziale per personalizzare kcal, macro e giorni Workout/Rest. Bastano pochi step.</div>
+        <div class="welcome-kicker">Più di una dieta</div>
+        <div class="welcome-title">MarciFit costruisce la tua giornata fitness, non solo i macro</div>
+        <div class="welcome-sub">Allenamento, pasti, scanner, check-in e supporto quotidiano dentro un unico flusso pensato per farti restare costante.</div>
       </div>
       <div class="welcome-stack">
-        <div class="welcome-pills">
-          <span class="welcome-pill">Workout/Rest personalizzati</span>
-          <span class="welcome-pill">Kcal e macro su misura</span>
-          <span class="welcome-pill">Setup iniziale guidato</span>
+        <div class="welcome-hero">
+          <div class="welcome-hero-copy">
+            <div class="welcome-hero-badge">Esclusive MarciFit</div>
+            <div class="welcome-hero-title">Tutto quello che ti serve per seguire il piano senza attrito</div>
+            <div class="welcome-hero-text">Ogni giornata si adatta al tuo ritmo: target diversi nei giorni Workout e Rest, supporto pratico quando devi scegliere cosa mangiare e uno storico che ti aiuta a non perdere il filo.</div>
+          </div>
+          <div class="welcome-hero-shot">
+            <div class="welcome-hero-card hero-primary">
+              <div class="welcome-hero-card-top">
+                <span class="welcome-hero-chip on">Workout Day</span>
+                <span class="welcome-hero-chip soft">live</span>
+              </div>
+              <div class="welcome-hero-kcal">${preview ? preview.macroOn.k : 2350} kcal</div>
+              <div class="welcome-hero-macros">P ${preview ? preview.macroOn.p : 130} · C ${preview ? preview.macroOn.c : 295} · F ${preview ? preview.macroOn.f : 70}</div>
+              <div class="welcome-hero-bars">
+                <span style="width:82%"></span>
+                <span style="width:64%"></span>
+                <span style="width:46%"></span>
+              </div>
+            </div>
+          </div>
+          <div class="welcome-feature-rail" aria-label="Feature esclusive">
+            <div class="welcome-feature-card">
+              <div class="welcome-feature-icon">🔥</div>
+              <div class="welcome-feature-title">Workout/Rest reali</div>
+              <div class="welcome-feature-text">Target diversi in base a come si muove davvero la tua settimana.</div>
+            </div>
+            <div class="welcome-feature-card">
+              <div class="welcome-feature-icon">🍽️</div>
+              <div class="welcome-feature-title">Planner guidato</div>
+              <div class="welcome-feature-text">Template, preferiti e suggerimenti rapidi per decidere prima.</div>
+            </div>
+            <div class="welcome-feature-card">
+              <div class="welcome-feature-icon">📷</div>
+              <div class="welcome-feature-title">Barcode veloce</div>
+              <div class="welcome-feature-text">Scansioni, confermi e registri senza interrompere la giornata.</div>
+            </div>
+            <div class="welcome-feature-card">
+              <div class="welcome-feature-icon">📈</div>
+              <div class="welcome-feature-title">Check-in smart</div>
+              <div class="welcome-feature-text">Peso, trend e riepilogo settimana sempre leggibili e utili.</div>
+            </div>
+            <div class="welcome-feature-card">
+              <div class="welcome-feature-icon">⚡</div>
+              <div class="welcome-feature-title">Log veloce</div>
+              <div class="welcome-feature-text">Confermi i pasti e tieni il ritmo senza rallentare la giornata.</div>
+            </div>
+            <div class="welcome-feature-card">
+              <div class="welcome-feature-icon">🎯</div>
+              <div class="welcome-feature-title">Routine chiara</div>
+              <div class="welcome-feature-text">Supporto visivo continuo per capire subito cosa fare adesso.</div>
+            </div>
+          </div>
         </div>
-        ${preview ? `
-          <div class="welcome-preview">
-            <div class="welcome-preview-card workout">
-              <div class="welcome-preview-kicker">Giorno Workout</div>
-              <div class="welcome-preview-kcal">${preview.macroOn.k} kcal</div>
-              <div class="welcome-preview-macros">P ${preview.macroOn.p}g · C ${preview.macroOn.c}g · F ${preview.macroOn.f}g</div>
-            </div>
-            <div class="welcome-preview-card rest">
-              <div class="welcome-preview-kicker">Giorno Rest</div>
-              <div class="welcome-preview-kcal">${preview.macroOff.k} kcal</div>
-              <div class="welcome-preview-macros">P ${preview.macroOff.p}g · C ${preview.macroOff.c}g · F ${preview.macroOff.f}g</div>
-            </div>
-          </div>` : ''}
       </div>`;
   } else if (step === 1) {
     body = `
@@ -2220,9 +2678,13 @@ function renderWelcomeOnboarding() {
       </div>
       <div class="welcome-stack">
         <div class="welcome-grid">
-          <div class="welcome-field wide">
-            <label class="welcome-label">Nome</label>
-            <input class="welcome-input" value="${htmlEsc(data.nome)}" oninput="welcomeSetField('nome', this.value)" placeholder="Come ti chiami?">
+          <div class="welcome-field welcome-validate-field wide" data-welcome-field="nome">
+            <div class="field-label-row">
+              <label class="welcome-label">Nome</label>
+              <div class="name-char-count name-char-count-welcome" id="welcome-nome-count">${Math.min(String(data.nome || '').length, 40)}/40</div>
+            </div>
+            <input id="welcome-nome-input" class="welcome-input" maxlength="40" autocomplete="name" value="${htmlEsc(data.nome)}" oninput="welcomeSetField('nome', this.value)" onblur="welcomeValidateBaseField('nome', true)" placeholder="Come ti chiami?">
+            <div class="welcome-field-error" id="welcome-error-nome"></div>
           </div>
           <div class="welcome-field">
             <label class="welcome-label">Sesso</label>
@@ -2231,33 +2693,37 @@ function renderWelcomeOnboarding() {
               <option value="f"${data.sesso === 'f' ? ' selected' : ''}>Donna</option>
             </select>
           </div>
-          <div class="welcome-field">
+          <div class="welcome-field welcome-validate-field" data-welcome-field="eta">
             <label class="welcome-label">Età</label>
             <div class="welcome-inline">
-              <input class="welcome-input" type="number" min="10" max="99" value="${htmlEsc(data.eta)}" oninput="welcomeSetField('eta', this.value)">
+              <input class="welcome-input" type="number" min="10" max="99" inputmode="numeric" value="${htmlEsc(data.eta)}" oninput="welcomeSetField('eta', this.value)" onblur="welcomeValidateBaseField('eta', true)">
               <span class="welcome-unit">anni</span>
             </div>
+            <div class="welcome-field-error" id="welcome-error-eta"></div>
           </div>
-          <div class="welcome-field">
+          <div class="welcome-field welcome-validate-field" data-welcome-field="altezza">
             <label class="welcome-label">Altezza</label>
             <div class="welcome-inline">
-              <input class="welcome-input" type="number" min="100" max="250" value="${htmlEsc(data.altezza)}" oninput="welcomeSetField('altezza', this.value)">
+              <input class="welcome-input" type="number" min="120" max="250" inputmode="numeric" value="${htmlEsc(data.altezza)}" oninput="welcomeSetField('altezza', this.value)" onblur="welcomeValidateBaseField('altezza', true)">
               <span class="welcome-unit">cm</span>
             </div>
+            <div class="welcome-field-error" id="welcome-error-altezza"></div>
           </div>
-          <div class="welcome-field">
+          <div class="welcome-field welcome-validate-field" data-welcome-field="peso">
             <label class="welcome-label">Peso</label>
             <div class="welcome-inline">
-              <input class="welcome-input" type="number" min="30" max="300" step="0.1" value="${htmlEsc(data.peso)}" oninput="welcomeSetField('peso', this.value)">
+              <input class="welcome-input" type="number" min="30" max="300" step="0.1" inputmode="decimal" value="${htmlEsc(data.peso)}" oninput="welcomeSetField('peso', this.value)" onblur="welcomeValidateBaseField('peso', true)">
               <span class="welcome-unit">kg</span>
             </div>
+            <div class="welcome-field-error" id="welcome-error-peso"></div>
           </div>
-          <div class="welcome-field wide">
+          <div class="welcome-field welcome-validate-field wide" data-welcome-field="grassoCorporeo">
             <label class="welcome-label">% Grasso corporeo <span style="font-weight:500;text-transform:none;letter-spacing:0">(opz.)</span></label>
             <div class="welcome-inline">
-              <input class="welcome-input" type="number" min="3" max="60" step="0.1" value="${htmlEsc(data.grassoCorporeo)}" oninput="welcomeSetField('grassoCorporeo', this.value)" placeholder="Se la conosci">
+              <input class="welcome-input" type="number" min="3" max="60" step="0.1" inputmode="decimal" value="${htmlEsc(data.grassoCorporeo)}" oninput="welcomeSetField('grassoCorporeo', this.value)" onblur="welcomeValidateBaseField('grassoCorporeo', true)" placeholder="Se la conosci">
               <span class="welcome-unit">%</span>
             </div>
+            <div class="welcome-field-error" id="welcome-error-grassoCorporeo"></div>
           </div>
         </div>
       </div>`;
@@ -2265,55 +2731,102 @@ function renderWelcomeOnboarding() {
     body = `
       <div class="welcome-step-head">
         <div class="welcome-kicker">Stile di vita</div>
-        <div class="welcome-title">Quanto ti muovi durante la giornata?</div>
-        <div class="welcome-sub">Ci aiuta a stimare meglio il dispendio calorico oltre agli allenamenti.</div>
+        <div class="welcome-title">Quanto ti muovi davvero fuori dalla palestra?</div>
+        <div class="welcome-sub">Bastano tre profili chiari per calibrare meglio consumo calorico, fame e distribuzione dei target.</div>
+      </div>
+      <div class="welcome-stack">
+        <div class="welcome-insight-card">
+          <div class="welcome-insight-kicker">Perché conta</div>
+          <div class="welcome-insight-title">Una giornata più attiva cambia davvero il tuo fabbisogno</div>
+          <div class="welcome-insight-text">Scegli il profilo che ti somiglia di più: MarciFit aggiusterà il punto di partenza senza farti sovrastimare o sottostimare le calorie.</div>
+        </div>
+      <div class="welcome-grid" style="margin-bottom:14px">
+        <div class="welcome-field welcome-validate-field wide" data-welcome-field="passiGiornalieri">
+          <label class="welcome-label">Passi medi al giorno <span style="font-weight:500;text-transform:none;letter-spacing:0">(opz.)</span></label>
+          <div class="welcome-inline">
+            <input class="welcome-input" type="number" min="1000" max="40000" step="100" inputmode="numeric" value="${htmlEsc(data.passiGiornalieri || '')}" oninput="welcomeSetField('passiGiornalieri', this.value)" onblur="welcomeValidateBaseField('passiGiornalieri', true)" placeholder="Es. 8000">
+            <span class="welcome-unit">passi</span>
+          </div>
+          <div class="welcome-field-error" id="welcome-error-passiGiornalieri"></div>
+        </div>
       </div>
       <div class="welcome-choice-grid">
         ${professionChoices.map(choice => `
-          <button class="welcome-choice${data.professione === choice.key ? ' active' : ''}" onclick="welcomeSetField('professione','${choice.key}', true)">
+          <button class="welcome-choice${data.professione === choice.key ? ' active' : ''}" data-welcome-choice-field="professione" data-value="${choice.key}" onclick="welcomeSetField('professione','${choice.key}')">
+            <div class="welcome-choice-top">
+              <span class="welcome-choice-icon">${choice.icon}</span>
+              <span class="welcome-choice-pill">${choice.meta}</span>
+            </div>
             <div class="welcome-choice-title">${choice.title}</div>
             <div class="welcome-choice-body">${choice.body}</div>
           </button>
         `).join('')}
+      </div>
       </div>`;
   } else if (step === 3) {
     body = `
       <div class="welcome-step-head">
         <div class="welcome-kicker">Allenamento</div>
-        <div class="welcome-title">Quali giorni ti alleni di solito?</div>
-        <div class="welcome-sub">Impostiamo i tuoi giorni Workout. Potrai cambiarli ogni giorno anche dalla dashboard.</div>
+        <div class="welcome-title">Quali giorni vuoi far contare come Workout?</div>
+        <div class="welcome-sub">Segna la tua settimana tipo: poi potrai sempre correggere al volo dalla dashboard se qualcosa cambia.</div>
       </div>
       <div class="welcome-stack">
+        <div class="welcome-insight-card">
+          <div class="welcome-insight-kicker">Setup calendario</div>
+          <div class="welcome-insight-title">Allenamento e riposo guidano tutta l’app</div>
+          <div class="welcome-insight-text">Da qui partono macro giornalieri, planner e ritmo settimanale. Ti basta disegnare la tua base.</div>
+        </div>
+        <div class="welcome-days-shell">
         <div class="welcome-days">
           ${DOW.map((label, idx) => `
-            <button class="welcome-day-btn${data.onDays.includes(idx) ? ' active' : ''}" onclick="welcomeToggleDay(${idx})">${label}</button>
+            <button class="welcome-day-btn${data.onDays.includes(idx) ? ' active' : ''}" data-welcome-day="${idx}" onclick="welcomeToggleDay(${idx})">${label}</button>
           `).join('')}
         </div>
-        <div class="welcome-note">Allenamenti stimati: ${ALLENAMENTI.find(a => a.key === onboardingFreqFromDays(data.onDays))?.desc || 'Da definire'}</div>
+        <div class="welcome-days-summary">
+          <span class="welcome-days-summary-kicker">Workout stimati</span>
+          <strong id="welcome-days-summary-value">${ALLENAMENTI.find(a => a.key === onboardingFreqFromDays(data.onDays))?.desc || 'Da definire'}</strong>
+        </div>
+        </div>
       </div>`;
   } else if (step === 4) {
     body = `
       <div class="welcome-step-head">
         <div class="welcome-kicker">Obiettivo</div>
-        <div class="welcome-title">Qual è il tuo obiettivo in questa fase?</div>
-        <div class="welcome-sub">MarciFit adatterà kcal e macro in base a questa scelta.</div>
+        <div class="welcome-title">Su cosa vuoi spingere in questa fase?</div>
+        <div class="welcome-sub">Scegli il focus del momento: MarciFit adatterà calorie, macro e tono delle giornate in quella direzione.</div>
       </div>
+      <div class="welcome-stack">
+        <div class="welcome-insight-card">
+          <div class="welcome-insight-kicker">Direzione chiara</div>
+          <div class="welcome-insight-title">Un obiettivo netto rende tutto più coerente</div>
+          <div class="welcome-insight-text">Non è una scelta definitiva: è il modo più semplice per far partire l’app con numeri già sensati per te.</div>
+        </div>
       <div class="welcome-choice-grid">
         ${goalChoices.map(choice => `
-          <button class="welcome-choice ${choice.cls}${data.phase === choice.key ? ' active' : ''}" onclick="welcomeSetField('phase','${choice.key}', true)">
+          <button class="welcome-choice ${choice.cls}${data.phase === choice.key ? ' active' : ''}" data-welcome-choice-field="phase" data-value="${choice.key}" onclick="welcomeSetField('phase','${choice.key}')">
+            <div class="welcome-choice-top">
+              <span class="welcome-choice-icon">${choice.icon}</span>
+              <span class="welcome-choice-pill">${choice.meta}</span>
+            </div>
             <div class="welcome-choice-title">${choice.title}</div>
             <div class="welcome-choice-body">${choice.body}</div>
           </button>
         `).join('')}
+      </div>
       </div>`;
   } else {
     body = `
       <div class="welcome-step-head">
         <div class="welcome-kicker">Setup iniziale</div>
-        <div class="welcome-title">Ecco il tuo profilo iniziale</div>
-        <div class="welcome-sub">Da qui l’app inizierà a personalizzare giornata, macro e calendario.</div>
+        <div class="welcome-title">Pronto: il tuo profilo iniziale è costruito</div>
+        <div class="welcome-sub">Da qui MarciFit inizierà a darti giornate, macro e ritmo settimanale coerenti con quello che hai scelto.</div>
       </div>
       <div class="welcome-stack">
+        <div class="welcome-final-banner">
+          <div class="welcome-final-badge">Sblocco iniziale</div>
+          <div class="welcome-final-title">Entri con una base già pronta da usare</div>
+          <div class="welcome-final-copy">Niente setup manuale a freddo: trovi subito giorni Workout/Rest, target iniziali e una struttura più chiara da seguire.</div>
+        </div>
         <div class="welcome-summary">
           <div class="welcome-summary-row">
             <div class="welcome-summary-label">Nome</div>
@@ -2321,7 +2834,7 @@ function renderWelcomeOnboarding() {
           </div>
           <div class="welcome-summary-row">
             <div class="welcome-summary-label">Movimento</div>
-            <div class="welcome-summary-value">${htmlEsc(PROFESSIONI.find(p => p.key === data.professione)?.label || '—')}</div>
+            <div class="welcome-summary-value">${htmlEsc(PROFESSIONI.find(p => p.key === data.professione)?.label || '—')}${data.passiGiornalieri ? ` · ~${htmlEsc(data.passiGiornalieri)} passi` : ''}</div>
           </div>
           <div class="welcome-summary-row">
             <div class="welcome-summary-label">Obiettivo</div>
@@ -2353,6 +2866,7 @@ function renderWelcomeOnboarding() {
     <div class="welcome-shell is-${direction}">
       <div class="welcome-top">
         <div class="welcome-progress">${progress}</div>
+        ${step === 0 ? `<button class="welcome-top-action" type="button" onclick="backToAuthEntry()">Indietro</button>` : ''}
       </div>
       <div class="welcome-card welcome-card-step-${step === 5 ? 'final' : 'form'}">
         ${body}
@@ -2363,8 +2877,14 @@ function renderWelcomeOnboarding() {
       </div>
       ${step === 0 ? `<div class="welcome-note">Ci vogliono meno di 2 minuti.</div>` : ''}
     </div>`;
+  if (step === 1) syncWelcomeBaseFieldErrors();
   _welcomeState.direction = 'forward';
   lockUiScroll();
+}
+
+function backToAuthEntry() {
+  closeWelcomeOnboarding();
+  openAuthEntry(true);
 }
 
 function openWelcomeOnboarding() {
@@ -2384,8 +2904,69 @@ function closeWelcomeOnboarding() {
 
 function welcomeSetField(key, value, rerender = false) {
   if (!_welcomeState) _welcomeState = { step: 0, data: getWelcomeDraft() };
-  _welcomeState.data[key] = value;
+  _welcomeState.data[key] = key === 'nome' ? _normalizeAnagName(value) : value;
+  if (key === 'nome') _syncNameCounterByIds('welcome-nome-input', 'welcome-nome-count');
   if (rerender) renderWelcomeOnboarding();
+  else if (_welcomeState.step === 1 && ['nome', 'eta', 'altezza', 'peso', 'grassoCorporeo'].includes(key)) {
+    welcomeValidateBaseField(key);
+  } else if (_welcomeState.step === 2 && key === 'passiGiornalieri') {
+    welcomeValidateBaseField('passiGiornalieri');
+  } else if (_welcomeState.step === 2 && key === 'professione') {
+    syncWelcomeChoiceSelection('professione');
+  } else if (_welcomeState.step === 4 && key === 'phase') {
+    syncWelcomeChoiceSelection('phase');
+  }
+}
+
+function syncWelcomeChoiceSelection(fieldKey) {
+  const current = String(_welcomeState?.data?.[fieldKey] || '');
+  document.querySelectorAll(`[data-welcome-choice-field="${fieldKey}"]`).forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.value === current);
+  });
+}
+
+function syncWelcomeDaySelection() {
+  const days = new Set(_welcomeState?.data?.onDays || []);
+  document.querySelectorAll('[data-welcome-day]').forEach(btn => {
+    const dow = Number(btn.dataset.welcomeDay);
+    btn.classList.toggle('active', days.has(dow));
+  });
+  const summary = document.getElementById('welcome-days-summary-value');
+  if (summary) {
+    summary.textContent = ALLENAMENTI.find(a => a.key === onboardingFreqFromDays(_welcomeState?.data?.onDays || []))?.desc || 'Da definire';
+  }
+}
+
+function getWelcomeBaseValidation(strict = false) {
+  if (!_welcomeState) _welcomeState = { step: 0, data: getWelcomeDraft() };
+  return validateAnagraficaDraft(
+    _welcomeState.data,
+    strict ? { requireFields: ['nome', 'eta', 'altezza', 'peso'] } : {}
+  );
+}
+
+function setWelcomeFieldError(fieldKey, message = '') {
+  const field = document.querySelector(`[data-welcome-field="${fieldKey}"]`);
+  const error = document.getElementById(`welcome-error-${fieldKey}`);
+  const input = field?.querySelector('.welcome-input');
+  const hasError = !!message;
+  if (field) field.classList.toggle('is-invalid', hasError);
+  if (input) input.classList.toggle('is-invalid', hasError);
+  if (error) error.textContent = message;
+}
+
+function welcomeValidateBaseField(fieldKey, strict = false) {
+  const validation = getWelcomeBaseValidation(strict);
+  const value = _welcomeState?.data?.[fieldKey];
+  const hasValue = String(value ?? '').trim() !== '';
+  const message = validation.fieldErrors[fieldKey] || '';
+  setWelcomeFieldError(fieldKey, !strict && !hasValue ? '' : message);
+}
+
+function syncWelcomeBaseFieldErrors(strict = false) {
+  ['nome', 'eta', 'altezza', 'peso', 'passiGiornalieri', 'grassoCorporeo'].forEach(fieldKey => {
+    welcomeValidateBaseField(fieldKey, strict);
+  });
 }
 
 function welcomeToggleDay(dow) {
@@ -2401,15 +2982,18 @@ function welcomeToggleDay(dow) {
     days.add(dow);
   }
   _welcomeState.data.onDays = [...days].sort((a, b) => a - b);
-  renderWelcomeOnboarding();
+  if (_welcomeState.step === 3) syncWelcomeDaySelection();
+  else renderWelcomeOnboarding();
 }
 
 function validateWelcomeStep(step, data) {
   if (step === 1) {
-    if (!String(data.nome || '').trim()) return 'Inserisci il tuo nome';
-    if (!parseInt(data.eta, 10)) return 'Inserisci l’età';
-    if (!parseInt(data.altezza, 10)) return 'Inserisci l’altezza';
-    if (!parseFloat(data.peso)) return 'Inserisci il peso';
+    const validation = validateAnagraficaDraft(data, { requireFields: ['nome', 'eta', 'altezza', 'peso'] });
+    if (!validation.ok) return validation.firstError;
+  }
+  if (step === 2) {
+    const validation = validateAnagraficaDraft(data, { requireFields: ['nome', 'eta', 'altezza', 'peso'] });
+    if (validation.fieldErrors.passiGiornalieri) return validation.fieldErrors.passiGiornalieri;
   }
   if (step === 3 && (!Array.isArray(data.onDays) || !data.onDays.length)) {
     return 'Seleziona almeno un giorno Workout';
@@ -2421,6 +3005,8 @@ function welcomeNextStep() {
   if (!_welcomeState) _welcomeState = { step: 0, data: getWelcomeDraft() };
   const err = validateWelcomeStep(_welcomeState.step, _welcomeState.data);
   if (err) {
+    if (_welcomeState.step === 1) syncWelcomeBaseFieldErrors(true);
+    if (_welcomeState.step === 2) welcomeValidateBaseField('passiGiornalieri');
     toast(`⚠️ ${err}`);
     return;
   }
@@ -2439,21 +3025,30 @@ function welcomePrevStep() {
 async function completeWelcomeOnboarding() {
   if (!_welcomeState) return;
   const data = _welcomeState.data;
+  const validation = validateAnagraficaDraft(data, { requireFields: ['nome', 'eta', 'altezza', 'peso'] });
+  if (!validation.ok) {
+    toast(`⚠️ ${validation.firstError}`);
+    return;
+  }
+  const profile = validation.normalized;
   const preview = getWelcomePreview(data);
-  S.anagrafica.nome = String(data.nome || '').trim();
+  S.anagrafica.nome = profile.nome;
   S.anagrafica.sesso = data.sesso || 'm';
-  S.anagrafica.eta = parseInt(data.eta, 10) || null;
-  S.anagrafica.altezza = parseInt(data.altezza, 10) || null;
-  S.anagrafica.peso = parseFloat(data.peso) || null;
-  S.anagrafica.grassoCorporeo = data.grassoCorporeo === '' ? null : (parseFloat(data.grassoCorporeo) || null);
+  S.anagrafica.eta = profile.eta;
+  S.anagrafica.altezza = profile.altezza;
+  S.anagrafica.peso = profile.peso;
+  S.anagrafica.passiGiornalieri = profile.passiGiornalieri;
+  S.anagrafica.grassoCorporeo = profile.grassoCorporeo;
   S.anagrafica.professione = data.professione || 'desk_sedentary';
   S.anagrafica.allenamentiSett = onboardingFreqFromDays(data.onDays || []);
   S.goal.phase = data.phase || 'mantieni';
+  if (!S.goal.startDate) S.goal.startDate = localDate();
   S.onDays = [...(data.onDays || [1, 3, 5])].sort((a, b) => a - b);
   if (preview) {
     S.macro.on = preview.macroOn;
     S.macro.off = preview.macroOff;
   }
+  refreshNutritionTargetsFromState({ saveDeferred: false });
   syncProfileRowsFromAnagrafica();
   S.onboardingCompleted = true;
   S.onboardingVersion = 1;
@@ -2755,6 +3350,8 @@ async function initAll() {
   normalizeLegacyMealIcons(S);
   finalizeBootstrapState(S, hadSaved);
   normalizeCheatConfig(S.cheatConfig);
+  syncAnagraficaWeightFromLogs({ preserveIfEmpty: true });
+  refreshNutritionTargetsFromState({ saveDeferred: false });
   if (!S.cheatMealsByDate || typeof S.cheatMealsByDate !== 'object' || Array.isArray(S.cheatMealsByDate)) {
     S.cheatMealsByDate = {};
   }
@@ -2787,7 +3384,7 @@ async function initAll() {
     toast('☁️ Dati cloud caricati');
   }
   if (!S.onboardingCompleted) {
-    if (!S.authEntryCompleted) openAuthEntry();
+    if (!S.authEntryCompleted) openAuthEntry(false);
     else openWelcomeOnboarding();
   }
 }

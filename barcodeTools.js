@@ -819,8 +819,8 @@ function showBcResult() {
       }
     }
     remRowHTML = `<div class="fsr-rem-row">` +
-      (mealRemaining !== null ? `<span class="fsr-rem-lbl">Pasto:</span><span class="fsr-meal-rem-val ${mealRemaining < 0 ? 'err' : mealRemaining < 80 ? 'warn' : 'ok'}">${mealRemaining - _bcItem.kcal100} kcal rim.</span><span class="fsr-rem-sep">·</span>` : '') +
-      (tgtK > 0 ? `<span class="fsr-rem-lbl">Giorno:</span><span class="fsr-rem-val ok">${dayRemaining - _bcItem.kcal100} kcal rim.</span>` : '') +
+      (mealRemaining !== null ? `<span class="fsr-rem-lbl">Pasto:</span><span id="bc-meal-rem" class="fsr-meal-rem-val ${mealRemaining < 0 ? 'err' : mealRemaining < 80 ? 'warn' : 'ok'}">${mealRemaining - _bcItem.kcal100} kcal rim.</span><span class="fsr-rem-sep">·</span>` : '') +
+      (tgtK > 0 ? `<span class="fsr-rem-lbl">Giorno:</span><span id="bc-day-rem" class="fsr-rem-val ok">${dayRemaining - _bcItem.kcal100} kcal rim.</span>` : '') +
     `</div>`;
   }
 
@@ -876,6 +876,8 @@ function showBcResult() {
   const liveP = document.getElementById('bc-live-p');
   const liveC = document.getElementById('bc-live-c');
   const liveF = document.getElementById('bc-live-f');
+  const mealRemEl = document.getElementById('bc-meal-rem');
+  const dayRemEl = document.getElementById('bc-day-rem');
   const updateLive = grams => {
     const g = Math.max(1, Math.round(grams || 0));
     const kcal = Math.round(_bcItem.kcal100 * g / 100);
@@ -887,6 +889,14 @@ function showBcResult() {
     if (liveP) liveP.textContent = p;
     if (liveC) liveC.textContent = c;
     if (liveF) liveF.textContent = f;
+    if (mealRemEl) {
+      const mealRemainingNow = mealRemaining - kcal;
+      mealRemEl.textContent = `${mealRemainingNow} kcal rim.`;
+      mealRemEl.className = `fsr-meal-rem-val ${mealRemainingNow < 0 ? 'err' : mealRemainingNow < 80 ? 'warn' : 'ok'}`;
+    }
+    if (dayRemEl) {
+      dayRemEl.textContent = `${dayRemaining - kcal} kcal rim.`;
+    }
   };
   gi.value = 100;
   updateLive(100);

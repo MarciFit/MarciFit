@@ -857,7 +857,18 @@ function generateAlerts(type, h, dateKey, maxAlerts = 2) {
       ctaLabel: 'Apri il primo pasto',
       ctaAction: `document.getElementById('mc-${type}-0')?.scrollIntoView({behavior:'smooth',block:'center'})`,
     });
-  } else if (ctx.isToday && ctx.hasLunchSlot && ctx.lunchStatus === 'overdue' && !ctx.hasLunch) {
+  } else if (ctx.isToday && ctx.timePhase === 'late' && ctx.loggedMealsCount === 0) {
+    alerts.push({
+      id: 'too-few-meals-evening',
+      type: 'err',
+      icon: '🍽️',
+      priority: 88,
+      dedupeGroup: 'meal-intake',
+      text: 'Oggi non hai ancora registrato pasti',
+      ctaLabel: 'Vai ai pasti',
+      ctaAction: `document.getElementById('meals-today')?.scrollIntoView({behavior:'smooth',block:'start'})`,
+    });
+  } else if (ctx.isToday && ctx.hasLunchSlot && ctx.lunchStatus === 'overdue' && !ctx.hasLunch && ctx.loggedMealsCount > 0 && ctx.timePhase !== 'late' && ctx.timePhase !== 'end') {
     alerts.push({
       id: 'missing-lunch',
       type: 'warn',
@@ -1225,7 +1236,8 @@ function renderGreeting(type, now) {
     const bmiN = parseFloat(bmi);
     const bmiLbl = bmiN < 18.5 ? 'sottopeso' : bmiN < 25 ? 'normopeso' : bmiN < 30 ? 'sovrappeso' : 'obeso';
     const bmr  = S.anagrafica ? calcBMR(S.anagrafica) : null;
-    const tdee = S.anagrafica ? calcTDEE(S.anagrafica) : null;
+    const nutrition = S.anagrafica ? computeNutrition(S.anagrafica, S.goal) : null;
+    const tdee = nutrition?.tdee || null;
     const bmiPct = Math.min(Math.max(((bmiN-15)/25)*100, 1), 99).toFixed(1);
     setTimeout(() => {
       const tipBmi = document.getElementById('tip-bmi');
@@ -1246,15 +1258,23 @@ function renderGreeting(type, now) {
           </div>
         </div>`;
       const tipBmr = document.getElementById('tip-bmr');
-      if (tipBmr && bmr) tipBmr.innerHTML = `<div class="tip-title">BMR · Metabolismo Basale</div>
+      if (tipBmr && bmr) {
+        const bf = S.anagrafica?.grassoCorporeo;
+        const usesKatch = bf != null && bf >= 3 && bf <= 60;
+        tipBmr.innerHTML = `<div class="tip-title">BMR · Metabolismo Basale</div>
         <div class="tip-desc">Calorie bruciate a <strong>completo riposo</strong>.<br>
-        Formula Mifflin-St Jeor (M): <strong>10×${peso} + 6.25×${alt} − 5×${eta} + 5 = ${bmr} kcal</strong></div>`;
+        ${usesKatch
+          ? `Formula Katch-McArdle: <strong>370 + 21.6 × massa magra = ${bmr} kcal</strong>`
+          : `Formula Mifflin-St Jeor: <strong>${S.anagrafica?.sesso === 'f' ? `10×${peso} + 6.25×${alt} − 5×${eta} − 161` : `10×${peso} + 6.25×${alt} − 5×${eta} + 5`} = ${bmr} kcal</strong>`}</div>`;
+      }
       const tipTdee = document.getElementById('tip-tdee');
-      if (tipTdee && tdee) {
+      if (tipTdee && tdee && nutrition) {
         const surplus = S.macro.on.k - tdee;
-        const palVal = S.anagrafica ? calcPAL(S.anagrafica) : 1.4;
+        const range = nutrition.tdeeRange ? `${nutrition.tdeeRange.low}–${nutrition.tdeeRange.high}` : `${tdee}`;
         tipTdee.innerHTML = `<div class="tip-title">TDEE · Fabbisogno Calorico Totale</div>
-          <div class="tip-desc">BMR × <strong>${palVal}</strong> (PAL) = <strong>~${tdee} kcal/die</strong>.<br>
+          <div class="tip-desc">(BMR + NEAT + EAT) / (1 − TEF) = <strong>~${tdee} kcal/die</strong>.<br>
+          Stima iniziale realistica: <strong>${range} kcal/die</strong>.<br>
+          ${nutrition.calibration?.offsetKcal ? `Auto-calibrazione 14 giorni: <strong>${nutrition.calibration.offsetKcal > 0 ? '+' : ''}${nutrition.calibration.offsetKcal} kcal</strong>.<br>` : ''}
           Il tuo piano ON (<strong>${S.macro.on.k} kcal</strong>) prevede un surplus di <strong style="color:${surplus>0?'var(--on)':'var(--red)'}"> ${surplus>0?'+':''}${surplus} kcal</strong>.</div>`;
       }
     }, 0);
@@ -3482,34 +3502,35 @@ function renderGoalCard() {
       <div class="goal-fields">
         <div class="goal-field">
           <label>Data inizio fase</label>
-          <input type="date" value="${g.startDate||''}" oninput="S.goal.startDate=this.value;save();renderGoalCard()">
+          <input id="goal-start-date" type="date" value="${g.startDate||''}">
         </div>
         <div class="goal-field">
           <label>Peso target (kg)</label>
-          <input type="number" step="0.5" value="${g.targetWeight||''}" placeholder="–" oninput="S.goal.targetWeight=+this.value||null;save()">
+          <input id="goal-target-weight" type="number" step="0.5" value="${g.targetWeight||''}" placeholder="–">
         </div>
         <div class="goal-field goal-full">
           <label>Note obiettivo</label>
-          <textarea rows="2" oninput="S.goal.notes=this.value;save()">${esc(g.notes||'')}</textarea>
+          <textarea id="goal-notes" rows="2">${esc(g.notes||'')}</textarea>
         </div>
       </div>
+      <button class="btn btn-primary anag-save-btn" onclick="saveGoalDetails()">Salva obiettivo</button>
     </div>`;
 }
 function supplementFormHTML(scope) {
   const safeScope = htmlEsc(scope || 'today');
   return `
-    <div id="supp-form-${safeScope}" data-supp-form-scope="${safeScope}" style="display:none;margin-top:10px;background:var(--surf);border:1px solid var(--b1);border-radius:var(--r2);padding:12px">
-      <div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;margin-bottom:8px">
-        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Nome</label>
-          <input id="sf-name-${safeScope}" type="text" placeholder="es. Magnesio" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink);transition:border-color .13s"></div>
-        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Dose</label>
-          <input id="sf-dose-${safeScope}" type="text" placeholder="3 g" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink)"></div>
-        <div><label style="display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px">Quando</label>
-          <input id="sf-when-${safeScope}" type="text" placeholder="mattina" style="font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--bg);border:1.5px solid var(--b1);border-radius:var(--r2);padding:7px 10px;width:100%;outline:none;color:var(--ink)"></div>
+    <div id="supp-form-${safeScope}" data-supp-form-scope="${safeScope}" class="supp-form-shell" style="display:none">
+      <div class="supp-form-grid">
+        <div class="supp-form-field supp-form-field-name"><label class="supp-form-label">Nome</label>
+          <input id="sf-name-${safeScope}" class="supp-form-input" type="text" placeholder="es. Magnesio"></div>
+        <div class="supp-form-field"><label class="supp-form-label">Dose</label>
+          <input id="sf-dose-${safeScope}" class="supp-form-input" type="text" placeholder="3 g"></div>
+        <div class="supp-form-field"><label class="supp-form-label">Quando</label>
+          <input id="sf-when-${safeScope}" class="supp-form-input" type="text" placeholder="mattina"></div>
       </div>
-      <div style="display:flex;gap:6px">
-        <button onclick="confirmAddSupp('${esc(scope || 'today')}')" style="font-family:'Manrope',sans-serif;font-size:11px;font-weight:700;background:var(--on);color:#fff;border:none;border-radius:var(--r2);padding:7px 16px;cursor:pointer;flex:1">Aggiungi</button>
-        <button onclick="toggleSuppForm('${esc(scope || 'today')}')" style="font-family:'Manrope',sans-serif;font-size:11px;font-weight:700;background:none;border:1.5px solid var(--b2);border-radius:var(--r2);padding:7px 14px;cursor:pointer;color:var(--muted)">Annulla</button>
+      <div class="supp-form-actions">
+        <button onclick="confirmAddSupp('${esc(scope || 'today')}')" class="supp-form-btn supp-form-btn-primary">Aggiungi</button>
+        <button onclick="toggleSuppForm('${esc(scope || 'today')}')" class="supp-form-btn supp-form-btn-secondary">Annulla</button>
       </div>
     </div>`;
 }
@@ -3918,12 +3939,11 @@ function showFabPalTip(anchor) {
   const el = document.getElementById('tip-fab-pal');
   if (!el) return;
   el.innerHTML = `
-    <div class="tip-title">LIVELLO DI ATTIVITÀ (PAL)</div>
-    <div class="tip-desc"><strong>Physical Activity Level</strong> — moltiplica il BMR per stimare il consumo reale.<br><br>
-    <strong>Occupazione</strong>: da 1.20 (scrivania) a 1.75 (lavoro fisico intenso)<br>
-    <strong>Allenamento</strong>: +0.10 (1–2/sett) fino a +0.40 (7+/sett)<br><br>
-    Formula: PAL = occupazione + delta allenamento<br>
-    Range tipico: 1.20 – 2.50</div>`;
+    <div class="tip-title">ATTIVITÀ QUOTIDIANA</div>
+    <div class="tip-desc"><strong>NEAT</strong> = movimento non strutturato: passi, scale, spostamenti, lavoro dinamico.<br>
+    Nell app viene stimato da stile di vita/professione e, se disponibili, anche dai passi medi giornalieri.<br><br>
+    <strong>EAT</strong> = allenamento strutturato, convertito in media giornaliera settimanale.<br><br>
+    <strong>TEF</strong> = termogenesi del cibo, impostata al 10% come default prudente.</div>`;
   showTip('tip-fab-pal', anchor);
 }
 
@@ -3933,8 +3953,8 @@ function showFabTdeeTip(anchor) {
   el.innerHTML = `
     <div class="tip-title">DISPENDIO ENERGETICO TOTALE (TDEE)</div>
     <div class="tip-desc"><strong>Total Daily Energy Expenditure</strong> — stima delle kcal bruciate in un giorno medio.<br><br>
-    <strong>Formula</strong>: TDEE = BMR × PAL<br><br>
-    È il punto di pareggio calorico: mangiare esattamente il TDEE mantiene il peso stabile nel tempo.</div>`;
+    <strong>Formula</strong>: TDEE = (BMR + NEAT + EAT) / (1 - TEF%)<br><br>
+    Dopo almeno 14 giorni di pesate sufficienti, MarciFit può spostare automaticamente il target di circa 100-150 kcal se il trend non è coerente con la fase.</div>`;
   showTip('tip-fab-tdee', anchor);
 }
 
@@ -3943,9 +3963,9 @@ function showFabGoalTip(anchor) {
   if (!el) return;
   const phase = (typeof S !== 'undefined' && S.goal?.phase) || 'mantieni';
   const data = {
-    bulk:     { title: 'BULK — MASSA', on: 'TDEE + 250 kcal', off: 'TDEE', note: 'Surplus moderato per stimolare la sintesi muscolare. I carboidrati salgono nei giorni di allenamento per supportare la performance.', prot: '2.0 g/kg' },
-    cut:      { title: 'CUT — DEFINIZIONE', on: 'TDEE − 300 kcal', off: 'TDEE − 500 kcal', note: 'Deficit progressivo: più contenuto nei giorni di allenamento, più ampio nei giorni di riposo. Le proteine sono alte per preservare la massa muscolare.', prot: '2.3 g/kg' },
-    mantieni: { title: 'MANTENIMENTO', on: 'TDEE', off: 'TDEE − 100 kcal', note: 'Pareggio calorico nei giorni di allenamento. Leggero deficit nei giorni di riposo per una composizione corporea stabile.', prot: '1.8 g/kg' },
+    bulk:     { title: 'BULK — MASSA', on: 'TDEE + 200 kcal', off: 'TDEE + 100 kcal', note: 'Surplus moderato: proteine fisse, grassi adeguati e carboidrati come variabile principale per spingere performance e recupero.', prot: '1.7 g/kg · grassi 1.0 g/kg' },
+    cut:      { title: 'CUT — DEFINIZIONE', on: 'TDEE − 300 kcal', off: 'TDEE − 450 kcal', note: 'Deficit moderato con proteine più alte per proteggere la massa magra; i carboidrati scendono per ultimi.', prot: '2.0 g/kg · grassi 0.8 g/kg' },
+    mantieni: { title: 'MANTENIMENTO', on: 'TDEE', off: 'TDEE − 100 kcal', note: 'Proteine e grassi restano stabili; i carboidrati completano le calorie residue e sostengono meglio le giornate ON.', prot: '1.6 g/kg · grassi 0.9 g/kg' },
   };
   const d = data[phase] || data.mantieni;
   el.innerHTML = `
@@ -3993,8 +4013,11 @@ function renderAnagrafica() {
   const g = S.goal || {};
   const coreProfileFields = [a.nome, a.sesso, a.eta, a.altezza, a.peso];
   const coreProfileCount = coreProfileFields.filter(v => v !== null && v !== undefined && String(v).trim() !== '').length;
-  const profileStateCls = coreProfileCount >= 5 ? 'done' : coreProfileCount >= 3 ? 'progress' : 'idle';
-  const profileStateText = coreProfileCount >= 5 ? 'Completo' : `${coreProfileCount}/5 base`;
+  const hasStepsContext = a.passiGiornalieri !== null && a.passiGiornalieri !== undefined && String(a.passiGiornalieri).trim() !== '';
+  const profileStateCls = coreProfileCount >= 5 && hasStepsContext ? 'done' : coreProfileCount >= 5 || coreProfileCount >= 3 ? 'progress' : 'idle';
+  const profileStateText = coreProfileCount >= 5
+    ? (hasStepsContext ? 'Completo + passi' : 'Base ok · passi opzionali')
+    : `${coreProfileCount}/5 base`;
 
   // Orari pasti: parse e genera righe per i 4 pasti principali
   const _MT_LABELS = ['Colazione', 'Pranzo', 'Spuntino pom.', 'Cena'];
@@ -4036,12 +4059,12 @@ function renderAnagrafica() {
   ).join('');
 
   const PHASE_INFO = {
-    bulk:     { lbl:'Bulk',     desc:'Surplus calorico (+250 kcal/ON) per massimizzare la crescita muscolare. I carboidrati aumentano nei giorni di allenamento.' },
-    cut:      { lbl:'Cut',      desc:'Deficit calorico (−300 kcal ON / −500 kcal OFF) con proteine elevate (2.3 g/kg) per preservare la massa muscolare in fase di dimagrimento.' },
-    mantieni: { lbl:'Mantieni', desc:'Intake vicino al TDEE (−100 kcal OFF) per mantenere composizione corporea e performance in palestra.' },
+    bulk:     { lbl:'Bulk',     desc:'Surplus moderato, proteine a 1.7 g/kg, grassi a 1.0 g/kg e carboidrati come leva principale per sostenere performance e crescita.' },
+    cut:      { lbl:'Cut',      desc:'Deficit moderato con proteine a 2.0 g/kg e grassi a 0.8 g/kg; i carboidrati si adattano alle calorie residue.' },
+    mantieni: { lbl:'Mantieni', desc:'Target vicino al mantenimento con proteine a 1.6 g/kg, grassi a 0.9 g/kg e carboidrati in residuo.' },
   };
   const phaseBtns = Object.entries(PHASE_INFO).map(([id, info]) =>
-    `<button class="goal-phase-btn${g.phase===id?' active-'+id:''}" onclick="setGoalPhase('${id}');_updateFabbisognoPreview()">${info.lbl}</button>`
+    `<button class="goal-phase-btn${g.phase===id?' active-'+id:''}" data-phase="${id}" onclick="setGoalPhase('${id}', false);_updateFabbisognoPreview()">${info.lbl}</button>`
   ).join('');
   const activePhaseDesc = PHASE_INFO[g.phase]?.desc || '';
 
@@ -4059,8 +4082,12 @@ function renderAnagrafica() {
     <div class="anag-section-title">Anagrafica</div>
     <div class="anag-grid">
       <div class="anag-field anag-field-name">
-        <label class="anag-label">Nome</label>
-        <input id="anag-nome" class="anag-input" value="${htmlEsc(a.nome||'')}" oninput="_updateFabbisognoPreview()">
+        <div class="field-label-row">
+          <label class="anag-label">Nome</label>
+          <div class="name-char-count" id="anag-nome-count">${Math.min(String(a.nome || '').length, 40)}/40</div>
+        </div>
+        <input id="anag-nome" class="anag-input" maxlength="40" autocomplete="name" value="${htmlEsc(a.nome||'')}" oninput="_handleAnagInput('anag-nome');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-nome',{forceValidate:true})">
+        <div class="anag-field-error" id="anag-error-nome"></div>
       </div>
       <div class="anag-field anag-field-sex">
         <label class="anag-label">Sesso</label>
@@ -4073,38 +4100,50 @@ function renderAnagrafica() {
         <label class="anag-label">Età</label>
         <div class="anag-input-wrap">
           <div class="anag-spin-wrap">
-            <input id="anag-eta" class="anag-input anag-spin-input" type="number" min="10" max="99" value="${a.eta||''}" oninput="_updateFabbisognoPreview()">
+            <input id="anag-eta" class="anag-input anag-spin-input" type="number" min="10" max="99" inputmode="numeric" value="${a.eta||''}" oninput="_handleAnagInput('anag-eta');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-eta',{forceValidate:true})">
             <div class="anag-stepper"><button class="anag-step-btn" onclick="_stepAnagField('anag-eta',1)">▲</button><button class="anag-step-btn" onclick="_stepAnagField('anag-eta',-1)">▼</button></div>
           </div>
           <span class="anag-unit">anni</span>
         </div>
+        <div class="anag-field-error" id="anag-error-eta"></div>
       </div>
       <div class="anag-field">
         <label class="anag-label">Altezza</label>
         <div class="anag-input-wrap">
           <div class="anag-spin-wrap">
-            <input id="anag-altezza" class="anag-input anag-spin-input" type="number" min="100" max="250" value="${a.altezza||''}" oninput="_updateFabbisognoPreview()">
+            <input id="anag-altezza" class="anag-input anag-spin-input" type="number" min="120" max="250" inputmode="numeric" value="${a.altezza||''}" oninput="_handleAnagInput('anag-altezza');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-altezza',{forceValidate:true})">
             <div class="anag-stepper"><button class="anag-step-btn" onclick="_stepAnagField('anag-altezza',1)">▲</button><button class="anag-step-btn" onclick="_stepAnagField('anag-altezza',-1)">▼</button></div>
           </div>
           <span class="anag-unit">cm</span>
         </div>
+        <div class="anag-field-error" id="anag-error-altezza"></div>
       </div>
       <div class="anag-field">
         <label class="anag-label">Peso</label>
         <div class="anag-input-wrap">
           <div class="anag-spin-wrap">
-            <input id="anag-peso" class="anag-input anag-spin-input" type="number" min="30" max="300" step="0.1" value="${a.peso||''}" oninput="_updateFabbisognoPreview()">
+            <input id="anag-peso" class="anag-input anag-spin-input" type="number" min="30" max="300" step="0.1" inputmode="decimal" value="${a.peso||''}" oninput="_handleAnagInput('anag-peso');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-peso',{forceValidate:true})">
             <div class="anag-stepper"><button class="anag-step-btn" onclick="_stepAnagField('anag-peso',1)">▲</button><button class="anag-step-btn" onclick="_stepAnagField('anag-peso',-1)">▼</button></div>
           </div>
           <span class="anag-unit">kg</span>
         </div>
+        <div class="anag-field-error" id="anag-error-peso"></div>
       </div>
       <div class="anag-field">
         <label class="anag-label">% Grasso <span class="anag-opt">(opz.)</span></label>
         <div class="anag-input-wrap">
-          <input id="anag-grasso" class="anag-input" type="number" min="3" max="60" step="0.1" value="${a.grassoCorporeo||''}" placeholder="—" oninput="_updateFabbisognoPreview()">
+          <input id="anag-grasso" class="anag-input" type="number" min="3" max="60" step="0.1" inputmode="decimal" value="${a.grassoCorporeo||''}" placeholder="—" oninput="_handleAnagInput('anag-grasso');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-grasso',{forceValidate:true})">
           <span class="anag-unit">%</span>
         </div>
+        <div class="anag-field-error" id="anag-error-grasso"></div>
+      </div>
+      <div class="anag-field">
+        <label class="anag-label">Passi medi <span class="anag-opt">(opz.)</span></label>
+        <div class="anag-input-wrap">
+          <input id="anag-passi" class="anag-input" type="number" min="1000" max="40000" step="100" inputmode="numeric" value="${a.passiGiornalieri||''}" placeholder="Es. 8000" oninput="_handleAnagInput('anag-passi');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-passi',{forceValidate:true})">
+          <span class="anag-unit">passi</span>
+        </div>
+        <div class="anag-field-error" id="anag-error-passi"></div>
       </div>
     </div>
 

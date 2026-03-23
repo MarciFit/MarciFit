@@ -656,7 +656,7 @@ function renderProfileAccountCard() {
         <div class="profile-account-body">
           <div class="profile-account-email">${htmlEsc(AUTH.user.email)}</div>
           <div class="profile-account-actions">
-            ${AUTH.provider === 'supabase' ? `<button class="auth-account-btn" onclick="authSyncNow()">Sincronizza ora</button>` : cfg ? `<button class="auth-account-btn" onclick="signOutUser()">Passa a Supabase</button>` : ''}
+            ${AUTH.provider === 'supabase' ? `<button class="auth-account-btn" onclick="authSyncNow()">Sincronizza ora</button>` : cfg ? `<button class="auth-account-btn" onclick="openAuthEntry()">Accedi a Supabase</button>` : ''}
             ${AUTH.provider === 'local_mock' ? `<button class="auth-account-btn" onclick="authClearLocalAccounts()">Pulisci account locali</button>` : ''}
             <button class="auth-account-btn" onclick="signOutUser()">Logout</button>
           </div>

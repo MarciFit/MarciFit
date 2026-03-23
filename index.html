@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=130">
+<link rel="stylesheet" href="style.css?v=132">
 </head>
 <body>
 <div class="app">
@@ -351,19 +351,31 @@
       <div class="backup-grid">
         <button class="backup-card" onclick="loadJSON()">
           <span class="backup-emoji">📂</span>
-          <span class="backup-label">Carica JSON</span>
+          <span class="backup-copy">
+            <span class="backup-label">Carica JSON</span>
+            <span class="backup-meta">Importa un backup esistente</span>
+          </span>
         </button>
         <button class="backup-card" onclick="exportJSON()">
           <span class="backup-emoji">💾</span>
-          <span class="backup-label">Esporta JSON</span>
+          <span class="backup-copy">
+            <span class="backup-label">Esporta JSON</span>
+            <span class="backup-meta">Salva tutto lo stato app</span>
+          </span>
         </button>
         <button class="backup-card" onclick="exportPy()">
           <span class="backup-emoji">⬇️</span>
-          <span class="backup-label">Esporta Python</span>
+          <span class="backup-copy">
+            <span class="backup-label">Esporta Python</span>
+            <span class="backup-meta">Versione script del piano</span>
+          </span>
         </button>
         <button class="backup-card backup-card-danger" onclick="clearStorage()">
           <span class="backup-emoji">🗑️</span>
-          <span class="backup-label">Reset dati</span>
+          <span class="backup-copy">
+            <span class="backup-label">Reset dati</span>
+            <span class="backup-meta">Cancella tutto dal dispositivo</span>
+          </span>
         </button>
       </div>
     </div>
@@ -406,14 +418,16 @@
 <div id="tip-fab-goal" class="stat-tip tip-up"></div>
 
 <!-- Weekly check-in modal -->
-<div id="checkin-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:500;align-items:center;justify-content:center" onclick="if(event.target===this)closeCheckin()">
-  <div style="background:var(--surf);border-radius:var(--r);box-shadow:var(--sh2);padding:24px 28px;max-width:340px;width:90%;margin:0 16px;animation:up .18s ease">
-    <div id="checkin-icon" style="font-size:24px;margin-bottom:8px">&#x1F4AA; </div>
-    <div id="checkin-title" style="font-family:'Lora',serif;font-size:18px;font-weight:600;margin-bottom:8px"></div>
-    <div id="checkin-body" style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:20px"></div>
-    <div style="display:flex;gap:8px">
-      <button onclick="checkinGoMeasure()" style="font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;background:var(--on);color:#fff;border:none;border-radius:var(--r2);padding:9px 16px;cursor:pointer;flex:1">&#x1F4DD;  Registra peso</button>
-      <button onclick="closeCheckin()" style="font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;background:none;border:1.5px solid var(--b2);border-radius:var(--r2);padding:9px 14px;cursor:pointer;color:var(--muted)">Dopo</button>
+<div id="checkin-modal" class="checkin-modal" onclick="if(event.target===this)closeCheckin()">
+  <div class="checkin-card">
+    <div id="checkin-icon" class="checkin-icon">&#x1F4AA;</div>
+    <div id="checkin-kicker" class="checkin-kicker"></div>
+    <div id="checkin-title" class="checkin-title"></div>
+    <div id="checkin-body" class="checkin-body"></div>
+    <div id="checkin-stats" class="checkin-stats"></div>
+    <div class="checkin-actions">
+      <button onclick="checkinGoMeasure()" class="checkin-btn checkin-btn-primary">&#x1F4DD; Registra peso</button>
+      <button onclick="closeCheckin()" class="checkin-btn checkin-btn-secondary">Più tardi</button>
     </div>
   </div>
 </div>
@@ -474,13 +488,13 @@
 window.MARCI_SUPABASE_URL = 'https://rlwwzdfcvdouytelqxdf.supabase.co';
 window.MARCI_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsd3d6ZGZjdmRvdXl0ZWxxeGRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDExNTgsImV4cCI6MjA4OTc3NzE1OH0.0iguqJgjBHp34OnthGTJnaFX-T4xfd5a3eSEJDmm5UM';
 </script>
-<script src="debugTools.js?v=3"></script>
+<script src="debugTools.js?v=4"></script>
 <script src="authSync.js?v=10"></script>
 <script src="storage.js?v=37"></script>
-<script src="nutritionLogic.js?v=54"></script>
-<script src="uiComponents.js?v=103"></script>
-<script src="bootstrapTools.js?v=4"></script>
-<script src="app.js?v=85"></script>
+<script src="nutritionLogic.js?v=55"></script>
+<script src="uiComponents.js?v=105"></script>
+<script src="bootstrapTools.js?v=5"></script>
+<script src="app.js?v=87"></script>
 <script src="barcodeTools.js?v=14"></script>
 <script>lucide.createIcons();</script>
 </body>

@@ -38,7 +38,9 @@ function sanitizeMealIcons(state) {
 
 function ensureBootstrapDefaults(state) {
   if (!state.measurements) state.measurements = [];
-  if (!state.goal) state.goal = { phase: 'bulk', startDate: null, targetWeight: null, notes: '' };
+  if (!state.goal) state.goal = { phase: 'bulk', startDate: null, targetWeight: null, notes: '', calibrationOffsetKcal: 0, calibrationMeta: null };
+  if (!('calibrationOffsetKcal' in state.goal)) state.goal.calibrationOffsetKcal = 0;
+  if (!('calibrationMeta' in state.goal)) state.goal.calibrationMeta = null;
   if (!state.supplements) {
     state.supplements = [];
   }
@@ -59,6 +61,7 @@ function ensureBootstrapDefaults(state) {
   if (typeof state.authEntryCompleted !== 'boolean') state.authEntryCompleted = false;
   if (typeof state.onboardingVersion !== 'number') state.onboardingVersion = 1;
   if (state.checked) delete state.checked;
+  if (state.anagrafica && !('passiGiornalieri' in state.anagrafica)) state.anagrafica.passiGiornalieri = null;
 }
 
 function migrateTemplateMealTypes(state) {
@@ -80,6 +83,7 @@ function migrateProfiloToAnagrafica(state) {
     eta: parseInt(findP('Età')) || null,
     altezza: parseInt(findP('Altezza')) || null,
     peso: parseFloat(findP('Peso attuale')) || null,
+    passiGiornalieri: null,
     grassoCorporeo: null,
     professione: 'desk_sedentary',
     allenamentiSett: '3-4',

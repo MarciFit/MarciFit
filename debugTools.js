@@ -6,6 +6,8 @@ const _storageStatus = {
   loadError: null,
   lastImportError: null,
 };
+const VALID_PROFESSION_KEYS = ['desk_sedentary', 'desk_light', 'standing', 'physical_light', 'physical_heavy'];
+const VALID_WORKOUT_FREQ_KEYS = ['0', '1-2', '3-4', '5-6', '7+'];
 
 function _setDebugFlag(next) {
   try {
@@ -128,6 +130,11 @@ function _validateCheatConfig(config) {
   if ('fixedKcal' in config && !_isFiniteNumber(config.fixedKcal)) return { ok: false, code: 'cheatconfig_fixedkcal_invalid', detail: 'Le kcal fisse dello sgarro non sono valide.' };
   return { ok: true };
 }
+function _validateAnagraficaRange(value, min, max, code, detail) {
+  if (value == null) return { ok: true };
+  if (value < min || value > max) return { ok: false, code, detail };
+  return { ok: true };
+}
 function validateImportedState(state) {
   if (!_isPlainObject(state)) return { ok: false, code: 'root_invalid', detail: 'Il file importato non contiene un oggetto valido.' };
   if ('day' in state && !['on', 'off'].includes(state.day)) return { ok: false, code: 'day_invalid', detail: 'Il tipo giorno non e valido.' };
@@ -144,13 +151,31 @@ function validateImportedState(state) {
     if (!_isPlainObject(state.anagrafica)) return { ok: false, code: 'anagrafica_invalid', detail: 'L anagrafica non e in formato valido.' };
     const ana = state.anagrafica;
     if ('nome' in ana && typeof ana.nome !== 'string') return { ok: false, code: 'anagrafica_nome_invalid', detail: 'Il nome anagrafica non e valido.' };
+    if (typeof ana.nome === 'string' && ana.nome.trim().length > 40) return { ok: false, code: 'anagrafica_nome_too_long', detail: 'Il nome anagrafica supera la lunghezza massima.' };
     if ('sesso' in ana && !['m', 'f'].includes(ana.sesso)) return { ok: false, code: 'anagrafica_sesso_invalid', detail: 'Il sesso anagrafica non e valido.' };
     if ('eta' in ana && !_isNullableNumber(ana.eta)) return { ok: false, code: 'anagrafica_eta_invalid', detail: 'L eta anagrafica non e valida.' };
     if ('altezza' in ana && !_isNullableNumber(ana.altezza)) return { ok: false, code: 'anagrafica_altezza_invalid', detail: 'L altezza anagrafica non e valida.' };
     if ('peso' in ana && !_isNullableNumber(ana.peso)) return { ok: false, code: 'anagrafica_peso_invalid', detail: 'Il peso anagrafica non e valido.' };
+    if ('passiGiornalieri' in ana && !_isNullableNumber(ana.passiGiornalieri)) return { ok: false, code: 'anagrafica_passi_invalid', detail: 'I passi medi giornalieri non sono validi.' };
     if ('grassoCorporeo' in ana && !_isNullableNumber(ana.grassoCorporeo)) return { ok: false, code: 'anagrafica_grasso_invalid', detail: 'Il grasso corporeo non e valido.' };
+    const ageRange = _validateAnagraficaRange(ana.eta, 10, 99, 'anagrafica_eta_range_invalid', 'L eta anagrafica e fuori range.');
+    if (!ageRange.ok) return ageRange;
+    const heightRange = _validateAnagraficaRange(ana.altezza, 120, 250, 'anagrafica_altezza_range_invalid', 'L altezza anagrafica e fuori range.');
+    if (!heightRange.ok) return heightRange;
+    const weightRange = _validateAnagraficaRange(ana.peso, 30, 300, 'anagrafica_peso_range_invalid', 'Il peso anagrafica e fuori range.');
+    if (!weightRange.ok) return weightRange;
+    const stepsRange = _validateAnagraficaRange(ana.passiGiornalieri, 1000, 40000, 'anagrafica_passi_range_invalid', 'I passi medi giornalieri sono fuori range.');
+    if (!stepsRange.ok) return stepsRange;
+    const bodyFatRange = _validateAnagraficaRange(ana.grassoCorporeo, 3, 60, 'anagrafica_grasso_range_invalid', 'Il grasso corporeo e fuori range.');
+    if (!bodyFatRange.ok) return bodyFatRange;
     if ('professione' in ana && !_isNullableString(ana.professione)) return { ok: false, code: 'anagrafica_professione_invalid', detail: 'La professione non e valida.' };
+    if (typeof ana.professione === 'string' && ana.professione && !VALID_PROFESSION_KEYS.includes(ana.professione)) {
+      return { ok: false, code: 'anagrafica_professione_unknown', detail: 'La professione importata non e riconosciuta.' };
+    }
     if ('allenamentiSett' in ana && !_isNullableString(ana.allenamentiSett)) return { ok: false, code: 'anagrafica_allenamenti_invalid', detail: 'La frequenza allenamenti non e valida.' };
+    if (typeof ana.allenamentiSett === 'string' && ana.allenamentiSett && !VALID_WORKOUT_FREQ_KEYS.includes(ana.allenamentiSett)) {
+      return { ok: false, code: 'anagrafica_allenamenti_unknown', detail: 'La frequenza allenamenti importata non e riconosciuta.' };
+    }
   }
   if ('goal' in state) {
     if (!_isPlainObject(state.goal)) return { ok: false, code: 'goal_invalid', detail: 'L obiettivo non e in formato valido.' };
@@ -158,6 +183,8 @@ function validateImportedState(state) {
     if ('startDate' in state.goal && !_isNullableString(state.goal.startDate)) return { ok: false, code: 'goal_startdate_invalid', detail: 'La data inizio obiettivo non e valida.' };
     if ('targetWeight' in state.goal && !_isNullableNumber(state.goal.targetWeight)) return { ok: false, code: 'goal_targetweight_invalid', detail: 'Il peso target non e valido.' };
     if ('notes' in state.goal && !_isNullableString(state.goal.notes)) return { ok: false, code: 'goal_notes_invalid', detail: 'Le note obiettivo non sono valide.' };
+    if ('calibrationOffsetKcal' in state.goal && !_isNullableNumber(state.goal.calibrationOffsetKcal)) return { ok: false, code: 'goal_calibration_offset_invalid', detail: 'La calibrazione kcal non e valida.' };
+    if ('calibrationMeta' in state.goal && !(state.goal.calibrationMeta == null || _isPlainObject(state.goal.calibrationMeta))) return { ok: false, code: 'goal_calibration_meta_invalid', detail: 'I metadati della calibrazione non sono validi.' };
   }
   if ('macro' in state) {
     if (!_isPlainObject(state.macro)) return { ok: false, code: 'macro_invalid', detail: 'La struttura macro non e valida.' };

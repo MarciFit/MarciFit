@@ -20,9 +20,9 @@
 
 | File | Righe | Ruolo |
 |---|---|---|
-| `app.js` | ~1875 | State globale (`const S`), event handlers, navigazione, modal, template pasti, meal planner, food logging, barcode scanner |
-| `uiComponents.js` | ~3539 | Rendering UI, componenti HTML, card Today/Piano/Stats/Profilo, form helpers |
-| `nutritionLogic.js` | ~1648 | Calcolo macro, statistiche, helper date, planner pasti, database alimenti, ranking ricerca |
+| `app.js` | ~3000 | State globale (`const S`), event handlers, navigazione, modal, onboarding, log peso e calibrazione target |
+| `uiComponents.js` | ~4100 | Rendering UI, componenti HTML, card Today/Piano/Stats/Profilo, tooltip e form helpers |
+| `nutritionLogic.js` | ~1800 | Motore nutrizione, TDEE, macro, statistiche, helper date, planner pasti, ranking ricerca |
 | `storage.js` | ~174 | Persistenza `localStorage`, import/export JSON/Python, recovery stato |
 | `style.css` | ~3854 | Design tokens, layout responsive, stili completi dell'app |
 | `index.html` | ~401 | Shell principale dell'app, view container, modal, script includes |
@@ -30,6 +30,7 @@
 | `bootstrapTools.js` | ~141 | Migrazioni e normalizzazione stato in bootstrap |
 | `debugTools.js` | ~115 | Debug mode, wrapper fetch, validazione import/storage status |
 | `diagnostic.html` | ~39 | Tool minimale di caricamento script / init |
+| `docs/` | n/a | Roadmap, audit, checklist e materiale Supabase non runtime |
 
 ### Funzionalità principali
 
@@ -47,10 +48,10 @@
 
 ## Stato Attuale
 
-> Ultima modifica: 2026-03-21 (sessione 24)
+> Ultima modifica: 2026-03-23 (sessione 28)
 
 - Progetto funzionante con le 4 view principali operative
-- **Versioni asset correnti**: `style.css?v=61`, `uiComponents.js?v=60`, `app.js?v=62`, `nutritionLogic.js?v=50`, `storage.js?v=31`, `barcodeTools.js?v=12` — incrementare ad ogni cambio significativo
+- **Versioni asset correnti**: `style.css?v=132`, `uiComponents.js?v=105`, `app.js?v=87`, `nutritionLogic.js?v=55`, `storage.js?v=37`, `barcodeTools.js?v=14`, `debugTools.js?v=4`, `bootstrapTools.js?v=5` — incrementare ad ogni cambio significativo
 - **Navbar**: Lucide SVG icons (calendar-days, utensils, bar-chart-2, user, printer). `.nav` sticky top con brand mobile, `.nav-tabs` bottom su mobile / top centrata su desktop
 - **Layout mobile**: bottom tab bar stile iOS, brand bar in alto (48px sticky), tastiera aperta → `kb-open` nasconde nav-tabs
 - **Greeting**: frase motivazionale quotidiana (Lora italic) + alert engine contestuale con CTA
@@ -75,6 +76,10 @@
 - **Smoke suite disponibile**: `smoke:core`, `smoke:dataflow`, `smoke:storage` presenti e tutti verdi in sessione 24
 - **Nota struttura**: `start.html` non è più presente in root; lo sviluppo attuale passa da `index.html` + preview/smoke scripts
 - **Profilo integratori ripristinato**: la tab `Profilo` ha di nuovo il mount `supps-card` e mostra la card dedicata agli integratori
+- **Motore nutrizione aggiornato**: TDEE ora basato su `BMR + NEAT + EAT + TEF`, non piu solo `BMR × PAL`
+- **Passi medi giornalieri**: campo opzionale in profilo/onboarding usato per classificare meglio il `NEAT`
+- **Calibrazione 14 giorni**: aggiustamento automatico conservativo dei target kcal in base al trend peso recente
+- **Root ripulita**: roadmap, audit, checklist e materiale Supabase sono stati spostati sotto `docs/`
 
 ---
 
@@ -82,7 +87,7 @@
 
 > Aggiungere bug con formato: **[DATA] Titolo** — descrizione, file coinvolti, priorità
 
-_Nessun bug noto documentato al momento._
+- **[2026-03-23] Smoke Playwright in sandbox macOS** — gli script Playwright headless possono fallire per permessi Mach port / browser launch, quindi i test E2E non sono sempre affidabili dentro l'ambiente Codex sandboxato. File coinvolti: `scripts/*.mjs`, ambiente locale. Priorità: media.
 
 ---
 
@@ -145,6 +150,14 @@ _Nessun bug noto documentato al momento._
 - Storage key locale: `piano_federico_v2`
 - `doneByDate` è derivato dal completion model reale e può contenere anche `hasTypeOverride` per override ON/OFF senza attività
 - `S.checked` / checkbox pasti sono da considerare deprecate: non usarle per progress, streak, calendario o alert
+- `S.anagrafica.passiGiornalieri` è opzionale; se presente influenza la stima del `NEAT`
+- `S.goal.calibrationOffsetKcal` e `S.goal.calibrationMeta` tengono traccia della taratura automatica su 14 giorni
+
+### Struttura docs
+- `docs/plans/` contiene roadmap e piani di lavoro
+- `docs/audits/` contiene audit, analisi e dump di ricerca
+- `docs/checklists/` contiene checklist operative
+- `docs/supabase/` contiene setup e schema del backend opzionale
 
 ### File `start.html`
 - Riferimento legacy: il file non è più presente in root
@@ -202,10 +215,17 @@ App accessibile su: `http://localhost:8788`
 - **Smoke integratori/import/edit**: `smoke:core` ora copre mount + add da `Profilo`, coerenza data per `renderSuppToday()` e preview live del modal `edit grammatura`; `smoke:storage` copre anche import con shape `macro` invalida.
 - **Stats preview**: esiste `scripts/preview-stats.mjs` con stato demo ricco; usare `npm run preview:stats` prima di toccare layout/gerarchia della tab `Stats`.
 - **Logo PNG gotcha**: PNG con sfondo opaco — `mix-blend-mode:screen/multiply` non funziona su sfondo beige. Per logo immagine: esportare **sempre PNG con sfondo trasparente**.
+- **Documentazione di lavoro**: nuove roadmap, audit o checklist vanno messe direttamente in `docs/`, non in root.
 
 ---
 
 ## Storico Sessioni
+
+### Sessione 28 — Motore science-based + hardening stato + riordino root (2026-03-23)
+- **TDEE a componenti**: il motore passa a `Mifflin/Katch + NEAT + EAT + TEF`, con macro impostati tramite proteine e grassi per kg e carboidrati in residuo.
+- **Passi e calibrazione**: introdotti `passiGiornalieri` nel profilo e una calibrazione automatica a 14 giorni sui target kcal basata sul trend peso.
+- **Persistenza hardenizzata**: bootstrap e validazione import ora conoscono anche `passiGiornalieri`, `goal.calibrationOffsetKcal` e `goal.calibrationMeta`.
+- **Directory pulita**: roadmap, audit, checklist e file Supabase spostati in `docs/`, con riferimenti interni aggiornati.
 
 ### Sessione 27 — Rifinitura gram picker + chiusura UX inserimento cibi (2026-03-21)
 - **Gram picker rifatto**: separata visivamente la parte informativa del cibo dalla parte operativa di input grammatura. Ora il pannello mostra brand, badge sorgente/verifica, macro per `100g`, riepilogo live della quantita scelta e area input piu chiara.
@@ -240,6 +260,7 @@ App accessibile su: `http://localhost:8788`
 - **`CLAUDE.md` riallineato**: aggiornati file principali, conteggi indicativi, script utili e nota sul fatto che `start.html` non è più presente in root.
 - **Smoke test confermati**: `npm run smoke:core`, `npm run smoke:dataflow` e `npm run smoke:storage` eseguiti con esito positivo.
 - **Bug documentati**: emersi 4 problemi attuali da prioritizzare subito: form integratori con id duplicati tra `Oggi` e `Profilo`, `Routine integratori` non agganciata a `S.selDate`, `macroAlerts()` che usa `S.planTab` al posto del `type` iterato, validazione import JSON troppo permissiva.
+
 
 ### Sessione 21 — Testi scanner barcode resi stabili (2026-03-20)
 - **Stage barcode monotoni**: `_setBarcodeScanStage()` in `barcodeTools.js` non permette piu regressi di stato (`quagga` non torna a `full`, `full` non torna a `wide`), evitando il continuo alternarsi dei testi nel modal.
