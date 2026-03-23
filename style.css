@@ -3267,7 +3267,13 @@ input,textarea{font-family:inherit}
 }
 .bc-shell{
   width:min(360px,92vw);background:linear-gradient(180deg,#fffdf9 0%,#fff 100%);
-  border-radius:22px;overflow:hidden;box-shadow:0 28px 60px rgba(0,0,0,.28);
+  max-height:min(92vh,820px);
+  border-radius:22px;
+  overflow-x:hidden;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  box-shadow:0 28px 60px rgba(0,0,0,.28);
   border:1px solid rgba(255,255,255,.14);
 }
 .bc-head{
@@ -4141,10 +4147,11 @@ input,textarea{font-family:inherit}
     border-left-width:3px;
   }
   .today-signal-title{font-size:12px;margin-bottom:6px}
-  .today-signal-main{gap:5px;margin-bottom:6px}
-  .today-signal-mode{min-height:22px;padding:3px 8px;font-size:10.5px}
+  .today-signal-main{gap:4px;margin-bottom:6px;flex-wrap:nowrap}
+  .today-signal-mode{min-height:22px;min-width:0;padding:3px 7px;font-size:10px;white-space:nowrap}
+  .today-signal-mode > span:last-child{white-space:nowrap}
   .today-signal-mode-icon{font-size:11px}
-  .today-signal-arrow{font-size:12px}
+  .today-signal-arrow{flex:0 0 auto;font-size:12px}
   .today-signal-copy{font-size:10.5px;line-height:1.35}
   .today-signal-aside{
     margin-top:0;

@@ -65,6 +65,13 @@ function _resetBarcodeFeedback(message = 'Inquadra il codice a barre del prodott
   _renderBarcodeActions([]);
 }
 
+function _getBarcodeItemStatusLabel(item) {
+  if (!item) return 'Prodotto trovato';
+  const name = String(item.name || '').trim() || 'Prodotto trovato';
+  const meta = [String(item.brand || '').trim(), String(item.quantity || '').trim()].filter(Boolean).join(' · ');
+  return meta ? `${name} · ${meta}` : name;
+}
+
 function _setBarcodeScanStage(stage) {
   const messages = {
     roi: '🎯 Allinea il barcode nel riquadro centrale',
@@ -734,12 +741,7 @@ function _readBarcodeCacheItem(barcode) {
     _bcProductCache[barcode] = { ...persistent };
     return { ...persistent };
   }
-
-  const historyItem = _findBarcodeItemFromHistory(barcode);
-  if (!historyItem) return null;
-  _cacheBarcodeItem(historyItem);
-  if (typeof saveSoon === 'function') saveSoon();
-  return { ...historyItem };
+  return null;
 }
 
 function _resumeBarcodeScanning(delay = 1200) {
@@ -794,6 +796,8 @@ function showBcResult() {
   ].filter(Boolean).join('');
 
   let remRowHTML = '';
+  let dayRemaining = null;
+  let mealRemaining = null;
   if (_bcCtx) {
     const { dateKey, mealIdx } = _bcCtx;
     const dayType = typeof resolveDayTypeForDate === 'function' ? resolveDayTypeForDate(dateKey) : S.day;
@@ -803,9 +807,8 @@ function showBcResult() {
     Object.values(dayLog).forEach(items => {
       if (Array.isArray(items)) items.forEach(it => { eatenK += Math.round(it.kcal100 * it.grams / 100); });
     });
-    const dayRemaining = tgtK - eatenK;
+    dayRemaining = tgtK - eatenK;
 
-    let mealRemaining = null;
     if (typeof mealIdx === 'number') {
       const meals = S.meals[dayType] || [];
       const thisMeal = meals[mealIdx];
@@ -868,7 +871,7 @@ function showBcResult() {
         ${remRowHTML}
       </div>
     </div>`;
-  _setBarcodeStatus('✅ Prodotto trovato!', 'success');
+  _setBarcodeStatus(`✅ ${_getBarcodeItemStatusLabel(_bcItem)}`, 'success');
   _renderBarcodeActions([]);
   const gi = document.getElementById('bc-gram-input');
   const gc = document.getElementById('bc-gram-calc');
@@ -911,6 +914,7 @@ function showBcResult() {
     };
   });
   resultEl.style.display = 'block';
+  resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   if (_bcStream) {
     _bcStream.getTracks().forEach(t => t.stop());
     _bcStream = null;
@@ -1002,7 +1006,7 @@ async function onBarcodeDetected(barcode, opts = {}) {
   if (cached && !opts.skipCache) {
     _bcResolvedCode = cleanBarcode;
     _bcItem = { ...cached };
-    _setBarcodeStatus('⚡ Prodotto riconosciuto dalla cache locale', 'success');
+    _setBarcodeStatus(`⚡ ${_getBarcodeItemStatusLabel(_bcItem)}`, 'success');
     showBcResult();
     return;
   }
@@ -1015,6 +1019,15 @@ async function onBarcodeDetected(barcode, opts = {}) {
     _bcItem = outcome.item;
     _cacheBarcodeItem(_bcItem);
     save();
+    showBcResult();
+    return;
+  }
+
+  const historyItem = _findBarcodeItemFromHistory(cleanBarcode);
+  if (historyItem) {
+    _bcResolvedCode = cleanBarcode;
+    _bcItem = { ...historyItem };
+    _setBarcodeStatus(`⚠️ Prodotto non verificato online: ${_getBarcodeItemStatusLabel(_bcItem)}`, 'warn');
     showBcResult();
     return;
   }
