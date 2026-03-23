@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=132">
+<link rel="stylesheet" href="style.css?v=133">
 </head>
 <body>
 <div class="app">
@@ -164,7 +164,7 @@
 <div class="view" id="view-piano">
   <div class="prog-head piano-head">
     <div class="prog-title">Piano</div>
-    <div class="prog-sub">Costruisci i pasti del giorno, salva template riutilizzabili e usa l'helper per avvicinarti ai target del singolo pasto.</div>
+    <div class="prog-sub">Costruisci i pasti del giorno partendo dai cibi che mangi davvero, usa l'helper solo quando i dati bastano e salva i template che ti servono.</div>
   </div>
 
   <!-- SEZIONE: Piano Pasti -->
@@ -173,14 +173,26 @@
       <div class="piano-section-copy">
         <span class="support-mini-kicker">Piano</span>
         <div class="support-mini-title-row">
-          <span class="support-mini-title">Piano Pasti</span>
+          <span class="support-mini-title">Helper pasti</span>
         </div>
-        <span class="support-mini-sub">Modifica il piano ON/OFF e usa l'helper sul pasto che ti interessa in questo momento.</span>
+        <span class="support-mini-sub">Scegli il pasto, guarda il target e usa una bozza solo quando il sistema ha abbastanza dati per proporti qualcosa di sensato.</span>
       </div>
     </div>
     <div id="piano-macros-summary" class="piano-macros-summary"></div>
     <div id="meal-planner-helper"></div>
-    <div id="piano-meals-list"></div>
+  </div>
+
+  <div class="piano-section">
+    <div class="piano-section-head">
+      <div class="piano-section-copy">
+        <span class="support-mini-kicker">Piano</span>
+        <div class="support-mini-title-row">
+          <span class="support-mini-title">Cibi abituali</span>
+        </div>
+        <span class="support-mini-sub">Qui inserisci i cibi che compri spesso. L helper usera solo questi per costruire pasti credibili.</span>
+      </div>
+    </div>
+    <div id="piano-favorite-foods"></div>
   </div>
 
   <!-- SEZIONE: Libreria Template -->
@@ -189,11 +201,11 @@
       <div class="piano-section-copy">
         <span class="support-mini-kicker">Piano</span>
         <div class="support-mini-title-row">
-          <span class="support-mini-title">Libreria Template</span>
+          <span class="support-mini-title">Template</span>
         </div>
-        <span class="support-mini-sub">Salva pasti ricorrenti e richiamali velocemente quando compili i pasti in Oggi.</span>
+        <span class="support-mini-sub">Salva i pasti che usi spesso e richiamali al volo quando compili la giornata.</span>
       </div>
-      <button class="btn btn-ghost piano-add-btn" onclick="openNewTemplate()">+ Nuovo</button>
+      <button class="btn btn-ghost piano-add-btn" onclick="openNewTemplate()">+ Nuovo template</button>
     </div>
     <div id="tmpl-filters" class="tmpl-filters"></div>
     <div id="tmpl-list"></div>
@@ -287,7 +299,7 @@
   <div class="prog-head profile-head">
     <div class="profile-head-kicker">Identita nutrizionale</div>
     <div class="prog-title">Profilo</div>
-    <div class="prog-sub profile-sub">Parametri, obiettivo, fabbisogno e preferenze alimentari in un unico spazio piu ordinato e personale.</div>
+    <div class="prog-sub profile-sub">Parametri, obiettivo, fabbisogno e routine personale in un unico spazio piu ordinato e personale.</div>
   </div>
 
   <div class="stat-section profile-section">
@@ -302,11 +314,6 @@
   <!-- Card: Orari pasti -->
   <div class="stat-section profile-section">
     <div class="prof-card-box" id="prof-times-card"></div>
-  </div>
-
-  <!-- Card: Cibi preferiti -->
-  <div class="stat-section profile-section">
-    <div class="prof-card-box" id="prof-foods-card"></div>
   </div>
 
   <!-- Card: Integratori -->
@@ -493,9 +500,12 @@ window.MARCI_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 <script src="authSync.js?v=10"></script>
 <script src="storage.js?v=37"></script>
 <script src="nutritionLogic.js?v=55"></script>
-<script src="uiComponents.js?v=105"></script>
+<script src="mealTaxonomy.js?v=1"></script>
+<script src="templateEngine.js?v=1"></script>
+<script src="mealHelperEngine.js?v=1"></script>
+<script src="uiComponents.js?v=107"></script>
 <script src="bootstrapTools.js?v=5"></script>
-<script src="app.js?v=87"></script>
+<script src="app.js?v=89"></script>
 <script src="barcodeTools.js?v=14"></script>
 <script>lucide.createIcons();</script>
 </body>

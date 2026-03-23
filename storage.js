@@ -90,8 +90,8 @@ function clearStorage() {
     danger: true,
     onConfirm: () => {
       mfWarn('storage', 'clear storage requested');
+      if (typeof authMarkExplicitReset === 'function') authMarkExplicitReset();
       localStorage.removeItem(currentStorageKey());
-      if (typeof authClearLocalStateMeta === 'function') authClearLocalStateMeta();
       location.reload();
     },
   });

@@ -57,6 +57,11 @@ const S = {
     on: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
     off:{ mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
   },
+  pianoUi: {
+    activeMealFilter: 'all',
+    templateSort: 'useful_now',
+    helperExpanded: true,
+  },
   authEntryCompleted: null,
   onboardingCompleted: null,
   onboardingVersion: 1,
@@ -421,6 +426,17 @@ function getAuthConflictBadge(conflict, source) {
   return '';
 }
 
+function getAuthConflictPresenceChip(conflict, source) {
+  const state = source === 'local' ? conflict?.localState : conflict?.remoteState;
+  const fallback = { label: 'Stato non chiaro', cls: 'unknown' };
+  const presence = typeof authDescribeStatePresence === 'function'
+    ? authDescribeStatePresence(state)
+    : fallback;
+  const label = htmlEsc(presence?.label || fallback.label);
+  const cls = presence?.cls ? ` ${presence.cls}` : '';
+  return `<span class="sync-choice-presence${cls}">${label}</span>`;
+}
+
 function askAuthStateConflictChoice(conflict) {
   return new Promise(resolve => {
     const localTime = htmlEsc(formatAuthConflictTime(conflict.localUpdatedAt));
@@ -436,6 +452,7 @@ function askAuthStateConflictChoice(conflict) {
             <div class="sync-choice-item-top">
               <span class="sync-choice-chip">Questo telefono</span>
               ${getAuthConflictBadge(conflict, 'local')}
+              ${getAuthConflictPresenceChip(conflict, 'local')}
             </div>
             <div class="sync-choice-time">${localTime}</div>
             <div class="sync-choice-copy">Mantieni i dati presenti su questo dispositivo e li rimandiamo poi nel cloud.</div>
@@ -445,12 +462,13 @@ function askAuthStateConflictChoice(conflict) {
             <div class="sync-choice-item-top">
               <span class="sync-choice-chip">Cloud</span>
               ${getAuthConflictBadge(conflict, 'remote')}
+              ${getAuthConflictPresenceChip(conflict, 'remote')}
             </div>
             <div class="sync-choice-time">${remoteTime}</div>
             <div class="sync-choice-copy">Carica i dati gia salvati online e usa quelli come base.</div>
           </div>
         </div>
-        <div class="sync-choice-foot">Non stai cancellando nulla adesso: stai solo scegliendo con quale versione continuare.</div>
+        <div class="sync-choice-foot">Scegli sempre la versione che contiene davvero i tuoi dati. Se una delle due risulta vuota, evita quella.</div>
       `,
       confirmText: 'Riparti dal cloud',
       cancelText: 'Tieni questo telefono',
@@ -676,6 +694,23 @@ function setTmplFilter(tag) { _tmplFilter = tag; renderPiano(); }
 function toggleTmplItems(id) { const el=document.getElementById('ti-'+id); if(el) el.style.display=el.style.display==='none'?'block':'none'; }
 function setPlanTab() {}
 
+function ensurePianoUiState() {
+  if (!S.pianoUi || typeof S.pianoUi !== 'object') {
+    S.pianoUi = { activeMealFilter: 'all', templateSort: 'useful_now', helperExpanded: true };
+  }
+  if (typeof S.pianoUi.activeMealFilter !== 'string') S.pianoUi.activeMealFilter = 'all';
+  if (typeof S.pianoUi.templateSort !== 'string') S.pianoUi.templateSort = 'useful_now';
+  if (typeof S.pianoUi.helperExpanded !== 'boolean') S.pianoUi.helperExpanded = true;
+  return S.pianoUi;
+}
+
+function setPianoMealFilter(mealType) {
+  const ui = ensurePianoUiState();
+  ui.activeMealFilter = mealType || 'all';
+  save();
+  renderPiano();
+}
+
 function getDefaultPlannerMealIdx(type) {
   const mealState = getCurrentMealState(type, S.selDate || localDate());
   if (typeof mealState?.key === 'number') return mealState.key;
@@ -800,6 +835,9 @@ function plannerSuggestionToTemplate(type, resultIdx) {
     tag: mealType,
     mealType,
     items: result.items.map(it => ({ ...it })),
+    usageCount: 0,
+    pinned: false,
+    source: 'helper',
   });
   save();
   renderPiano();
@@ -894,9 +932,14 @@ function saveTemplate() {
   const mealType = _tmplMealType;
   if (_editingTmplId) {
     const idx = S.templates.findIndex(t=>t.id===_editingTmplId);
-    if (idx>=0) S.templates[idx] = {id:_editingTmplId, name, tag, mealType, items:[..._tmplFormItems]};
+    if (idx>=0) S.templates[idx] = {
+      id:_editingTmplId, name, tag, mealType, items:[..._tmplFormItems],
+      usageCount: Number(S.templates[idx].usageCount || 0) || 0,
+      pinned: !!S.templates[idx].pinned,
+      source: S.templates[idx].source || 'manual'
+    };
   } else {
-    S.templates.push({id:'t'+Date.now(), name, tag, mealType, items:[..._tmplFormItems]});
+    S.templates.push({id:'t'+Date.now(), name, tag, mealType, items:[..._tmplFormItems], usageCount: 0, pinned: false, source: 'manual'});
   }
   save(); closeTemplateForm(); renderPiano(); toast('✅ Template salvato');
 }
@@ -909,6 +952,7 @@ function deleteTemplate(id) {
 
 function loadTemplateToLog(tmplId) {
   const t = S.templates.find(t=>t.id===tmplId); if (!t) return;
+  t.usageCount = Number(t.usageCount || 0) + 1;
   const dateKey = S.selDate || localDate();
   const type = S.day;
   const mealNames = S.meals[type].map((m,i) => `${i+1}. ${m.name}`).join('\n');
@@ -1001,6 +1045,20 @@ function addWeight() {
   save(); renderStats();
   toast('✅  Peso registrato');
 }
+function editWeight(idx) {
+  const entry = S.weightLog?.[idx];
+  if (!entry) return;
+  const next = prompt(`Modifica il peso del ${entry.date}`, String(entry.val ?? ''));
+  if (next == null) return;
+  const v = parseFloat(String(next).replace(',', '.'));
+  if (isNaN(v) || v < 30 || v > 250) { toast('❌  Peso non valido'); return; }
+  S.weightLog[idx] = { ...entry, val: v };
+  syncAnagraficaWeightFromLogs();
+  refreshNutritionTargetsFromState({ saveDeferred: false });
+  save();
+  renderStats();
+  toast('✅  Peso aggiornato');
+}
 function delWeight(idx) {
   S.weightLog.splice(idx, 1);
   syncAnagraficaWeightFromLogs();
@@ -1034,6 +1092,52 @@ function addMeasurement() {
   save();
   toast('✅  Misurazioni registrate');
   renderStats();
+}
+function editMeasurement(idx) {
+  const entry = S.measurements?.[idx];
+  if (!entry) return;
+  const fields = [
+    ['peso', 'Peso (kg)'],
+    ['vita', 'Vita (cm)'],
+    ['fianchi', 'Fianchi (cm)'],
+    ['petto', 'Petto (cm)'],
+    ['braccio', 'Braccio dx (cm)'],
+    ['coscia', 'Coscia (cm)'],
+  ];
+  const next = { ...entry };
+  for (const [key, label] of fields) {
+    const current = entry[key] == null ? '' : String(entry[key]);
+    const raw = prompt(`${label} · lascia vuoto per cancellare`, current);
+    if (raw == null) return;
+    const clean = String(raw).trim().replace(',', '.');
+    next[key] = clean === '' ? null : parseFloat(clean);
+    if (clean !== '' && !Number.isFinite(next[key])) {
+      toast(`❌  Valore non valido per ${label}`);
+      return;
+    }
+  }
+  if (fields.every(([key]) => next[key] == null)) {
+    toast('⚠️  Serve almeno una misura');
+    return;
+  }
+  S.measurements[idx] = next;
+  if (Number.isFinite(next.peso) && next.peso > 0) {
+    upsertWeightLogByDate(next.peso, entry.date || getTodayWeightLogDateLabel());
+    syncAnagraficaWeightFromLogs();
+    refreshNutritionTargetsFromState({ saveDeferred: false });
+  }
+  save();
+  renderStats();
+  toast('✅  Misure aggiornate');
+}
+function delMeasurement(idx) {
+  if (idx == null || idx < 0 || idx >= (S.measurements || []).length) return;
+  S.measurements.splice(idx, 1);
+  syncAnagraficaWeightFromLogs();
+  refreshNutritionTargetsFromState({ saveDeferred: false });
+  save();
+  renderStats();
+  toast('✅  Rilevazione rimossa');
 }
 function setGoalPhase(phase, persist = true) {
   const PHASE_INFO = {
@@ -1309,14 +1413,21 @@ function addFavoriteFood() {
     typicalGrams: (isNaN(typGrams) || typGrams <= 0) ? 100 : typGrams,
   });
   save();
-  renderAnagrafica();
+  refreshFavoriteFoodsUi();
+  toast('✅  Cibo salvato');
 }
 
 function removeFavoriteFood(id) {
   if (!S.favoriteFoods) return;
   S.favoriteFoods = S.favoriteFoods.filter(f => f.id !== id);
   save();
-  renderAnagrafica();
+  refreshFavoriteFoodsUi();
+  toast('✅  Cibo rimosso');
+}
+
+function refreshFavoriteFoodsUi() {
+  if (typeof renderPiano === 'function') renderPiano();
+  if (typeof renderProfile === 'function') renderProfile();
 }
 
 function _toggleFfForm() {
@@ -1329,13 +1440,15 @@ function _toggleFfForm() {
 }
 function openProfileFavoriteFoods() {
   closeDayModal();
-  goView('profilo');
+  goView('piano');
   setTimeout(() => {
-    const foodsCard = document.getElementById('prof-foods-card');
-    const scrollTarget = foodsCard?.closest('.stat-section') || foodsCard;
+    const foodsCard = document.getElementById('piano-favorite-foods');
+    const scrollTarget = foodsCard?.closest('.piano-section') || foodsCard;
     if (scrollTarget) {
       scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+    const addBtn = document.getElementById('ff-add-toggle');
+    if (addBtn) pulseTodayElement('#ff-add-toggle', 'ui-glow');
   }, 80);
 }
 
@@ -1364,11 +1477,11 @@ function openFoodSuggestion(remK, remP, remC, remF) {
   if (!suggestion || !suggestion.picks.length) {
     bodyHTML = `<div class="sug-empty-state">
       <div class="sug-empty-icon">☆</div>
-      <div class="sug-empty-title">Aggiungi cibi preferiti</div>
+      <div class="sug-empty-title">Aggiungi cibi abituali</div>
       <div class="sug-empty-text">
-        Inserisci nel Profilo alcuni alimenti che mangi spesso e useremo quelli per suggerirti come chiudere i gap di calorie e macro.
+        Inserisci nel Piano alcuni alimenti che mangi spesso e useremo quelli per suggerirti come chiudere i gap di calorie e macro.
       </div>
-      <button class="sug-empty-cta" onclick="openProfileFavoriteFoods()">Apri Profilo</button>
+      <button class="sug-empty-cta" onclick="openProfileFavoriteFoods()">Apri Piano</button>
     </div>`;
   } else {
     const { picks, totalK, totalP, totalC } = suggestion;
@@ -1954,11 +2067,10 @@ function getTodayWeightLogDateLabel() {
   return new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function upsertTodayWeightLog(value) {
+function upsertWeightLogByDate(value, date = getTodayWeightLogDateLabel()) {
   if (value == null || String(value).trim() === '') return false;
   const num = Number(value);
   if (!Number.isFinite(num)) return false;
-  const date = getTodayWeightLogDateLabel();
   const existingIdx = (S.weightLog || []).findIndex(entry => entry?.date === date);
   if (existingIdx >= 0) {
     if (Number(S.weightLog[existingIdx]?.val) === num) return false;
@@ -1967,6 +2079,10 @@ function upsertTodayWeightLog(value) {
   }
   S.weightLog.push({ date, val: num });
   return true;
+}
+
+function upsertTodayWeightLog(value) {
+  return upsertWeightLogByDate(value, getTodayWeightLogDateLabel());
 }
 
 function averageNumbers(values = []) {
@@ -3358,6 +3474,7 @@ function macroAlerts() {
   return a;
 }
 async function initAll() {
+  if (typeof authSetBootstrapReady === 'function') authSetBootstrapReady(false);
   let postLogoutMode = null;
   try {
     postLogoutMode = sessionStorage.getItem('marcifit_post_logout_mode_v1');
@@ -3434,6 +3551,7 @@ async function initAll() {
     if (!S.authEntryCompleted) openAuthEntry(false);
     else openWelcomeOnboarding();
   }
+  if (typeof authSetBootstrapReady === 'function') authSetBootstrapReady(true);
 }
 initAll();
 bindEditGramPreview();

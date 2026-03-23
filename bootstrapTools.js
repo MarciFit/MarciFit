@@ -58,10 +58,32 @@ function ensureBootstrapDefaults(state) {
       off: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
     };
   }
+  if (!state.pianoUi || typeof state.pianoUi !== 'object') {
+    state.pianoUi = {
+      activeMealFilter: 'all',
+      templateSort: 'useful_now',
+      helperExpanded: true,
+    };
+  }
+  if (typeof state.pianoUi.activeMealFilter !== 'string') state.pianoUi.activeMealFilter = 'all';
+  if (typeof state.pianoUi.templateSort !== 'string') state.pianoUi.templateSort = 'useful_now';
+  if (typeof state.pianoUi.helperExpanded !== 'boolean') state.pianoUi.helperExpanded = true;
   if (typeof state.authEntryCompleted !== 'boolean') state.authEntryCompleted = false;
   if (typeof state.onboardingVersion !== 'number') state.onboardingVersion = 1;
   if (state.checked) delete state.checked;
   if (state.anagrafica && !('passiGiornalieri' in state.anagrafica)) state.anagrafica.passiGiornalieri = null;
+  if (Array.isArray(state.favoriteFoods) && typeof normalizeFavoriteFoods === 'function') {
+    state.favoriteFoods = normalizeFavoriteFoods(state.favoriteFoods);
+  }
+  if (Array.isArray(state.templates) && typeof getTemplateMealType === 'function') {
+    state.templates = state.templates.map(template => ({
+      ...template,
+      mealType: template.mealType || getTemplateMealType(template),
+      usageCount: Number(template.usageCount || 0) || 0,
+      pinned: !!template.pinned,
+      source: template.source || 'manual',
+    }));
+  }
 }
 
 function migrateTemplateMealTypes(state) {

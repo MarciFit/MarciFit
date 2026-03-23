@@ -1554,7 +1554,7 @@ function buildTodayAlertButtons(alert, { supportMode = false, hasFavFoods = (S.f
     buttons.push(`<button class="today-context-alert-btn" onclick="${action}">${alert.ctaLabel}</button>`);
   }
   if (alert?.hasSuggest) {
-    buttons.push(`<button class="today-context-alert-btn is-secondary" onclick="openFoodSuggestion(${alert.remK||0},${alert.remP||0},${alert.remC||0},${alert.remF||0})">${hasFavFoods ? 'Vedi cosa mangiare' : 'Aggiungi cibi preferiti'}</button>`);
+    buttons.push(`<button class="today-context-alert-btn is-secondary" onclick="openFoodSuggestion(${alert.remK||0},${alert.remP||0},${alert.remC||0},${alert.remF||0})">${hasFavFoods ? 'Vedi cosa mangiare' : 'Aggiungi cibi abituali'}</button>`);
   }
   return buttons;
 }
@@ -2142,25 +2142,137 @@ function getLoggedDayMacros(dateKey) {
     f: Math.round(f * 10) / 10,
   };
 }
+function favoriteFoodsManagerHTML(context = 'piano') {
+  const favoriteFoods = typeof normalizeFavoriteFoods === 'function'
+    ? normalizeFavoriteFoods(S.favoriteFoods || [])
+    : (S.favoriteFoods || []);
+  const favoriteFoodsCount = favoriteFoods.length;
+  const MEAL_LABELS = { colazione: 'Colazione', pranzo: 'Pranzo', cena: 'Cena', spuntino: 'Snack' };
+  const mealCoverage = Object.keys(MEAL_LABELS).map(mealType => ({
+    mealType,
+    label: MEAL_LABELS[mealType],
+    count: favoriteFoods.filter(food => isFoodCompatibleWithMeal(food, mealType)).length,
+  }));
+  const listHtml = favoriteFoodsCount
+    ? favoriteFoods.map(food => {
+        const grams = Number(food.typicalGrams || food.portionGrams || 100) || 100;
+        const typK = Math.round((Number(food.kcal100 || 0) * grams) / 100);
+        const typP = ((Number(food.p100 || 0) * grams) / 100).toFixed(0);
+        const typC = ((Number(food.c100 || 0) * grams) / 100).toFixed(0);
+        const mealTags = (food.mealTags || [])
+          .filter(tag => MEAL_LABELS[tag])
+          .slice(0, 3)
+          .map(tag => `<span class="ff-tag">${MEAL_LABELS[tag]}</span>`)
+          .join('');
+        return `<div class="ff-item">
+          <div class="ff-info">
+            <div class="ff-name">${htmlEsc(food.name)}</div>
+            <div class="ff-meta-row">
+              <div class="ff-macros">${grams}g · ${typK} kcal · P ${typP}g · C ${typC}g</div>
+              ${mealTags ? `<div class="ff-tags">${mealTags}</div>` : ''}
+            </div>
+          </div>
+          <button class="ff-del" onclick="removeFavoriteFood('${food.id}')" title="Rimuovi">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="2" y1="2" x2="11" y2="11"/><line x1="11" y1="2" x2="2" y2="11"/></svg>
+          </button>
+        </div>`;
+      }).join('')
+    : `<div class="ff-empty">Parti da 4-6 cibi che mangi davvero spesso. L helper usera solo questi per costruire proposte sensate.</div>`;
+
+  return `<div class="ff-card support-mini-card">
+    <div class="profile-card-head support-mini-head">
+      <div class="support-mini-head-copy">
+        <div class="support-mini-kicker">${context === 'piano' ? 'Piano' : 'Profilo'}</div>
+        <div class="support-mini-title-row">
+          <div class="support-mini-title">Cibi abituali</div>
+          <span class="support-mini-state ${favoriteFoodsCount ? 'progress' : 'idle'}">${favoriteFoodsCount ? `${favoriteFoodsCount} salvati` : 'Ancora vuoto'}</span>
+        </div>
+        <div class="support-mini-sub">Aggiungi qui i cibi che compri spesso. Il planner usera questi per creare pasti realistici e per dirti quando i dati non bastano.</div>
+      </div>
+    </div>
+    <div class="ff-inline-note">${favoriteFoodsCount
+      ? 'Meglio pochi cibi ma davvero abituali. Se copri colazione, pranzo, cena e snack, l helper lavora molto meglio.'
+      : 'Aggiungi almeno una base da colazione, una proteina, una base carbo e uno snack semplice per sbloccare l helper.'}</div>
+    <div class="ff-coverage-row">
+      ${mealCoverage.map(item => `<div class="ff-coverage-chip${item.count ? ' ready' : ''}">
+        <strong>${item.count}</strong>
+        <span>${item.label}</span>
+      </div>`).join('')}
+    </div>
+    <div class="ff-list" id="ff-list">${listHtml}</div>
+    <button class="ff-open-add-btn" id="ff-add-toggle" onclick="_toggleFfForm()">${favoriteFoodsCount ? '+ Aggiungi cibo' : '+ Aggiungi i primi cibi'}</button>
+    <div class="ff-add-form" id="ff-add-form" style="display:none">
+      <div class="ff-add-title">Nuovo cibo abituale</div>
+      <div class="ff-search-area">
+        <div class="ff-search-row">
+          <input class="ff-search-inp" id="ff-search-inp" type="text" placeholder="Cerca un alimento..." oninput="onFfSearch(this)" autocomplete="off">
+          <button class="ff-bc-btn" onclick="openBarcodeForFf()" title="Scansiona barcode">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9V6a2 2 0 0 1 2-2h2"/><path d="M15 4h2a2 2 0 0 1 2 2v3"/><path d="M21 15v3a2 2 0 0 1-2 2h-2"/><path d="M9 20H6a2 2 0 0 1-2-2v-3"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
+          </button>
+        </div>
+        <div class="ff-search-results" id="ff-search-results" style="display:none"></div>
+        <div class="ff-or-sep">oppure inserisci a mano</div>
+      </div>
+      <input class="ff-add-name" id="ff-nome" type="text" placeholder="Nome alimento" autocomplete="off">
+      <div class="ff-add-grid">
+        <div class="ff-add-lbl">Kcal / 100g<input type="number" id="ff-kcal" min="0" step="1" placeholder="0"></div>
+        <div class="ff-add-lbl">Prot / 100g<input type="number" id="ff-prot" min="0" step="0.1" placeholder="0"></div>
+        <div class="ff-add-lbl">Carb / 100g<input type="number" id="ff-carb" min="0" step="0.1" placeholder="0"></div>
+        <div class="ff-add-lbl">Grassi / 100g<input type="number" id="ff-fat" min="0" step="0.1" placeholder="0"></div>
+      </div>
+      <div class="ff-add-lbl" style="margin-bottom:0">Porzione tipica (g)<input type="number" id="ff-portion" min="1" step="1" placeholder="100"></div>
+      <div class="ff-add-row">
+        <button class="ff-add-cancel" onclick="_toggleFfForm()">Annulla</button>
+        <button class="ff-add-btn" onclick="addFavoriteFood()">Salva cibo</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function favoriteFoodsProfileRedirectHTML() {
+  const favoriteFoodsCount = (S.favoriteFoods || []).length;
+  return `<div class="profile-redirect-card support-mini-card">
+    <div class="profile-card-head support-mini-head">
+      <div class="support-mini-head-copy">
+        <div class="support-mini-kicker">Profilo</div>
+        <div class="support-mini-title-row">
+          <div class="support-mini-title">Cibi abituali</div>
+          <span class="support-mini-state ${favoriteFoodsCount ? 'progress' : 'idle'}">${favoriteFoodsCount ? `${favoriteFoodsCount} salvati` : 'Gestiscili in Piano'}</span>
+        </div>
+        <div class="support-mini-sub">Ora i cibi abituali si gestiscono nella tab Piano, insieme all helper e ai template.</div>
+      </div>
+    </div>
+    <div class="ff-inline-note">Li trovi in Piano cosi puoi aggiungerli, rivederli e usarli subito per costruire pasti credibili.</div>
+    <button class="ff-open-add-btn profile-redirect-btn" onclick="openProfileFavoriteFoods()">Apri Piano</button>
+  </div>`;
+}
+
 function renderPiano() {
   if (!S.templates) S.templates = [];
-
-  // --- Piano Pasti section ---
+  const pianoUi = typeof ensurePianoUiState === 'function'
+    ? ensurePianoUiState()
+    : { activeMealFilter: 'all', templateSort: 'useful_now', helperExpanded: true };
   const planType = S.day || S.planTab || 'on';
   S.planTab = planType;
   const plannerState = ensureMealPlannerState(planType);
   const targetDay = S.macro[planType];
   const plannerMeal = S.meals[planType]?.[plannerState.mealIdx];
   const plannerMealType = getMealTypeFromName(plannerMeal?.name || '');
-  const templatesForMealType = (S.templates || []).filter(t => {
-    if (!plannerMealType) return true;
-    return String(t.mealType || t.tag || '').toLowerCase().includes(plannerMealType);
-  });
-  // Meal cards in edit mode
-  const planMealsEl = document.getElementById('piano-meals-list');
-  if (planMealsEl) {
-    planMealsEl.innerHTML = S.meals[planType].map((_, i) => mealCardHTML(planType, i, 'edit')).join('');
-  }
+  const activeMealFilter = pianoUi.activeMealFilter || plannerMealType || 'all';
+  const mealTypeCounts = typeof getTemplateCountsByMealType === 'function'
+    ? getTemplateCountsByMealType(S.templates || [])
+    : {};
+  const favoriteFoods = typeof normalizeFavoriteFoods === 'function'
+    ? normalizeFavoriteFoods(S.favoriteFoods || [])
+    : (S.favoriteFoods || []);
+  const favoriteFoodNames = favoriteFoods.map(food => String(food.name || '').toLowerCase());
+  const usefulTemplates = typeof getUsefulTemplatesNow === 'function'
+    ? getUsefulTemplatesNow(S.templates || [], { mealType: activeMealFilter === 'all' ? plannerMealType : activeMealFilter, favoriteFoodNames })
+    : (S.templates || []);
+  const filteredTemplates = typeof filterTemplatesByMealType === 'function'
+    ? filterTemplatesByMealType(S.templates || [], activeMealFilter)
+    : (S.templates || []);
+
   // Macro summary for the day
   const planMacroEl = document.getElementById('piano-macros-summary');
   if (planMacroEl) {
@@ -2228,10 +2340,10 @@ function renderPiano() {
           ${pianoMiniStatCardHTML({
             cls: 'template',
             tipKey: 'template',
-            kicker: 'Template utili',
-            info: 'Conta quanti template in libreria sono compatibili con il tipo di pasto selezionato.',
-            main: `${templatesForMealType.length}`,
-            foot: plannerMealType ? `Per ${plannerMealType}` : 'Libreria completa',
+            kicker: 'Template filtro',
+            info: 'Conta quanti template esistono per il tipo di pasto che stai guardando adesso.',
+            main: `${filteredTemplates.length}`,
+            foot: activeMealFilter === 'all' ? 'Tutta la libreria' : `Per ${activeMealFilter}`,
           })}
         </div>
       </div>`;
@@ -2240,87 +2352,65 @@ function renderPiano() {
   if (helperEl) {
     helperEl.innerHTML = mealPlannerHelperHTML(planType, plannerState);
   }
-  const allTags = ['tutti', ...new Set(
-    S.templates.flatMap(t => t.tag.split(',').map(x=>x.trim()).filter(Boolean))
-  )];
+  const favoriteFoodsEl = document.getElementById('piano-favorite-foods');
+  if (favoriteFoodsEl) {
+    favoriteFoodsEl.innerHTML = favoriteFoodsManagerHTML('piano');
+  }
 
-  // Filter pills ? use DOM creation to avoid quote issues
   const filtersEl = document.getElementById('tmpl-filters');
   filtersEl.innerHTML = '';
-  allTags.forEach(tag => {
+  const FILTERS = [
+    { key: 'all', label: 'Tutti' },
+    { key: 'colazione', label: 'Colazione' },
+    { key: 'pranzo', label: 'Pranzo' },
+    { key: 'cena', label: 'Cena' },
+    { key: 'spuntino', label: 'Snack' },
+  ];
+  FILTERS.forEach(filter => {
     const btn = document.createElement('button');
-    const active = _tmplFilter === tag;
-    btn.textContent = tag;
-    btn.className = 'tmpl-tag-btn' + (active ? ' active' : '');
-    btn.addEventListener('click', () => { _tmplFilter = tag; renderPiano(); });
+    const count = filter.key === 'all'
+      ? (S.templates || []).length
+      : (mealTypeCounts[filter.key] || 0);
+    btn.className = 'piano-meal-filter' + (activeMealFilter === filter.key ? ' active' : '');
+    btn.innerHTML = `<span>${filter.label}</span><strong>${count}</strong>`;
+    btn.addEventListener('click', () => setPianoMealFilter(filter.key));
     filtersEl.appendChild(btn);
   });
 
-  const filtered = _tmplFilter === 'tutti'
-    ? S.templates
-    : S.templates.filter(t => t.tag.toLowerCase().includes(_tmplFilter.toLowerCase()));
-  const sortedFiltered = filtered.slice().sort((a, b) => {
-    const aMatch = plannerMealType && String(a.mealType || a.tag || '').toLowerCase().includes(plannerMealType) ? 1 : 0;
-    const bMatch = plannerMealType && String(b.mealType || b.tag || '').toLowerCase().includes(plannerMealType) ? 1 : 0;
-    if (aMatch !== bMatch) return bMatch - aMatch;
-    return String(a.name || '').localeCompare(String(b.name || ''), 'it');
-  });
-
   const listEl = document.getElementById('tmpl-list');
-  if (!sortedFiltered.length) {
-    listEl.innerHTML = `<div class="tmpl-empty-state">${
-      S.templates.length ? 'Nessun template con questo tag.' : 'Nessun template. Creane uno con +.'
-    }</div>`;
+  if (!filteredTemplates.length) {
+    listEl.innerHTML = `<div class="piano-template-section piano-template-section-compact"><div class="tmpl-empty-state">${
+      S.templates.length
+        ? 'Con questo filtro non c e ancora niente. Salva un template utile e lo ritroverai qui.'
+        : 'Non hai ancora template. Salva i pasti che ripeti piu spesso e li ritroverai qui.'
+    }</div></div>`;
     return;
   }
 
-  const TMPL_TYPE_EMOJI = {colazione:'🥣', pranzo:'🍽️', cena:'🍳', merenda:'🍎', spuntino:'⚡', altro:'📦'};
-
-  listEl.innerHTML = '';
-  listEl.innerHTML = `<div class="tmpl-library-meta">
-    <div class="tmpl-library-stat support-mini-card">
-      <span class="tmpl-library-kicker">In libreria</span>
-      <span class="tmpl-library-value">${S.templates.length}</span>
-    </div>
-    <div class="tmpl-library-stat support-mini-card">
-      <span class="tmpl-library-kicker">Filtro attivo</span>
-      <span class="tmpl-library-value">${sortedFiltered.length}</span>
-    </div>
-    <div class="tmpl-library-stat support-mini-card">
-      <span class="tmpl-library-kicker">Utili adesso</span>
-      <span class="tmpl-library-value">${templatesForMealType.length}</span>
-    </div>
-  </div>`;
-
-  sortedFiltered.forEach(t => {
-    const macros = t.items.reduce((acc,it) => {
-      const g = it.grams/100;
-      return {k:acc.k+Math.round(it.kcal100*g), p:acc.p+it.p100*g, c:acc.c+it.c100*g, f:acc.f+it.f100*g};
-    }, {k:0,p:0,c:0,f:0});
-
-    const card = document.createElement('div');
-    card.className = 'tmpl-card support-mini-card';
-
-    const mealType = t.mealType || (t.tag || '').split(',')[0].trim();
+  const TMPL_TYPE_EMOJI = {colazione:'🥣', pranzo:'🍽️', cena:'🍳', spuntino:'⚡', altro:'📦'};
+  const renderTemplateCard = t => {
+    const macros = typeof computeTemplateMacros === 'function'
+      ? computeTemplateMacros(t.items || [])
+      : { k: 0, p: 0, c: 0, f: 0 };
+    const mealType = typeof getTemplateMealType === 'function' ? getTemplateMealType(t) : (t.mealType || 'altro');
     const typeEmoji = TMPL_TYPE_EMOJI[mealType] || '';
     const typeLbl = mealType ? (mealType.charAt(0).toUpperCase() + mealType.slice(1)) : '';
-
-    const rowsHtml = t.items.map(it => {
-      const k = Math.round(it.kcal100*it.grams/100);
-      return `<div class="food-item-row" style="padding:5px 0">
-        <div class="fir-dot"></div>
-        <div class="fir-name">${htmlEsc(it.name)}</div>
-        <div class="fir-grams-wrap"><span class="fir-grams" style="border:none;background:none;pointer-events:none">${it.grams}</span><span class="fir-unit">g</span></div>
-        <div class="fir-kcal">${k} kcal</div>
-      </div>`;
-    }).join('');
-
-    card.innerHTML = `
+    const itemCount = (t.items || []).length;
+    const itemNames = (t.items || [])
+      .map(item => String(item.name || '').trim())
+      .filter(Boolean);
+    const visibleNames = itemNames.slice(0, 3);
+    const extraCount = Math.max(0, itemNames.length - visibleNames.length);
+    return `<div class="tmpl-card tmpl-card-horizontal support-mini-card">
       <div class="tmpl-card-body">
-        <div class="tmpl-card-kicker">Template pasto</div>
         <div class="tmpl-card-header">
-          <span class="tmpl-card-name">${typeEmoji ? typeEmoji + ' ' : ''}${htmlEsc(t.name)}</span>
-          ${typeLbl ? `<span class="tmpl-type-badge">${typeLbl}</span>` : ''}
+          <div class="tmpl-card-copy">
+            <div class="tmpl-card-topline">
+              ${typeLbl ? `<span class="tmpl-type-badge">${typeEmoji ? `${typeEmoji} ` : ''}${typeLbl}</span>` : ''}
+              <span class="tmpl-card-count">${itemCount} alimenti</span>
+            </div>
+            <span class="tmpl-card-name">${htmlEsc(t.name)}</span>
+          </div>
         </div>
         <div class="tmpl-card-macros">
           <span class="tmpl-macro-kcal">🔥 ${macros.k} kcal</span>
@@ -2331,31 +2421,40 @@ function renderPiano() {
           <span class="tmpl-macro-dot">·</span>
           <span>G ${macros.f.toFixed(0)}g</span>
         </div>
-        <div id="ti-${t.id}" style="display:none;margin-top:10px">${rowsHtml}</div>
+        ${visibleNames.length ? `<div class="tmpl-card-foods">
+          ${visibleNames.map(name => `<span class="tmpl-food-chip">${htmlEsc(name)}</span>`).join('')}
+          ${extraCount ? `<span class="tmpl-food-chip tmpl-food-chip-more">+${extraCount}</span>` : ''}
+        </div>` : ''}
       </div>
-      <div class="tmpl-card-actions" id="tca-${t.id}"></div>`;
+      <div class="tmpl-card-actions">
+        <button class="tmpl-btn-load" onclick="loadTemplateToLog('${t.id}')">Usa</button>
+        <button class="tmpl-btn-sec tmpl-btn-icon" onclick="editTemplate('${t.id}')" title="Modifica template" aria-label="Modifica template">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </button>
+      </div>
+    </div>`;
+  };
+  const activeFilterLabel = activeMealFilter === 'all' ? 'tutti i pasti' : activeMealFilter;
+  const focusMealLabel = htmlEsc(plannerMeal?.name || 'il pasto selezionato');
+  const visibleCountLabel = filteredTemplates.length === 1 ? '1 template visibile' : `${filteredTemplates.length} template visibili`;
+  const usefulNow = usefulTemplates.length ? usefulTemplates : filteredTemplates.slice(0, 6);
 
-    // Buttons via DOM (no inline JS string issues) — no "Carica in Oggi" (available via "+" in meal cards)
-    const actionsEl = card.querySelector('.tmpl-card-actions');
-    [
-      ['Dettagli', () => toggleTmplItems(t.id), 'tmpl-btn-sec'],
-      ['Modifica', () => editTemplate(t.id),    'tmpl-btn-sec'],
-      ['Elimina',  () => deleteTemplate(t.id),  'tmpl-btn-del'],
-    ].forEach(([label, fn, cls]) => {
-      const b = document.createElement('button');
-      b.textContent = label;
-      b.className = cls;
-      b.addEventListener('click', fn);
-      actionsEl.appendChild(b);
-    });
-    const loadBtn = document.createElement('button');
-    loadBtn.textContent = 'Carica in Oggi';
-    loadBtn.className = 'tmpl-btn-load';
-    loadBtn.addEventListener('click', () => loadTemplateToLog(t.id));
-    actionsEl.prepend(loadBtn);
-
-    listEl.appendChild(card);
-  });
+  listEl.innerHTML = `
+    <div class="piano-template-section piano-template-section-compact">
+      <div class="piano-template-overview">
+        <div class="piano-template-overview-copy">
+          <div class="piano-template-overview-title">Template per ${activeFilterLabel}</div>
+          <div class="piano-template-overview-sub">Scorri, scegli e richiama i pasti che usi davvero.</div>
+        </div>
+        <span class="piano-template-pill">${visibleCountLabel}</span>
+      </div>
+      <div class="tmpl-carousel">${filteredTemplates.map(renderTemplateCard).join('')}</div>
+      <div class="piano-template-inline-head">
+        <div class="piano-template-inline-title">Utili adesso</div>
+        <div class="piano-template-inline-sub">Piu coerenti con ${focusMealLabel}.</div>
+      </div>
+      <div class="tmpl-carousel tmpl-carousel-secondary">${usefulNow.map(renderTemplateCard).join('')}</div>
+    </div>`;
 }
 
 function mealPlannerHelperHTML(type, plannerState) {
@@ -2366,23 +2465,59 @@ function mealPlannerHelperHTML(type, plannerState) {
   const isCurrent = mealState?.key === mealIdx && !mealState?.isExtra && (mealState.kind === 'now' || mealState.kind === 'next');
   const mealStateLabel = !isCurrent ? 'Pasto selezionato' : (mealState.kind === 'now' ? 'Pasto del momento' : 'Prossimo pasto');
   const mealType = getMealTypeFromName(meal?.name || '');
+  const favoriteFoods = typeof normalizeFavoriteFoods === 'function'
+    ? normalizeFavoriteFoods(S.favoriteFoods || [])
+    : (S.favoriteFoods || []);
+  const eligibility = mealType && typeof getMealHelperEligibility === 'function'
+    ? getMealHelperEligibility({ mealType, favoriteFoods })
+    : { available: false, compatibleFoods: [], suggestions: [] };
+  if (mealType && eligibility.available && typeof generateMealSuggestion === 'function') {
+    const generated = generateMealSuggestion({
+      mealType,
+      targetKcal: target?.k,
+      targetMacros: target,
+      favoriteFoods,
+      phase: S.goal?.phase || 'mantieni',
+      context: { mealName: meal?.name || '' },
+    });
+    plannerState.results = generated.suggestions.map(result => ({
+      ...result,
+      delta: {
+        k: (result.macros.kcal || 0) - (target?.k || 0),
+        p: (result.macros.p || 0) - (target?.p || 0),
+        c: (result.macros.c || 0) - (target?.c || 0),
+        f: (result.macros.f || 0) - (target?.f || 0),
+      },
+      macros: {
+        kcal: result.macros.kcal || 0,
+        p: result.macros.p || 0,
+        c: result.macros.c || 0,
+        f: result.macros.f || 0,
+      },
+    }));
+  } else {
+    plannerState.results = [];
+  }
   const mealButtons = (S.meals[type] || []).map((mealOpt, idx) => `
     <button class="mph-meal-chip${idx === mealIdx ? ' active' : ''}" onclick="setMealPlannerMeal('${type}', ${idx})">
       <span class="mph-meal-chip-name">${htmlEsc(mealOpt.name)}</span>
       <span class="mph-meal-chip-time">${htmlEsc(mealOpt.time || '')}</span>
     </button>
   `).join('');
-  const promptPresets = [
-    { label: 'Veloce', value: 'qualcosa di veloce' },
-    { label: 'Saziante', value: 'pasto saziante' },
-    { label: 'Leggero', value: 'pasto leggero' },
-    { label: 'Post workout', value: 'post workout' },
-  ];
-  const matchingTemplates = (S.templates || []).filter(t => {
-    if (!mealType) return true;
-    return String(t.mealType || t.tag || '').toLowerCase().includes(mealType);
-  }).slice(0, 4);
-  const favoriteFoods = (S.favoriteFoods || []).slice(0, 6);
+  const compatibleFoods = favoriteFoods.filter(food => !mealType || isFoodCompatibleWithMeal(food, mealType));
+  const helperStateClass = !mealType ? 'idle' : eligibility.available ? 'ready' : 'warn';
+  const helperStateLabel = !mealType ? 'Scegli un pasto' : eligibility.available ? 'Pronto' : 'Dati pochi';
+  const helperStateCopy = !mealType
+    ? 'Scegli prima il pasto su cui vuoi lavorare. Poi l helper ti dira subito se puo proporti una bozza credibile.'
+    : eligibility.available
+      ? 'Per questo pasto ci sono abbastanza cibi abituali. Parti da una bozza e poi rifiniscila se vuoi.'
+      : 'Per questo pasto i dati sono ancora pochi. Meglio aggiungere cibi giusti prima di generare.';
+  const helperStatusCopy = !mealType
+    ? 'Seleziona prima uno slot del giorno.'
+    : eligibility.available
+      ? 'Puoi partire da una bozza.'
+      : 'Meglio aggiungere ancora qualche cibo.';
+  const helperBullets = (eligibility.suggestions || []).slice(0, 3);
   const resultCards = (plannerState.results || []).length
     ? plannerState.results.map((result, idx) => {
         const deltaK = Math.round(result.delta.k);
@@ -2390,15 +2525,16 @@ function mealPlannerHelperHTML(type, plannerState) {
         const deltaC = Math.round(result.delta.c * 10) / 10;
         const deltaF = Math.round(result.delta.f * 10) / 10;
         const scoreLabel = result.score >= 92 ? 'Molto vicino' : result.score >= 82 ? 'Buona base' : 'Da rifinire';
+        const scoreTone = result.score >= 92 ? 'strong' : result.score >= 82 ? 'good' : 'soft';
         return `<div class="mph-result-card">
           <div class="mph-result-top">
             <div>
+              <div class="mph-result-kicker">Bozza pronta</div>
               <div class="mph-result-title">${htmlEsc(result.title)}</div>
               <div class="mph-result-sub">${htmlEsc(result.summary)}</div>
             </div>
             <div class="mph-score-wrap">
-              <div class="mph-score">${result.score}</div>
-              <div class="mph-score-label">${scoreLabel}</div>
+              <div class="mph-score-pill ${scoreTone}">${scoreLabel}</div>
             </div>
           </div>
           <div class="mph-macros">${macroVisualCardsHTML({
@@ -2408,7 +2544,7 @@ function mealPlannerHelperHTML(type, plannerState) {
             f: result.macros.f,
           }, { size: 'compact' })}</div>
           <div class="mph-delta">
-            Scarto vs target: ${deltaK >= 0 ? '+' : ''}${deltaK} kcal · P ${deltaP >= 0 ? '+' : ''}${deltaP}g · C ${deltaC >= 0 ? '+' : ''}${deltaC}g · F ${deltaF >= 0 ? '+' : ''}${deltaF}g
+            Scarto: ${deltaK >= 0 ? '+' : ''}${deltaK} kcal · P ${deltaP >= 0 ? '+' : ''}${deltaP}g · C ${deltaC >= 0 ? '+' : ''}${deltaC}g · F ${deltaF >= 0 ? '+' : ''}${deltaF}g
           </div>
           <div class="mph-items">
             ${result.items.map(it => `<span class="mph-item-chip">${htmlEsc(it.name)} · ${it.grams}g</span>`).join('')}
@@ -2421,12 +2557,17 @@ function mealPlannerHelperHTML(type, plannerState) {
         </div>`;
       }).join('')
     : `<div class="mph-empty">
-        <div class="mph-empty-title">Nessun suggerimento ancora</div>
-        <div class="mph-empty-copy">Scegli il pasto, aggiungi un paio di vincoli o preferenze e genera una proposta che si avvicini al target.</div>
+        <div class="mph-empty-title">${mealType ? 'Prima servono piu cibi giusti' : 'Scegli un pasto'}</div>
+        <div class="mph-empty-copy">${mealType
+          ? `Per ${mealType} non ci sono ancora abbastanza cibi abituali per creare una proposta credibile.`
+          : 'Scegli lo slot del giorno su cui vuoi lavorare e l helper ti dira subito se puo aiutarti.'}</div>
         <div class="mph-empty-list">
-          <span>1. Seleziona il pasto da sistemare</span>
-          <span>2. Scrivi 2-3 alimenti o il contesto del momento</span>
-          <span>3. Genera e usa la proposta migliore</span>
+          ${helperBullets.length
+            ? helperBullets.map(text => `<span>${htmlEsc(text)}</span>`).join('')
+            : `<span>Aggiungi i primi cibi abituali e poi riprova.</span>`}
+        </div>
+        <div class="mph-empty-actions">
+          <button class="mph-btn mph-btn-main" onclick="openProfileFavoriteFoods()">Gestisci cibi abituali</button>
         </div>
       </div>`;
 
@@ -2435,61 +2576,46 @@ function mealPlannerHelperHTML(type, plannerState) {
       <div class="support-mini-head-copy">
         <div class="support-mini-kicker">Piano</div>
         <div class="support-mini-title-row">
-          <div class="meal-planner-title">Helper pasto del momento</div>
+          <div class="meal-planner-title">Helper del momento</div>
+          <span class="meal-planner-state ${helperStateClass}">${helperStateLabel}</span>
         </div>
-        <div class="meal-planner-sub support-mini-sub">Usalo quando un pasto non e chiaro: selezioni lo slot, dai un contesto rapido e il sistema ti propone combinazioni riutilizzabili.</div>
+        <div class="meal-planner-sub support-mini-sub">${helperStateCopy}</div>
       </div>
       ${target ? `<div class="meal-planner-target">${macroVisualCardsHTML(target, { size: 'compact' })}</div>` : ''}
     </div>
     <div class="meal-planner-grid">
       <div class="meal-planner-controls">
-        <div class="meal-planner-steps">
-          <span class="meal-planner-step">1. Scegli</span>
-          <span class="meal-planner-step">2. Dai contesto</span>
-          <span class="meal-planner-step">3. Usa</span>
-        </div>
-        <div class="meal-planner-focus">
-          <div class="meal-planner-focus-kicker">${mealStateLabel}</div>
-          <div class="meal-planner-focus-title">${htmlEsc(meal?.name || 'Pasto')}</div>
-          <div class="meal-planner-focus-meta">${htmlEsc(meal?.time || '')}${mealType ? ` · ${mealType}` : ''}</div>
+        <div class="meal-planner-focus-row">
+          <div class="meal-planner-focus">
+            <div class="meal-planner-focus-kicker">${mealStateLabel}</div>
+            <div class="meal-planner-focus-title">${htmlEsc(meal?.name || 'Pasto')}</div>
+            <div class="meal-planner-focus-meta">${htmlEsc(meal?.time || '')}${mealType ? ` · ${mealType}` : ''}</div>
+          </div>
+          <div class="meal-planner-status-card">
+            <div class="meal-planner-status-kicker">Stato dati</div>
+            <div class="meal-planner-status-line">${mealType ? `${compatibleFoods.length} cibi adatti a questo pasto` : 'Prima scegli il pasto'}</div>
+            <div class="meal-planner-status-copy">${helperStatusCopy}</div>
+          </div>
         </div>
         <div class="mph-chip-group mph-chip-group-meals">
-          <div class="mph-chip-label">Pasto da costruire</div>
+          <div class="mph-chip-label">Pasto su cui lavorare</div>
           <div class="mph-meal-chip-row">${mealButtons}</div>
         </div>
-        <label class="mph-label">Input utente</label>
-        <textarea class="mph-textarea" placeholder="Esempio: riso, pollo, qualcosa di veloce; oppure alimenti che hai disponibili adesso" oninput="setMealPlannerPrompt('${type}', this.value)">${htmlEsc(plannerState.prompt || '')}</textarea>
-        <div class="mph-helper-copy">Scrivi cosa vuoi mangiare, che situazione hai o cosa hai disponibile. Esempio: "riso, pollo, pranzo veloce".</div>
-        <div class="mph-chip-group mph-chip-group-inline">
-          <div class="mph-chip-label">Preset rapidi</div>
+        ${compatibleFoods.length ? `<div class="mph-chip-group">
+          <div class="mph-chip-label">Cibi che puo usare adesso</div>
           <div class="mph-inline-row">
-            ${promptPresets.map(preset => `<button class="mph-chip-btn mph-chip-btn-min" onclick="appendMealPlannerPrompt('${type}','${preset.value}')">${preset.label}</button>`).join('')}
-          </div>
-        </div>
-        <div class="mph-options-block">
-          <div class="mph-chip-label">Opzioni</div>
-          <div class="mph-inline-row mph-inline-row-options">
-            <button class="mph-toggle${plannerState.useFavorites ? ' active' : ''}" onclick="toggleMealPlannerOption('${type}','useFavorites')">Preferiti</button>
-            <button class="mph-toggle${plannerState.useTemplates ? ' active' : ''}" onclick="toggleMealPlannerOption('${type}','useTemplates')">Template</button>
-          </div>
-        </div>
-        ${favoriteFoods.length ? `<div class="mph-chip-group">
-          <div class="mph-chip-label">Preferiti rapidi</div>
-          <div class="mph-inline-row">
-            ${favoriteFoods.map(food => `<button class="mph-chip-btn mph-chip-btn-min" onclick="appendMealPlannerPrompt('${type}','${esc(food.name)}')">${htmlEsc(food.name)}</button>`).join('')}
-          </div>
-        </div>` : ''}
-        ${matchingTemplates.length ? `<div class="mph-chip-group">
-          <div class="mph-chip-label">Template utili</div>
-          <div class="mph-inline-row">
-            ${matchingTemplates.map(t => `<button class="mph-chip-btn mph-chip-btn-min" onclick="appendMealPlannerPrompt('${type}','${esc(t.name)}')">${htmlEsc(t.name)}</button>`).join('')}
+            ${compatibleFoods
+              .slice(0, 8)
+              .map(food => `<span class="mph-chip-btn mph-chip-btn-min">${htmlEsc(food.name)}</span>`).join('')}
           </div>
         </div>` : ''}
         <div class="mph-actions-panel">
-          <div class="mph-actions-kicker">Azioni</div>
+          <div class="mph-actions-kicker">Per migliorarlo</div>
+          <div class="mph-helper-copy">${helperBullets.length
+            ? helperBullets.map(text => htmlEsc(text)).join(' · ')
+            : 'Aggiungi piu cibi abituali adatti ai diversi pasti della giornata.'}</div>
           <div class="mph-cta-row">
-          <button class="mph-generate" onclick="generateMealPlanner()">Genera suggerimenti</button>
-          <button class="mph-btn" onclick="resetMealPlanner('${type}')">Reset</button>
+            <button class="mph-btn" onclick="openProfileFavoriteFoods()">Gestisci cibi abituali</button>
           </div>
         </div>
       </div>
@@ -2915,7 +3041,7 @@ function renderStatsToolbar(data) {
             <div class="support-mini-title">Periodo</div>
             <span class="support-mini-state progress">${data.bounds.label}</span>
           </div>
-          <div class="support-mini-sub stats-toolbar-note">Usa un solo filtro per leggere peso, misure e costanza nello stesso contesto.</div>
+          <div class="support-mini-sub stats-toolbar-note">Scegli il periodo e leggi tutto nello stesso contesto: peso, misure e costanza.</div>
         </div>
         <div class="stats-toolbar-side">
           <div class="stats-toolbar-quickstats">
@@ -3036,12 +3162,20 @@ function renderStatsWeight(data) {
               <div class="support-mini-title">Andamento peso</div>
               <span class="support-mini-state idle">${data.bounds.label}</span>
             </div>
-            <div class="support-mini-sub">Aggiungi una pesata per iniziare a leggere il trend.</div>
+            <div class="support-mini-sub">Registra il peso qui sopra per vedere subito il trend del periodo.</div>
           </div>
+          <button class="stats-head-action-btn" onclick="document.getElementById('w-in')?.focus()">+ Peso</button>
         </div>
         <div class="stats-weight-empty">
-          <div class="stats-weight-empty-title">Nessuna pesata nel periodo selezionato</div>
-          <div class="stats-weight-empty-body">Registra almeno una pesata per iniziare a leggere l andamento. Quando avremo piu punti, qui comparira anche il trend.</div>
+          <div class="stats-weight-empty-title">Ancora nessuna pesata nel periodo scelto</div>
+          <div class="stats-weight-empty-body">Inserisci il peso e inizieremo a disegnare l andamento. Con piu rilevazioni il grafico diventera piu utile.</div>
+          <div class="stats-weight-entry">
+            <div class="weight-entry">
+              <input class="w-input" type="number" id="w-in" step="0.1" placeholder="64.0">
+              <span class="stats-inline-unit">kg</span>
+              <button class="w-btn" onclick="addWeight()">Salva peso</button>
+            </div>
+          </div>
         </div>
       </div>`;
     return;
@@ -3056,11 +3190,11 @@ function renderStatsWeight(data) {
             <div class="support-mini-title">Andamento peso</div>
             <span class="support-mini-state progress">${weight.count} ${weight.count === 1 ? 'pesata' : 'pesate'}</span>
           </div>
-          <div class="support-mini-sub">${data.bounds.label}</div>
+          <div class="support-mini-sub">Registra, rileggi il trend e apri la cronologia per correggere una pesata se serve.</div>
         </div>
         <div class="stats-inline-actions">
+          <button class="stats-head-action-btn" onclick="document.getElementById('w-in')?.focus()">+ Peso</button>
           <button class="stats-inline-btn" onclick="toggleWeightLog()">Cronologia</button>
-          <button class="stats-inline-btn stats-inline-btn-soft" onclick="document.getElementById('w-in')?.focus()">Registra</button>
         </div>
       </div>
       <div class="w-stats stats-weight-stats">
@@ -3069,19 +3203,26 @@ function renderStatsWeight(data) {
         <div class="ws"><div class="ws-l">Media</div><div class="ws-v">${weight.average != null ? `${weight.average.toFixed(1)} kg` : 'n/d'}</div></div>
         <div class="ws"><div class="ws-l">Target</div><div class="ws-v">${weight.target == null ? '—' : `${weight.target.toFixed(1)} kg`}</div></div>
       </div>
+      <div class="stats-weight-entry">
+        <div class="weight-entry">
+          <input class="w-input" type="number" id="w-in" step="0.1" placeholder="64.0">
+          <span class="stats-inline-unit">kg</span>
+          <button class="w-btn" onclick="addWeight()">Salva peso</button>
+        </div>
+      </div>
       <div class="chart-box stats-chart-box">
         <div class="stats-weight-main">
           <div class="stats-weight-chart-area">
             <canvas id="w-canvas" style="width:100%;height:180px"></canvas>
           </div>
           <div class="stats-weight-reading">
-            <div class="stats-weight-reading-title">Lettura</div>
+            <div class="stats-weight-reading-title">Come leggerlo</div>
             <div class="stats-weight-reading-body">${weight.insight}</div>
             <div class="stats-weight-reading-note">${targetText}</div>
           </div>
         </div>
         <div class="w-log" id="w-log">
-          <div class="w-log-title">Pesate nel periodo</div>
+          <div class="w-log-title">Cronologia peso · puoi modificare o eliminare ogni riga</div>
           ${[...weight.entries].reverse().map((entry, ri, arr) => {
             const prev = arr[ri + 1];
             const delta = prev ? +(entry.val - prev.val).toFixed(1) : null;
@@ -3092,7 +3233,10 @@ function renderStatsWeight(data) {
               <span class="w-log-date">${entry.date}</span>
               <span class="w-log-val">${entry.val.toFixed(1)} kg</span>
               ${deltaHtml}
-              <button class="w-del" onclick="delWeight(${entry.srcIndex})">✕</button>
+              <div class="stats-row-actions">
+                <button class="stats-row-btn" onclick="editWeight(${entry.srcIndex})">Modifica</button>
+                <button class="stats-row-btn danger" onclick="delWeight(${entry.srcIndex})">Elimina</button>
+              </div>
             </div>`;
           }).join('')}
         </div>
@@ -3117,15 +3261,15 @@ function renderStatsMeasurements(data) {
             <div class="support-mini-title">Misure e composizione</div>
             <span class="support-mini-state ${data.measurements.count ? 'progress' : 'idle'}">${data.measurements.count} ${data.measurements.count === 1 ? 'rilevazione' : 'rilevazioni'}</span>
           </div>
-          <div class="support-mini-sub">${data.bounds.label}</div>
+          <div class="support-mini-sub">Registra circonferenze e peso per capire se il fisico sta cambiando davvero.</div>
         </div>
         <div class="stats-inline-actions">
-          <button class="stats-inline-btn" onclick="toggleStatsSection('measurements-form-shell')">Registra</button>
+          <button class="stats-inline-btn" onclick="toggleStatsSection('measurements-form-shell')">Nuova rilevazione</button>
           <button class="stats-inline-btn" onclick="toggleStatsSection('measurements-log-shell')">Cronologia</button>
         </div>
       </div>
       <div class="stats-insight-strip">
-        <div class="stats-insight-title">Lettura composizione</div>
+        <div class="stats-insight-title">Come leggerle</div>
         <div class="stats-insight-body">${data.measurements.insight}</div>
       </div>
       <div class="measure-cards measure-cards-inline">
@@ -3165,7 +3309,7 @@ function renderStatsAdherence(data) {
             <div class="support-mini-title">Aderenza e costanza</div>
             <span class="support-mini-state ${adherence.adherenceRate >= 70 ? 'done' : adherence.adherenceRate >= 45 ? 'pending' : 'danger'}">${adherence.adherenceRate}%</span>
           </div>
-          <div class="support-mini-sub">${data.bounds.label} · ${adherence.activeDays}/${adherence.totalDays} giorni con attivita</div>
+          <div class="support-mini-sub">Qui capisci quanto spesso hai davvero compilato la giornata, non quanto sei stato perfetto.</div>
         </div>
       </div>
       <div class="stats-kpis stats-kpis-adh">
@@ -3218,8 +3362,8 @@ function renderStatsPatterns(data) {
             <div class="support-mini-title">Pattern utili</div>
             <span class="support-mini-state idle">${data.bounds.label}</span>
           </div>
-          <div class="support-mini-sub">Segnali automatici emersi dal periodo selezionato</div>
-          <div class="stats-patterns-note">Questi segnali aiutano a capire dove il comportamento sta sostenendo il percorso e dove conviene intervenire per primo.</div>
+          <div class="support-mini-sub">L app riassume i segnali piu utili emersi nel periodo.</div>
+          <div class="stats-patterns-note">Leggi queste righe come priorita pratiche: cosa sta funzionando e dove conviene intervenire per primo.</div>
         </div>
         <div class="stats-patterns-main">
           <div class="pattern-card pattern-card-featured">
@@ -3236,50 +3380,13 @@ function renderStatsPatterns(data) {
 function renderStatsActions() {
   const el = document.getElementById('stats-actions');
   if (!el) return;
-  el.innerHTML = `
-    <div class="stats-panel stats-panel-actions">
-      <div class="stats-panel-head support-mini-head">
-        <div class="support-mini-head-copy">
-          <div class="support-mini-kicker">Stats</div>
-          <div class="support-mini-title-row">
-            <div class="support-mini-title">Azioni rapide</div>
-          </div>
-          <div class="support-mini-sub">Aggiorna i dati chiave della dashboard</div>
-        </div>
-      </div>
-      <div class="stats-actions-card">
-        <div class="stats-actions-stack">
-          <div class="stats-action-row stats-action-row-primary">
-            <div class="stats-action-copy">
-              <div class="stats-actions-title">Peso</div>
-              <div class="stats-actions-note">Per trend e target.</div>
-            </div>
-            <div class="stats-action-control">
-              <div class="weight-entry">
-                <input class="w-input" type="number" id="w-in" step="0.1" placeholder="64.0">
-                <span style="font-size:12px;color:var(--muted);font-weight:600">kg</span>
-                <button class="w-btn" onclick="addWeight()">+ Registra peso</button>
-              </div>
-            </div>
-          </div>
-          <div class="stats-action-row">
-            <div class="stats-action-copy">
-              <div class="stats-actions-title">Misure</div>
-              <div class="stats-actions-note">Per leggere la composizione.</div>
-            </div>
-            <div class="stats-action-control">
-              <button class="stats-secondary-btn" onclick="openMeasurementEntry()">Apri misurazioni</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
+  el.innerHTML = '';
 }
 
 function renderStats() {
   const data = getStatsRangeData(S.statsRange || '30d');
   const streak = calcStreak();
-  document.getElementById('stats-sub').textContent = `${data.bounds.label} · streak attuale ${streak} giorni`;
+  document.getElementById('stats-sub').textContent = `${data.bounds.label} · qui leggi peso, misure e costanza con lo stesso filtro`;
   renderStatsToolbar(data);
   renderStatsHero(data);
   renderStatsWeight(data);
@@ -3298,9 +3405,17 @@ function drawChart(log, opts = {}) {
   const el = document.getElementById('w-canvas');
   if (!el || !log?.length) return;
   const isCompact = window.innerWidth <= 720;
-  el.width = el.offsetWidth || 680; el.height = isCompact ? 160 : 220;
+  const cssWidth = Math.max(260, Math.round(el.getBoundingClientRect().width || el.offsetWidth || 680));
+  const cssHeight = isCompact ? 170 : 210;
+  const dpr = window.devicePixelRatio || 1;
+  el.style.width = '100%';
+  el.style.height = `${cssHeight}px`;
+  el.width = Math.round(cssWidth * dpr);
+  el.height = Math.round(cssHeight * dpr);
   const ctx = el.getContext('2d');
-  const W=el.width, H=el.height, pad={t:20,r:22,b:36,l:46};
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const W=cssWidth, H=cssHeight, pad={t:18,r:24,b:30,l:42};
   const vals = log.map(l=>l.val);
   const rolling = opts.rolling || [];
   const targetW = opts.targetWeight ?? null;
@@ -3311,12 +3426,13 @@ function drawChart(log, opts = {}) {
   const xs = i => pad.l + (W-pad.l-pad.r)*i/Math.max(n-1,1);
   const ys = v => H-pad.b - (v-vmin)/(vmax-vmin)*(H-pad.t-pad.b);
   ctx.clearRect(0,0,W,H);
+  ctx.imageSmoothingEnabled = true;
 
   [0,.25,.5,.75,1].forEach(t => {
     const y=pad.t+(H-pad.t-pad.b)*t, v=(vmax-(vmax-vmin)*t).toFixed(1);
     ctx.strokeStyle='#e2dfd8';ctx.lineWidth=1;ctx.setLineDash([]);
     ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
-    ctx.fillStyle='#8c877f';ctx.font='9px JetBrains Mono';ctx.fillText(v,2,y+3);
+    ctx.fillStyle='#8c877f';ctx.font='10px JetBrains Mono';ctx.fillText(v,2,y+3);
   });
 
   if (targetW) {
@@ -3324,7 +3440,7 @@ function drawChart(log, opts = {}) {
     ctx.strokeStyle='#1c52a0';ctx.lineWidth=1;ctx.setLineDash([5,3]);
     ctx.beginPath();ctx.moveTo(pad.l,ty);ctx.lineTo(W-pad.r,ty);ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle='#1c52a0';ctx.font='9px JetBrains Mono';
+    ctx.fillStyle='#1c52a0';ctx.font='10px JetBrains Mono';
     ctx.fillText(`target ${targetW}kg`,W-pad.r+3,ty+3);
   }
 
@@ -3338,7 +3454,7 @@ function drawChart(log, opts = {}) {
 
   if (vals.length < 2) {
     ctx.fillStyle='#1a6b3f';ctx.beginPath();ctx.arc(xs(0),ys(vals[0]),4,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#8c877f';ctx.font='9px JetBrains Mono';
+    ctx.fillStyle='#8c877f';ctx.font='10px JetBrains Mono';
     ctx.fillText(log[0].shortLabel || String(log[0].date || '').slice(0,5), pad.l+6, H-4);
     return;
   }
@@ -3356,7 +3472,7 @@ function drawChart(log, opts = {}) {
   vals.forEach((v,i)=>{
     ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(xs(i),ys(v),4,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='#1a6b3f';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(xs(i),ys(v),4,0,Math.PI*2);ctx.stroke();
-    ctx.fillStyle='#8c877f';ctx.font='9px JetBrains Mono';
+    ctx.fillStyle='#8c877f';ctx.font='10px JetBrains Mono';
     const lx = Math.min(Math.max(xs(i)-12, pad.l), W-pad.r-36);
     ctx.fillText(log[i].shortLabel || String(log[i].date || '').slice(0,5), lx, H-4);
   });
@@ -3482,6 +3598,7 @@ function renderMeasurementsForm(bounds) {
   if (!el) return;
   el.innerHTML = `
     <div class="meas-form">
+      <div class="stats-form-note">Compila solo i campi che vuoi tracciare oggi. Potrai modificare o eliminare ogni rilevazione dalla cronologia.</div>
       <div class="meas-grid">
         <div class="meas-field"><label>Vita</label><input type="number" id="m-vita" step="0.5" placeholder="–"><div class="meas-unit">cm</div></div>
         <div class="meas-field"><label>Fianchi</label><input type="number" id="m-fianchi" step="0.5" placeholder="–"><div class="meas-unit">cm</div></div>
@@ -3490,7 +3607,7 @@ function renderMeasurementsForm(bounds) {
         <div class="meas-field"><label>Coscia</label><input type="number" id="m-coscia" step="0.5" placeholder="–"><div class="meas-unit">cm</div></div>
         <div class="meas-field"><label>Peso</label><input type="number" id="m-peso" step="0.1" placeholder="–"><div class="meas-unit">kg</div></div>
       </div>
-      <button class="meas-btn" onclick="addMeasurement()">+ Registra misurazioni</button>
+      <button class="meas-btn" onclick="addMeasurement()">+ Salva rilevazione</button>
     </div>`;
   renderMeasurementsLog(bounds);
 }
@@ -3501,7 +3618,9 @@ function renderMeasurementsLog(bounds) {
   if (!log.length) { el.innerHTML=''; return; }
   const LABELS = {peso:'Peso',vita:'Vita',fianchi:'Fianchi',petto:'Petto',braccio:'Braccio',coscia:'Coscia'};
   const UNITS  = {peso:'kg', vita:'cm',fianchi:'cm',petto:'cm',braccio:'cm',coscia:'cm'};
-  el.innerHTML = `<div style="background:var(--surf);border:1px solid var(--b1);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh)">
+  el.innerHTML = `<div class="stats-measure-log-card">
+    <div class="stats-form-note" style="margin-bottom:10px">Cronologia misure: puoi aprire ogni riga per correggerla o rimuoverla.</div>
+    <div class="stats-measure-log-scroll">
     ${log.map((m,ri) => {
       const prev = log[ri+1];
       const pills = Object.entries(LABELS).filter(([k])=>m[k]!==null&&m[k]!==undefined).map(([k,lbl])=>{
@@ -3512,8 +3631,13 @@ function renderMeasurementsLog(bounds) {
       return `<div class="meas-log-item">
         <div class="meas-log-date">${m.date.split('-').reverse().join('/')}</div>
         <div class="meas-vals">${pills}</div>
+        <div class="stats-row-actions">
+          <button class="stats-icon-btn" title="Modifica rilevazione" aria-label="Modifica rilevazione" onclick="editMeasurement(${m._idx})">✏️</button>
+          <button class="stats-icon-btn danger" title="Elimina rilevazione" aria-label="Elimina rilevazione" onclick="delMeasurement(${m._idx})">🗑️</button>
+        </div>
       </div>`;
     }).join('')}
+    </div>
   </div>`;
 }
 function renderGoalCard() {
@@ -4255,66 +4379,8 @@ function renderAnagrafica() {
     </div>
     <div class="mt-card">${mealTimeRowsHTML}</div>`;
 
-  // ── Card 3: Cibi preferiti ──
-  const ffsHtml = (() => {
-    const ffs = S.favoriteFoods || [];
-    if (!ffs.length) return `<div class="ff-empty">Nessun cibo aggiunto ancora.</div>`;
-    return ffs.map(f => {
-      const typK = Math.round(f.kcal100 * f.typicalGrams / 100);
-      const typP = (f.p100 * f.typicalGrams / 100).toFixed(0);
-      const typC = (f.c100 * f.typicalGrams / 100).toFixed(0);
-      return `<div class="ff-item">
-        <div class="ff-info">
-          <div class="ff-name">${htmlEsc(f.name)}</div>
-          <div class="ff-macros">${f.typicalGrams}g · ${typK} kcal · P ${typP}g · C ${typC}g</div>
-        </div>
-        <button class="ff-del" onclick="removeFavoriteFood('${f.id}')" title="Rimuovi">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="2" y1="2" x2="11" y2="11"/><line x1="11" y1="2" x2="2" y2="11"/></svg>
-        </button>
-      </div>`;
-    }).join('');
-  })();
   const foodsEl = document.getElementById('prof-foods-card');
-  const favoriteFoodsCount = (S.favoriteFoods || []).length;
-  if (foodsEl) foodsEl.innerHTML = `
-    <div class="profile-card-head support-mini-head">
-      <div class="support-mini-head-copy">
-        <div class="support-mini-kicker">Profilo</div>
-        <div class="support-mini-title-row">
-          <div class="support-mini-title">Cibi preferiti</div>
-          <span class="support-mini-state ${favoriteFoodsCount ? 'progress' : 'idle'}">${favoriteFoodsCount ? `${favoriteFoodsCount} salvati` : 'Vuoto'}</span>
-        </div>
-        <div class="support-mini-sub">I tuoi alimenti ricorrenti per suggerimenti serali e scelte piu rapide durante la giornata.</div>
-      </div>
-    </div>
-    <div class="ff-hint">Aggiungi i cibi che mangi spesso — l'assistente serale li userà per suggerirti cosa mangiare quando mancano calorie o macro.</div>
-    <div class="ff-list" id="ff-list">${ffsHtml}</div>
-    <button class="ff-open-add-btn" id="ff-add-toggle" onclick="_toggleFfForm()">+ Aggiungi cibo preferito</button>
-    <div class="ff-add-form" id="ff-add-form" style="display:none">
-      <div class="ff-add-title">Nuovo cibo preferito</div>
-      <div class="ff-search-area">
-        <div class="ff-search-row">
-          <input class="ff-search-inp" id="ff-search-inp" type="text" placeholder="Cerca su OpenFoodFacts…" oninput="onFfSearch(this)" autocomplete="off">
-          <button class="ff-bc-btn" onclick="openBarcodeForFf()" title="Scansiona barcode">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9V6a2 2 0 0 1 2-2h2"/><path d="M15 4h2a2 2 0 0 1 2 2v3"/><path d="M21 15v3a2 2 0 0 1-2 2h-2"/><path d="M9 20H6a2 2 0 0 1-2-2v-3"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
-          </button>
-        </div>
-        <div class="ff-search-results" id="ff-search-results" style="display:none"></div>
-        <div class="ff-or-sep">— oppure inserisci manualmente —</div>
-      </div>
-      <input class="ff-add-name" id="ff-nome" type="text" placeholder="Nome (es. Yogurt greco 0%, Ricotta magra…)" autocomplete="off">
-      <div class="ff-add-grid">
-        <div class="ff-add-lbl">Kcal / 100g<input type="number" id="ff-kcal" min="0" step="1" placeholder="0"></div>
-        <div class="ff-add-lbl">Prot / 100g<input type="number" id="ff-prot" min="0" step="0.1" placeholder="0"></div>
-        <div class="ff-add-lbl">Carb / 100g<input type="number" id="ff-carb" min="0" step="0.1" placeholder="0"></div>
-        <div class="ff-add-lbl">Grassi / 100g<input type="number" id="ff-fat" min="0" step="0.1" placeholder="0"></div>
-      </div>
-      <div class="ff-add-lbl" style="margin-bottom:0">Porzione tipica (g)<input type="number" id="ff-portion" min="1" step="1" placeholder="100"></div>
-      <div class="ff-add-row">
-        <button class="ff-add-cancel" onclick="_toggleFfForm()">Annulla</button>
-        <button class="ff-add-btn" onclick="addFavoriteFood()">Salva cibo</button>
-      </div>
-    </div>`;
+  if (foodsEl) foodsEl.innerHTML = favoriteFoodsProfileRedirectHTML();
 
   setTimeout(_updateFabbisognoPreview, 0);
 }

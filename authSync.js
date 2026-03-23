@@ -4,6 +4,7 @@ const AUTH_USERS_KEY = 'marcifit_auth_users_v1';
 const AUTH_SESSION_KEY = 'marcifit_auth_session_v1';
 const AUTH_SUPABASE_CONFIG_KEY = 'marcifit_supabase_config_v1';
 const AUTH_STATE_META_KEY = 'marcifit_state_meta_v1';
+const AUTH_STATE_BACKUP_KEY = 'marcifit_state_backup_v1';
 const AUTH_SYNC_DELAY_MS = 900;
 const AUTH_POST_LOGOUT_MODE_KEY = 'marcifit_post_logout_mode_v1';
 
@@ -15,6 +16,7 @@ const AUTH = {
   isSyncing: false,
   lastSyncedAt: null,
   needsEmailConfirmation: false,
+  bootstrapReady: false,
 };
 
 let _supabaseClient = null;
@@ -85,6 +87,10 @@ function authGetStateMetaKey() {
   return authGetAppStorageKey(AUTH_STATE_META_KEY);
 }
 
+function authGetStateBackupKey() {
+  return authGetAppStorageKey(AUTH_STATE_BACKUP_KEY);
+}
+
 function authReadStateMeta() {
   try {
     const raw = localStorage.getItem(authGetStateMetaKey());
@@ -100,6 +106,57 @@ function authWriteStateMeta(meta) {
 
 function authClearLocalStateMeta() {
   localStorage.removeItem(authGetStateMetaKey());
+}
+
+function authReadStateBackups() {
+  try {
+    const raw = localStorage.getItem(authGetStateBackupKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function authWriteStateBackups(backups) {
+  localStorage.setItem(authGetStateBackupKey(), JSON.stringify(Array.isArray(backups) ? backups : []));
+}
+
+function authCreateStateBackup(source, state, extra = {}) {
+  if (!authHasMeaningfulState(state)) return false;
+  try {
+    const raw = JSON.stringify(state);
+    const backups = authReadStateBackups();
+    const latest = backups[0];
+    if (latest?.raw === raw && latest?.source === source) return true;
+    const next = [{
+      source,
+      createdAt: new Date().toISOString(),
+      updatedAt: extra.updatedAt || null,
+      hasMeaningfulState: true,
+      raw,
+    }, ...backups].slice(0, 5);
+    authWriteStateBackups(next);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function authGetLatestBackupMeta() {
+  const latest = authReadStateBackups()[0];
+  if (!latest) return null;
+  return {
+    source: latest.source || 'backup',
+    createdAt: latest.createdAt || null,
+    updatedAt: latest.updatedAt || null,
+  };
+}
+
+function authFormatBackupSource(source) {
+  if (source === 'pre_cloud_sync') return 'prima della sync cloud';
+  if (source === 'remote_import') return 'prima del caricamento cloud';
+  return 'backup di sicurezza';
 }
 
 function authFormatSyncTime(iso) {
@@ -130,6 +187,14 @@ function authStatusMeta() {
 function authRefreshUi() {
   if (typeof renderAuthNav === 'function') renderAuthNav();
   if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+}
+
+function authSetBootstrapReady(isReady) {
+  AUTH.bootstrapReady = !!isReady;
+  if (AUTH.bootstrapReady) {
+    const meta = authReadStateMeta();
+    if (meta.dirty) authQueueStateSync(1200);
+  }
 }
 
 function authResolveSupabaseConfig() {
@@ -319,14 +384,34 @@ function authHasMeaningfulState(state) {
   return false;
 }
 
+function authDescribeStatePresence(state) {
+  return authHasMeaningfulState(state)
+    ? { label: 'Contiene dati', cls: 'filled' }
+    : { label: 'Vuota o quasi vuota', cls: 'empty' };
+}
+
+function authMarkExplicitReset() {
+  const now = new Date().toISOString();
+  const meta = authReadStateMeta();
+  authWriteStateMeta({
+    ...meta,
+    updatedAt: now,
+    resetAt: now,
+    resetPending: true,
+    dirty: authIsAuthenticated() && AUTH.provider === 'supabase',
+  });
+}
+
 function authStoreRemoteStateLocally(state, updatedAt) {
   try {
+    authCreateStateBackup('remote_import', state, { updatedAt });
     const raw = JSON.stringify(state);
     localStorage.setItem(authGetAppStorageKey(authCurrentBaseStorageKey()), raw);
     authWriteStateMeta({
       updatedAt: updatedAt || new Date().toISOString(),
       lastSyncedAt: updatedAt || new Date().toISOString(),
       remoteUpdatedAt: updatedAt || new Date().toISOString(),
+      resetPending: false,
       dirty: false,
     });
     AUTH.lastSyncedAt = updatedAt || new Date().toISOString();
@@ -365,17 +450,39 @@ async function authHydrateLocalCacheFromRemote() {
   const localState = authParseRemoteState(localRaw);
   const remoteAt = Date.parse(remote.row.updated_at || 0) || 0;
   const localAt = Date.parse(localMeta.updatedAt || 0) || 0;
+  const resetAt = Date.parse(localMeta.resetAt || 0) || 0;
   const hasMeaningfulLocal = authHasMeaningfulState(localState) && !!localAt;
   const hasMeaningfulRemote = authHasMeaningfulState(remoteState) && !!remote.row.updated_at && !!remoteAt;
 
-  if (hasMeaningfulLocal && hasMeaningfulRemote && remote.row.updated_at !== localMeta.remoteUpdatedAt && remoteAt !== localAt) {
-    return {
-      ok: true,
-      conflict: true,
-      remoteState,
-      remoteUpdatedAt: remote.row.updated_at,
-      localUpdatedAt: localMeta.updatedAt,
-    };
+  if (resetAt && resetAt >= remoteAt && !hasMeaningfulLocal) {
+    authWriteStateMeta({
+      ...localMeta,
+      updatedAt: localMeta.updatedAt || localMeta.resetAt || new Date().toISOString(),
+      remoteUpdatedAt: remote.row.updated_at || localMeta.remoteUpdatedAt || null,
+      resetPending: authIsAuthenticated() && AUTH.provider === 'supabase',
+      dirty: authIsAuthenticated() && AUTH.provider === 'supabase',
+    });
+    AUTH.lastSyncedAt = localMeta.lastSyncedAt || null;
+    return { ok: true, hydrated: false, source: 'local_reset' };
+  }
+
+  if (!hasMeaningfulLocal && hasMeaningfulRemote) {
+    authStoreRemoteStateLocally(remoteState, remote.row.updated_at);
+    return { ok: true, hydrated: true, source: 'remote' };
+  }
+
+  if (hasMeaningfulLocal && !hasMeaningfulRemote) {
+    AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
+    return { ok: true, hydrated: false, source: 'local' };
+  }
+
+  if (hasMeaningfulLocal && hasMeaningfulRemote && remoteAt !== localAt) {
+    if (remoteAt > localAt) {
+      authStoreRemoteStateLocally(remoteState, remote.row.updated_at);
+      return { ok: true, hydrated: true, source: 'remote' };
+    }
+    AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
+    return { ok: true, hydrated: false, source: 'local' };
   }
 
   if (!hasMeaningfulLocal || !localRaw || remoteAt > localAt) {
@@ -555,18 +662,23 @@ function confirmSignOutUser() {
 function authOnLocalStateSaved(raw, options = {}) {
   const now = new Date().toISOString();
   const meta = authReadStateMeta();
+  const shouldSync = authIsAuthenticated() && AUTH.provider === 'supabase';
+  const dirty = shouldSync ? (meta.resetPending ? true : !options.skipCloudSync) : false;
   const nextMeta = {
     ...meta,
     updatedAt: now,
-    dirty: authIsAuthenticated() && AUTH.provider === 'supabase' ? !options.skipCloudSync : false,
+    dirty,
   };
   authWriteStateMeta(nextMeta);
-  if (!options.skipCloudSync) authQueueStateSync();
+  if (!options.skipCloudSync && AUTH.bootstrapReady) authQueueStateSync();
 }
 
 async function authSyncStateToCloud(force = false) {
   if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !authCanUseSupabase()) {
     return { ok: false, skipped: true };
+  }
+  if (!AUTH.bootstrapReady) {
+    return { ok: false, skipped: true, reason: 'bootstrap_pending' };
   }
   const meta = authReadStateMeta();
   if (!force && meta.dirty === false) {
@@ -577,6 +689,35 @@ async function authSyncStateToCloud(force = false) {
     const client = authGetSupabaseClient();
     const raw = localStorage.getItem(authGetAppStorageKey(authCurrentBaseStorageKey())) || JSON.stringify(window.S || {});
     const parsed = JSON.parse(raw);
+    authCreateStateBackup('pre_cloud_sync', parsed, { updatedAt: meta.updatedAt || null });
+    const remote = await authFetchRemoteStateRow();
+    const remoteState = remote?.row ? authParseRemoteState(remote.row.state_json) : null;
+    const remoteAt = Date.parse(remote?.row?.updated_at || 0) || 0;
+    const localAt = Date.parse(meta.updatedAt || 0) || 0;
+    const hasMeaningfulLocal = authHasMeaningfulState(parsed);
+    const hasMeaningfulRemote = authHasMeaningfulState(remoteState);
+
+    if (!force && hasMeaningfulRemote && (!hasMeaningfulLocal || remoteAt > localAt)) {
+      AUTH.isSyncing = false;
+      AUTH.lastSyncedAt = remote?.row?.updated_at || AUTH.lastSyncedAt;
+      authWriteStateMeta({
+        ...meta,
+        remoteUpdatedAt: remote?.row?.updated_at || meta.remoteUpdatedAt || null,
+        lastSyncedAt: remote?.row?.updated_at || meta.lastSyncedAt || null,
+        dirty: hasMeaningfulLocal ? meta.dirty : false,
+      });
+      authRefreshUi();
+      return {
+        ok: false,
+        conflict: true,
+        reason: !hasMeaningfulLocal ? 'local_empty_remote_present' : 'remote_newer',
+        localState: parsed,
+        remoteState,
+        localUpdatedAt: meta.updatedAt || null,
+        remoteUpdatedAt: remote?.row?.updated_at || null,
+      };
+    }
+
     await authEnsureRemoteProfile();
     const updatedAt = meta.updatedAt || new Date().toISOString();
     const payload = {
@@ -598,6 +739,7 @@ async function authSyncStateToCloud(force = false) {
       updatedAt,
       lastSyncedAt: updatedAt,
       remoteUpdatedAt: updatedAt,
+      resetPending: false,
       dirty: false,
     });
     authRefreshUi();
@@ -610,7 +752,7 @@ async function authSyncStateToCloud(force = false) {
 }
 
 function authQueueStateSync(delay = AUTH_SYNC_DELAY_MS) {
-  if (!authIsAuthenticated() || AUTH.provider !== 'supabase') return;
+  if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !AUTH.bootstrapReady) return;
   AUTH.isSyncing = true;
   authRefreshUi();
   clearTimeout(_authSyncTimer);
@@ -684,6 +826,10 @@ function renderProfileAccountCard() {
   const cfg = authResolveSupabaseConfig();
   const hasEmbeddedConfig = authHasEmbeddedSupabaseConfig();
   const syncLabel = authFormatSyncTime(AUTH.lastSyncedAt || authReadStateMeta().lastSyncedAt);
+  const backupMeta = authGetLatestBackupMeta();
+  const backupLabel = backupMeta
+    ? `${authFormatSyncTime(backupMeta.createdAt)} · ${authFormatBackupSource(backupMeta.source)}`
+    : 'Non ancora creato';
   const status = authStatusMeta();
   if (authIsAuthenticated()) {
     el.innerHTML = `
@@ -702,6 +848,7 @@ function renderProfileAccountCard() {
           <span class="profile-account-pill ${status.cls}">${htmlEsc(status.label)}</span>
           <span class="profile-account-status-copy">${AUTH.provider === 'supabase' ? 'I tuoi dati possono restare allineati e disponibili anche sugli altri dispositivi.' : 'Per ora questo profilo salva i dati solo qui sul dispositivo.'}</span>
         </div>
+        <div class="profile-account-note">Backup locale di sicurezza: ${htmlEsc(backupLabel)}</div>
         <div class="profile-account-body">
           <div class="profile-account-email">${htmlEsc(AUTH.user.email)}</div>
           <div class="profile-account-actions">
@@ -730,6 +877,7 @@ function renderProfileAccountCard() {
           <span class="profile-account-pill ${status.cls}">${htmlEsc(status.label)}</span>
           <span class="profile-account-status-copy">${AUTH.needsEmailConfirmation ? 'Conferma la mail ricevuta e poi accedi per collegare il tuo profilo.' : authCanUseSupabase() ? 'La sincronizzazione è pronta: puoi accedere o creare un account.' : 'Per ora l’app salva i dati solo sul dispositivo.'}</span>
         </div>
+        <div class="profile-account-note">Backup locale di sicurezza: ${htmlEsc(backupLabel)}</div>
         <div class="profile-account-body">
           <div class="profile-account-email">Dati salvati solo su questo dispositivo</div>
           <div class="profile-account-actions">
