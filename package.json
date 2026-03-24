@@ -4,6 +4,8 @@
   "description": "",
   "main": "app.js",
   "scripts": {
+    "dev": "npx serve -l 3000",
+    "start": "npx serve -l 3000",
     "preview:serve": "python3 server.py",
     "preview:live": "python3 server.py",
     "preview:today": "node scripts/preview-today.mjs",
@@ -18,6 +20,7 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "playwright": "^1.58.2"
+    "playwright": "^1.58.2",
+    "serve": "^14.2.1"
   }
 }
