@@ -9,35 +9,52 @@
 <link rel="stylesheet" href="style.css?v=133">
 </head>
 <body>
-<div class="app">
-<div class="nav">
+<a href="#main-content" class="skip-link">Vai al contenuto principale</a>
+<div class="app" role="application">
+<header class="nav" role="banner">
   <div class="nav-brand">
-    <div class="nav-logo">
+    <a href="#" class="nav-logo" aria-label="MarciFit - Homepage">
       <div class="nav-logo-mark" aria-hidden="true">
         <i data-lucide="activity" class="nav-logo-mark-icon"></i>
       </div>
       <div class="nav-logo-text">
         <div class="nav-logo-name-row">
-          <div class="nav-logo-name">MarciFit</div>
+          <span class="nav-logo-name">MarciFit</span>
           <span class="nav-version" title="Versione app">v0.6.0</span>
         </div>
-        <div class="nav-logo-sub">fitness nutrition tracker</div>
+        <span class="nav-logo-sub">fitness nutrition tracker</span>
       </div>
-    </div>
+    </a>
   </div>
   <div class="nav-actions">
-    <button class="btn btn-ghost" onclick="printDay()"><i data-lucide="printer" class="nav-action-icon"></i>Stampa</button>
+    <button class="btn btn-ghost" onclick="printDay()" aria-label="Stampa la giornata">
+      <i data-lucide="printer" class="nav-action-icon" aria-hidden="true"></i>
+      <span>Stampa</span>
+    </button>
     <div id="nav-auth-slot"></div>
   </div>
-</div>
-<div class="nav-tabs">
-  <button class="nav-tab active" data-view="today" onclick="goView('today')"><i data-lucide="calendar-days" class="nav-tab-icon"></i>Oggi</button>
-  <button class="nav-tab" data-view="piano" onclick="goView('piano')"><i data-lucide="utensils" class="nav-tab-icon"></i>Piano</button>
-  <button class="nav-tab" data-view="stats" onclick="goView('stats')"><i data-lucide="bar-chart-2" class="nav-tab-icon"></i>Stats</button>
-  <button class="nav-tab" data-view="profilo" onclick="goView('profilo')"><i data-lucide="user" class="nav-tab-icon"></i>Profilo</button>
-</div>
+</header>
+<nav class="nav-tabs" role="navigation" aria-label="Navigazione principale">
+  <button class="nav-tab active" data-view="today" onclick="goView('today')" aria-current="page" aria-label="Vai a Oggi">
+    <i data-lucide="calendar-days" class="nav-tab-icon" aria-hidden="true"></i>
+    <span>Oggi</span>
+  </button>
+  <button class="nav-tab" data-view="piano" onclick="goView('piano')" aria-label="Vai a Piano">
+    <i data-lucide="utensils" class="nav-tab-icon" aria-hidden="true"></i>
+    <span>Piano</span>
+  </button>
+  <button class="nav-tab" data-view="stats" onclick="goView('stats')" aria-label="Vai a Statistiche">
+    <i data-lucide="bar-chart-2" class="nav-tab-icon" aria-hidden="true"></i>
+    <span>Stats</span>
+  </button>
+  <button class="nav-tab" data-view="profilo" onclick="goView('profilo')" aria-label="Vai a Profilo">
+    <i data-lucide="user" class="nav-tab-icon" aria-hidden="true"></i>
+    <span>Profilo</span>
+  </button>
+</nav>
 <!-- VIEW: TODAY -->
-<div class="view active" id="view-today">
+<main id="main-content">
+<div class="view active" id="view-today" role="region" aria-label="Vista Oggi">
 
   <!-- Greeting (compact) -->
   <div class="today-greeting" id="today-greeting"></div>
@@ -389,6 +406,7 @@
   </div>
 </div>
 
+</main><!-- main-content -->
 </div><!-- app -->
 
 <!-- Drawer cronologia -->
@@ -407,7 +425,7 @@
 <button id="ds-on" class="ds-btn" style="display:none"></button>
 <button id="ds-off" class="ds-btn" style="display:none"></button>
 
-<div id="toast"><span id="tm">&#x2713;&#xFE0F; </span></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"><span id="tm">&#x2713;&#xFE0F; </span></div>
 <input type="file" id="fi" accept=".json" style="display:none" onchange="onLoad(event)">
 
 <!-- Fixed tooltips - positioned by JS -->

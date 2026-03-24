@@ -1972,7 +1972,9 @@ function goView(name) {
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById(`view-${name}`).classList.add('active');
   document.querySelector(`.nav-tab[data-view="${name}"]`)?.classList.add('active');
-  window.scrollTo(0, 0); // scroll to top on tab change
+  // Update aria-current for accessibility
+  if (typeof updateNavAriaCurrent === 'function') updateNavAriaCurrent(name);
+  window.scrollTo({ top: 0, behavior: 'smooth' }); // smooth scroll to top on tab change
   if (name==='piano')   renderPiano();
   if (name==='stats')   renderStats();
   if (name==='profilo') renderProfile();
@@ -3583,3 +3585,35 @@ document.addEventListener('visibilitychange', syncTodayGreetingAutoRefresh);
     });
   }
 })();
+
+// Nav scroll enhancement - adds shadow on scroll
+(function() {
+  const nav = document.querySelector('.nav');
+  if (!nav) return;
+  
+  let ticking = false;
+  window.addEventListener('scroll', () => {
+    if (!ticking) {
+      window.requestAnimationFrame(() => {
+        if (window.scrollY > 10) {
+          nav.classList.add('scrolled');
+        } else {
+          nav.classList.remove('scrolled');
+        }
+        ticking = false;
+      });
+      ticking = true;
+    }
+  }, { passive: true });
+})();
+
+// Aria-current management for nav tabs
+function updateNavAriaCurrent(viewId) {
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    if (tab.dataset.view === viewId) {
+      tab.setAttribute('aria-current', 'page');
+    } else {
+      tab.removeAttribute('aria-current');
+    }
+  });
+}
