@@ -720,12 +720,12 @@ function getDefaultPlannerMealIdx(type) {
 function ensureMealPlannerState(type = S.planTab || 'on') {
   if (!S.mealPlanner) {
     S.mealPlanner = {
-      on: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
-      off:{ mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
+      on: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [], selectedFavoriteFoodIds: [] },
+      off:{ mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [], selectedFavoriteFoodIds: [] },
     };
   }
   if (!S.mealPlanner[type]) {
-    S.mealPlanner[type] = { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] };
+    S.mealPlanner[type] = { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [], selectedFavoriteFoodIds: [] };
   }
   const state = S.mealPlanner[type];
   if (typeof state.mealIdx !== 'number' || !S.meals[type]?.[state.mealIdx]) {
@@ -735,12 +735,41 @@ function ensureMealPlannerState(type = S.planTab || 'on') {
   if (typeof state.useFavorites !== 'boolean') state.useFavorites = true;
   if (typeof state.useTemplates !== 'boolean') state.useTemplates = true;
   if (!Array.isArray(state.results)) state.results = [];
+  if (!Array.isArray(state.selectedFavoriteFoodIds)) state.selectedFavoriteFoodIds = [];
+  const validFavoriteIds = new Set((S.favoriteFoods || []).map(food => food.id));
+  state.selectedFavoriteFoodIds = state.selectedFavoriteFoodIds.filter(id => validFavoriteIds.has(id));
   return state;
 }
 
 function setMealPlannerMeal(type, mealIdx) {
   const state = ensureMealPlannerState(type);
   state.mealIdx = Math.max(0, Math.min((S.meals[type] || []).length - 1, parseInt(mealIdx, 10) || 0));
+  const meal = S.meals[type]?.[state.mealIdx];
+  const mealType = getMealTypeFromName(meal?.name || '');
+  if (mealType && typeof normalizeFavoriteFoods === 'function' && typeof isFoodCompatibleWithMeal === 'function') {
+    const compatibleIds = new Set(
+      normalizeFavoriteFoods(S.favoriteFoods || [])
+        .filter(food => isFoodCompatibleWithMeal(food, mealType))
+        .map(food => food.id)
+    );
+    state.selectedFavoriteFoodIds = state.selectedFavoriteFoodIds.filter(id => compatibleIds.has(id));
+  }
+  save();
+  renderPiano();
+}
+
+function toggleMealPlannerFavoriteFood(type, foodId) {
+  const state = ensureMealPlannerState(type);
+  const current = Array.isArray(state.selectedFavoriteFoodIds) ? state.selectedFavoriteFoodIds.slice() : [];
+  if (current.includes(foodId)) {
+    state.selectedFavoriteFoodIds = current.filter(id => id !== foodId);
+  } else {
+    if (current.length >= 3) {
+      toast('⚠️ Seleziona al massimo 3 cibi da forzare nel pasto');
+      return;
+    }
+    state.selectedFavoriteFoodIds = [...current, foodId];
+  }
   save();
   renderPiano();
 }
@@ -1425,9 +1454,98 @@ function removeFavoriteFood(id) {
   toast('✅  Cibo rimosso');
 }
 
-function refreshFavoriteFoodsUi() {
-  if (typeof renderPiano === 'function') renderPiano();
-  if (typeof renderProfile === 'function') renderProfile();
+function toggleFavoriteFoodMealTag(id, mealTag, sourceEl = null) {
+  if (!S.favoriteFoods || !id || !mealTag) return;
+  const validTags = ['colazione', 'pranzo', 'cena', 'spuntino'];
+  if (!validTags.includes(mealTag)) return;
+  const food = S.favoriteFoods.find(item => item.id === id);
+  if (!food) return;
+  const listEl = sourceEl?.closest?.('.ff-list') || document.getElementById('ff-list');
+  const anchorCard = sourceEl?.closest?.('.ff-item') || document.querySelector(`.ff-item[data-food-id="${id}"]`);
+  const preserveListScrollTop = listEl ? listEl.scrollTop : null;
+  const preserveAnchorOffset = anchorCard && listEl
+    ? (anchorCard.getBoundingClientRect().top - listEl.getBoundingClientRect().top)
+    : null;
+  const current = Array.isArray(food.manualMealTags)
+    ? food.manualMealTags.filter(tag => validTags.includes(tag))
+    : [];
+  const next = current.includes(mealTag)
+    ? current.filter(tag => tag !== mealTag)
+    : [...current, mealTag];
+  food.manualMealTags = next;
+  food.mealTags = next.length ? next.slice() : [];
+  save();
+  refreshFavoriteFoodsUi({
+    preserveFoodId: id,
+    preserveListScrollTop,
+    preserveAnchorOffset,
+  });
+}
+
+function toggleFavoriteFoodRole(id, roleKey, sourceEl = null) {
+  if (!S.favoriteFoods || !id || !roleKey) return;
+  const validRoles = ['base', 'proteina', 'latticino', 'frutta', 'contorno', 'condimento'];
+  if (!validRoles.includes(roleKey)) return;
+  const food = S.favoriteFoods.find(item => item.id === id);
+  if (!food) return;
+  const listEl = sourceEl?.closest?.('.ff-list') || document.getElementById('ff-list');
+  const anchorCard = sourceEl?.closest?.('.ff-item') || document.querySelector(`.ff-item[data-food-id="${id}"]`);
+  const preserveListScrollTop = listEl ? listEl.scrollTop : null;
+  const preserveAnchorOffset = anchorCard && listEl
+    ? (anchorCard.getBoundingClientRect().top - listEl.getBoundingClientRect().top)
+    : null;
+  const current = Array.isArray(food.manualFoodRoles)
+    ? food.manualFoodRoles.filter(role => validRoles.includes(role))
+    : [];
+  const next = current.includes(roleKey)
+    ? current.filter(role => role !== roleKey)
+    : [...current, roleKey];
+  food.manualFoodRoles = next;
+  save();
+  refreshFavoriteFoodsUi({
+    preserveFoodId: id,
+    preserveListScrollTop,
+    preserveAnchorOffset,
+  });
+}
+
+function refreshFavoriteFoodsUi({
+  preserveScrollY = null,
+  preserveFoodId = '',
+  preserveListScrollTop = null,
+  preserveAnchorOffset = null,
+} = {}) {
+  const activeView = document.querySelector('.view.active')?.id || '';
+  if (activeView === 'view-piano') {
+    if (typeof renderPiano === 'function') renderPiano();
+  } else if (activeView === 'view-profilo') {
+    if (typeof renderProfile === 'function') renderProfile();
+  } else {
+    if (typeof renderPiano === 'function') renderPiano();
+    if (typeof renderProfile === 'function') renderProfile();
+  }
+  if (Number.isFinite(preserveScrollY)) {
+    requestAnimationFrame(() => window.scrollTo(0, preserveScrollY));
+  }
+  if (preserveFoodId && (Number.isFinite(preserveListScrollTop) || Number.isFinite(preserveAnchorOffset))) {
+    requestAnimationFrame(() => {
+      const nextList = document.getElementById('ff-list');
+      if (!nextList) return;
+      if (Number.isFinite(preserveListScrollTop)) {
+        nextList.scrollTop = preserveListScrollTop;
+      }
+      requestAnimationFrame(() => {
+        if (!Number.isFinite(preserveAnchorOffset)) return;
+        const nextCard = nextList.querySelector(`.ff-item[data-food-id="${preserveFoodId}"]`);
+        if (!nextCard) return;
+        const nextOffset = nextCard.getBoundingClientRect().top - nextList.getBoundingClientRect().top;
+        const delta = nextOffset - preserveAnchorOffset;
+        if (Math.abs(delta) > 1) {
+          nextList.scrollTop += delta;
+        }
+      });
+    });
+  }
 }
 
 function _toggleFfForm() {

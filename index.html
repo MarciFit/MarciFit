@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=133">
+<link rel="stylesheet" href="style.css?v=134">
 </head>
 <body>
 <div class="app">
@@ -45,8 +45,8 @@
   <div class="today-section-card today-dashboard-card">
     <div class="today-dashboard-head">
       <div>
-        <div class="today-recap-title">Dashboard del giorno</div>
-        <div class="today-dashboard-sub">Stato di oggi e contesto della settimana in un unico colpo d'occhio.</div>
+        <div class="today-recap-title">Oggi in breve</div>
+        <div class="today-dashboard-sub">Energia, progressione e settimana attiva nello stesso punto.</div>
       </div>
     </div>
     <div id="today-signal-row"></div>
@@ -55,9 +55,9 @@
       <div class="today-dashboard-block today-summary-card">
         <div class="today-dashboard-block-head support-mini-head">
           <div class="support-mini-head-copy">
-            <div class="support-mini-kicker">Dashboard</div>
+            <div class="support-mini-kicker">Oggi</div>
             <div class="support-mini-title-row">
-              <div class="support-mini-title">Riepilogo giornata</div>
+              <div class="support-mini-title">Energia e macro</div>
             </div>
           </div>
         </div>
@@ -78,9 +78,9 @@
       <div class="today-dashboard-block today-week-card">
         <div class="today-dashboard-block-head support-mini-head">
           <div class="support-mini-head-copy">
-            <div class="support-mini-kicker">Dashboard</div>
+            <div class="support-mini-kicker">Settimana</div>
             <div class="support-mini-title-row">
-              <div class="support-mini-title">Settimana</div>
+              <div class="support-mini-title">Calendario attivo</div>
             </div>
           </div>
         </div>
@@ -101,9 +101,9 @@
     <div class="support-mini-head-copy">
       <div class="support-mini-kicker">Oggi</div>
       <div class="support-mini-title-row">
-        <div class="support-mini-title">Timeline pasti</div>
+        <div class="support-mini-title">Pasti di oggi</div>
       </div>
-      <div class="support-mini-sub">L'ordine resta temporale: dalla prima finestra utile fino alla chiusura della giornata.</div>
+      <div class="support-mini-sub">Apri il prossimo snodo utile e registra il resto senza perdere il filo.</div>
     </div>
   </div>
 
@@ -114,9 +114,9 @@
       <div class="support-mini-head-copy">
         <div class="support-mini-kicker">Oggi</div>
         <div class="support-mini-title-row">
-          <div class="support-mini-title">Supporto giornata</div>
+          <div class="support-mini-title">Routine e note</div>
         </div>
-        <div class="support-mini-sub">Routine e promemoria restano vicini al flusso del giorno, ma con un peso piu calmo.</div>
+        <div class="support-mini-sub">Promemoria, acqua e appunti restano vicini alla giornata senza appesantirla.</div>
       </div>
     </div>
     <div class="today-support-layout">
@@ -164,48 +164,47 @@
 <div class="view" id="view-piano">
   <div class="prog-head piano-head">
     <div class="prog-title">Piano</div>
-    <div class="prog-sub">Costruisci i pasti del giorno partendo dai cibi che mangi davvero, usa l'helper solo quando i dati bastano e salva i template che ti servono.</div>
+    <div class="prog-sub">Costruisci i pasti partendo dai cibi che usi davvero, lascia lavorare l helper solo quando i dati bastano e tieni a portata i template che ripeti.</div>
   </div>
 
   <!-- SEZIONE: Piano Pasti -->
-  <div class="piano-section">
+  <div class="piano-section piano-section-hero">
     <div class="piano-section-head">
       <div class="piano-section-copy">
         <span class="support-mini-kicker">Piano</span>
         <div class="support-mini-title-row">
-          <span class="support-mini-title">Helper pasti</span>
+          <span class="support-mini-title">Genera il prossimo pasto</span>
         </div>
-        <span class="support-mini-sub">Scegli il pasto, guarda il target e usa una bozza solo quando il sistema ha abbastanza dati per proporti qualcosa di sensato.</span>
+        <span class="support-mini-sub">Scegli il pasto, guarda il target e usa l helper solo quando il sistema ha abbastanza dati per proporti una bozza credibile.</span>
       </div>
     </div>
-    <div id="piano-macros-summary" class="piano-macros-summary"></div>
     <div id="meal-planner-helper"></div>
   </div>
 
-  <div class="piano-section">
+  <div class="piano-section piano-section-dataset">
     <div class="piano-section-head">
       <div class="piano-section-copy">
         <span class="support-mini-kicker">Piano</span>
         <div class="support-mini-title-row">
           <span class="support-mini-title">Cibi abituali</span>
         </div>
-        <span class="support-mini-sub">Qui inserisci i cibi che compri spesso. L helper usera solo questi per costruire pasti credibili.</span>
+        <span class="support-mini-sub">Qui tieni solo i cibi che compri davvero spesso. L helper usera solo questi per creare pasti credibili.</span>
       </div>
     </div>
     <div id="piano-favorite-foods"></div>
   </div>
 
   <!-- SEZIONE: Libreria Template -->
-  <div class="piano-section">
+  <div class="piano-section piano-section-library">
     <div class="piano-section-head">
       <div class="piano-section-copy">
         <span class="support-mini-kicker">Piano</span>
         <div class="support-mini-title-row">
           <span class="support-mini-title">Template</span>
         </div>
-        <span class="support-mini-sub">Salva i pasti che usi spesso e richiamali al volo quando compili la giornata.</span>
+        <span class="support-mini-sub">Salva i pasti che ripeti e richiamali al volo quando compili la giornata.</span>
       </div>
-      <button class="btn btn-ghost piano-add-btn" onclick="openNewTemplate()">+ Nuovo template</button>
+      <button class="btn btn-ghost piano-add-btn" onclick="openNewTemplate()" aria-label="Nuovo template" title="Nuovo template">+</button>
     </div>
     <div id="tmpl-filters" class="tmpl-filters"></div>
     <div id="tmpl-list"></div>
@@ -419,7 +418,6 @@
 <div id="tip-day-mode" class="stat-tip tip-up"></div>
 <div id="tip-water"      class="stat-tip tip-up"></div>
 <div id="tip-pasti-dist" class="stat-tip tip-up"></div>
-<div id="tip-piano-summary" class="stat-tip tip-up"></div>
 <div id="tip-fab-bmr"  class="stat-tip tip-up"></div>
 <div id="tip-fab-pal"  class="stat-tip tip-up"></div>
 <div id="tip-fab-tdee" class="stat-tip tip-up"></div>

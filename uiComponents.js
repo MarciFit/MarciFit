@@ -138,6 +138,9 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
     const dayLog = S.foodLog[_logKey] || {};
     return timeline.slice(currentIdx + 1).some(entry => Array.isArray(dayLog[entry.key]) && dayLog[entry.key].length > 0);
   })();
+  const loggedNames = _logItems
+    .map(it => String(it?.name || '').trim())
+    .filter(Boolean);
   const done  = _hasLog;
   const getMealProgressState = () => {
     if (mode !== 'today') return { label: '', cls: '' };
@@ -181,8 +184,8 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
     const macHTML  = `P <span class="mc-badge-mac-cur">${curP}</span><span class="mc-badge-mac-sep">/</span>${dispP}g&thinsp;·&thinsp;C <span class="mc-badge-mac-cur">${curC}</span><span class="mc-badge-mac-sep">/</span>${dispC}g&thinsp;·&thinsp;G <span class="mc-badge-mac-cur">${curF}</span><span class="mc-badge-mac-sep">/</span>${dispF}g`;
     targetBadge = `<div class="mc-target-badge">
         <div class="mc-badge-top">
-          <div class="mc-badge-label">Obiettivo</div>
-          <div class="mc-badge-kicker">Tracking pasto</div>
+          <div class="mc-badge-label">Registrato vs target</div>
+          <div class="mc-badge-kicker">Pasto</div>
         </div>
         <div class="mc-badge-main">
           <div class="mc-badge-kcal-row">
@@ -193,6 +196,11 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
         </div>
       </div>`;
   }
+  const mealHint = mode === 'today'
+    ? (_hasLog
+      ? `Registrati: ${htmlEsc(loggedNames.slice(0, 2).join(' · '))}${loggedNames.length > 2 ? ` · +${loggedNames.length - 2}` : ''}`
+      : htmlEsc(m.ingr || 'Apri il pasto e aggiungi il primo alimento'))
+    : '';
 
   const pills = mode !== 'today' ? `
     <span class="pill pk">${m.kcal} kcal</span>
@@ -393,6 +401,7 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
             ${mode === 'today' ? `<div class="mc-head-side">${addBtn}</div>` : `<span class="mc-time-wrap">${currentBadge}<span class="mc-time">${clockSVG}${base.time}</span></span>`}
           </div>
           ${mode === 'today' ? `<div class="mc-badge-row">${targetBadge}</div>` : targetBadge}
+          ${mode === 'today' ? `<div class="mc-ingr mc-ingr-plan clamp">${mealHint}</div>` : ''}
           ${mode !== 'today' ? `<div class="${ingrCls}">${m.ingr}</div>` : ''}
         </div>
         ${editBtn}
@@ -1422,7 +1431,7 @@ function renderDashboardAlertSummary(type, dateKey) {
   const model = splitTodayAlerts(type, dateKey);
   const count = model.orderedAlerts.length;
   if (!count) { el.innerHTML = ''; return; }
-  const label = count === 1 ? '1 avviso da leggere' : `${count} avvisi da leggere`;
+  const label = count === 1 ? '1 promemoria utile' : `${count} promemoria utili`;
   el.innerHTML = `
     <button class="today-alerts-summary-btn" onclick="document.querySelector('.today-support-panel')?.scrollIntoView({behavior:'smooth',block:'start'})">
       <span class="today-alerts-summary-icon" aria-hidden="true">!</span>
@@ -1974,18 +1983,18 @@ function renderCurrentMealFocus(type, mealState, dateKey, alertModel = null) {
   const targetId = mealState.isExtra ? `mc-extra-${mealState.key}` : `mc-${type}-${mealState.key}`;
   const mealIcon = actionCtaIconHTML('🍽️');
   const subText = hasLog
-    ? 'Hai gia iniziato questo pasto: puoi aggiungere altri alimenti o rifinire le grammature.'
+    ? 'Hai gia iniziato questo pasto. Completa solo cio che manca e chiudi il tracking con calma.'
     : (mealState.kind === 'now'
-      ? 'Questo e il pasto su cui conviene agire adesso per tenere il tracking semplice e veloce.'
-      : 'Questo e il prossimo snodo della giornata: puoi prepararlo in anticipo o loggarlo appena inizi.');
-  const progressLabel = hasLog ? 'Pasto avviato' : 'Ancora da loggare';
-  const progressValue = hasLog ? `${mealLog.length} aliment${mealLog.length === 1 ? 'o' : 'i'}` : '0 alimenti';
+      ? 'Questo e il pasto giusto su cui agire adesso. Aprilo e registra quello che stai mangiando.'
+      : 'Questo e il prossimo passaggio utile della giornata. Puoi prepararlo ora o aprirlo quando inizi.');
+  const progressLabel = 'Stato pasto';
+  const progressValue = hasLog ? `${mealLog.length} aliment${mealLog.length === 1 ? 'o' : 'i'}` : 'Da iniziare';
   const insightText = hasLog
-    ? `${logMacros.kcal} kcal inserite`
-    : `Aprilo per inserire il primo alimento`;
+    ? `${logMacros.kcal} kcal gia inserite`
+    : 'Apri il pasto e inserisci il primo alimento';
   const macroText = hasLog
     ? `P ${logMacros.p.toFixed(1)}g · C ${logMacros.c.toFixed(1)}g · G ${logMacros.f.toFixed(1)}g`
-    : 'Il primo inserimento fa partire tracking e progressione del giorno';
+    : 'Basta un primo alimento per far partire il riepilogo di questo pasto';
   const focusAlert = alertModel?.focusAlert || null;
   const hasFavFoods = (S.favoriteFoods || []).length > 0;
   const focusAlertHtml = focusAlert
@@ -2025,7 +2034,7 @@ function renderCurrentMealFocus(type, mealState, dateKey, alertModel = null) {
       </div>
       <div class="current-meal-actions">
         <button class="current-meal-btn current-meal-btn-main" onclick="document.getElementById('${targetId}')?.scrollIntoView({behavior:'smooth',block:'center'})">
-          ${mealIcon}<span>${hasLog ? 'Apri pasto' : 'Vai al pasto'}</span>
+          ${mealIcon}<span>${hasLog ? 'Apri e completa' : 'Apri e registra'}</span>
         </button>
       </div>
     </div>`;
@@ -2083,10 +2092,10 @@ function renderNotes() {
   const el = document.getElementById('notes-prev');
   if (!el) return;
   if (!entries.length) {
-    el.innerHTML = `<div class="notes-empty-state">Nessuna nota recente. Usa questo spazio solo per segnali che vuoi ritrovare piu tardi.</div>`;
+    el.innerHTML = `<div class="notes-empty-state">Ancora nessuna nota utile. Tieni qui solo segnali che vuoi ritrovare piu tardi.</div>`;
     return;
   }
-  el.innerHTML = `<div class="notes-hist-label">Storico</div>` +
+  el.innerHTML = `<div class="notes-hist-label">Ultime note</div>` +
     entries.map(([k,v]) => `
     <div class="note-item">
       <span class="note-date">${k.split('-').reverse().join('/')}</span>
@@ -2110,44 +2119,20 @@ function macroVisualCardsHTML(macros, opts = {}) {
     </div>`).join('')}
   </div>`;
 }
-
-function pianoMiniStatCardHTML(stat) {
-  const infoIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 10v6"></path><path d="M12 7.2h.01"></path></svg>`;
-  return `<div class="piano-mini-stat ${stat.cls || ''}">
-    <div class="piano-mini-stat-top">
-      <span class="piano-mini-stat-kicker">${stat.kicker}</span>
-      <button class="piano-mini-stat-info" onmouseenter="showPianoSummaryTip('${stat.tipKey}', this)" onmouseleave="hideTip('tip-piano-summary')" onclick="showPianoSummaryTip('${stat.tipKey}', this)" aria-label="Informazioni ${stat.kicker}">${infoIcon}</button>
-    </div>
-    <div class="piano-mini-stat-main">${stat.main}</div>
-    <div class="piano-mini-stat-foot">${stat.foot}</div>
-  </div>`;
-}
-
-function getLoggedDayMacros(dateKey) {
-  const dayLog = S.foodLog?.[dateKey] || {};
-  let k = 0, p = 0, c = 0, f = 0;
-  Object.values(dayLog).forEach(items => {
-    (items || []).forEach(it => {
-      const grams = (it.grams || 0) / 100;
-      k += Math.round((it.kcal100 || 0) * grams);
-      p += (it.p100 || 0) * grams;
-      c += (it.c100 || 0) * grams;
-      f += (it.f100 || 0) * grams;
-    });
-  });
-  return {
-    k,
-    p: Math.round(p * 10) / 10,
-    c: Math.round(c * 10) / 10,
-    f: Math.round(f * 10) / 10,
-  };
-}
 function favoriteFoodsManagerHTML(context = 'piano') {
   const favoriteFoods = typeof normalizeFavoriteFoods === 'function'
     ? normalizeFavoriteFoods(S.favoriteFoods || [])
     : (S.favoriteFoods || []);
   const favoriteFoodsCount = favoriteFoods.length;
   const MEAL_LABELS = { colazione: 'Colazione', pranzo: 'Pranzo', cena: 'Cena', spuntino: 'Snack' };
+  const ROLE_LABELS = {
+    base: 'Base',
+    proteina: 'Prot',
+    latticino: 'Latte',
+    frutta: 'Frutta',
+    contorno: 'Cont',
+    condimento: 'Cond',
+  };
   const mealCoverage = Object.keys(MEAL_LABELS).map(mealType => ({
     mealType,
     label: MEAL_LABELS[mealType],
@@ -2159,17 +2144,33 @@ function favoriteFoodsManagerHTML(context = 'piano') {
         const typK = Math.round((Number(food.kcal100 || 0) * grams) / 100);
         const typP = ((Number(food.p100 || 0) * grams) / 100).toFixed(0);
         const typC = ((Number(food.c100 || 0) * grams) / 100).toFixed(0);
-        const mealTags = (food.mealTags || [])
-          .filter(tag => MEAL_LABELS[tag])
-          .slice(0, 3)
-          .map(tag => `<span class="ff-tag">${MEAL_LABELS[tag]}</span>`)
+        const activeMealTags = (food.mealTags || []).filter(tag => MEAL_LABELS[tag]);
+        const isManual = Array.isArray(food.manualMealTags) && food.manualMealTags.length > 0;
+        const manualRoles = Array.isArray(food.manualFoodRoles) ? food.manualFoodRoles : [];
+        const isManualRole = manualRoles.length > 0;
+        const tagControls = ['colazione', 'pranzo', 'cena', 'spuntino']
+          .map(tag => `<button class="ff-tag-toggle${activeMealTags.includes(tag) ? ' active' : ''}" onclick="toggleFavoriteFoodMealTag('${food.id}','${tag}', this)">${MEAL_LABELS[tag]}</button>`)
           .join('');
-        return `<div class="ff-item">
+        const roleControls = Object.entries(ROLE_LABELS)
+          .map(([roleKey, roleLabel]) => `<button class="ff-role-toggle${manualRoles.includes(roleKey) ? ' active' : ''}" onclick="toggleFavoriteFoodRole('${food.id}','${roleKey}', this)">${roleLabel}</button>`)
+          .join('');
+        return `<div class="ff-item" data-food-id="${food.id}">
           <div class="ff-info">
             <div class="ff-name">${htmlEsc(food.name)}</div>
             <div class="ff-meta-row">
               <div class="ff-macros">${grams}g · ${typK} kcal · P ${typP}g · C ${typC}g</div>
-              ${mealTags ? `<div class="ff-tags">${mealTags}</div>` : ''}
+              <div class="ff-tag-editor">
+                <div class="ff-tag-editor-inline">
+                  <span class="ff-tag-editor-label">Pasti</span>
+                  <span class="ff-tag-editor-mode${isManual ? ' manual' : ''}">${isManual ? 'Manuali' : 'Auto'}</span>
+                </div>
+                <div class="ff-tag-toggle-row">${tagControls}</div>
+                <div class="ff-role-editor-inline">
+                  <span class="ff-tag-editor-label">Ruolo</span>
+                  <span class="ff-tag-editor-mode${isManualRole ? ' manual' : ''}">${isManualRole ? 'Manuale' : 'Auto'}</span>
+                </div>
+                <div class="ff-role-toggle-row">${roleControls}</div>
+              </div>
             </div>
           </div>
           <button class="ff-del" onclick="removeFavoriteFood('${food.id}')" title="Rimuovi">
@@ -2272,82 +2273,6 @@ function renderPiano() {
   const filteredTemplates = typeof filterTemplatesByMealType === 'function'
     ? filterTemplatesByMealType(S.templates || [], activeMealFilter)
     : (S.templates || []);
-
-  // Macro summary for the day
-  const planMacroEl = document.getElementById('piano-macros-summary');
-  if (planMacroEl) {
-    const dateKey = S.selDate || localDate();
-    const loggedTotals = getLoggedDayMacros(dateKey);
-    const remK = targetDay.k - loggedTotals.k;
-    const remP = targetDay.p - loggedTotals.p;
-    const remC = targetDay.c - loggedTotals.c;
-    const remF = targetDay.f - loggedTotals.f;
-    const macroGap = Math.abs(remP) + Math.abs(remC) + Math.abs(remF);
-    const hasNoIntake = loggedTotals.k === 0 && loggedTotals.p === 0 && loggedTotals.c === 0 && loggedTotals.f === 0;
-    const kcalState = hasNoIntake
-      ? 'Tutto da coprire'
-      : Math.abs(remK) <= 80 ? 'In linea' : (remK < 0 ? 'Sei sopra' : 'Da colmare');
-    const macroState = hasNoIntake
-      ? 'Macro da coprire'
-      : macroGap <= 20 ? 'Macro in ordine' : macroGap <= 40 ? 'Quasi centrati' : 'Da colmare';
-    const plannerSummary = plannerMeal
-      ? `${plannerMeal.name}${plannerMeal.time ? ` · ${plannerMeal.time}` : ''}`
-      : 'Seleziona un pasto';
-    const planTypeLabel = planType === 'on' ? 'Workout' : 'Rest';
-    planMacroEl.innerHTML =
-      `<div class="piano-summary-card">
-        <div class="piano-summary-top support-mini-head">
-          <div class="support-mini-head-copy">
-            <div class="support-mini-kicker">Piano</div>
-            <div class="support-mini-title-row">
-              <div class="support-mini-title">Quadro giornaliero</div>
-              <span class="support-mini-state ${planType === 'on' ? 'progress' : 'pending'}">${planTypeLabel}</span>
-            </div>
-            <div class="support-mini-sub">Target del giorno e spazio residuo rispetto a quello che hai gia registrato.</div>
-          </div>
-        </div>
-        <div class="piano-summary-main">
-          <div class="piano-summary-col">
-            <span class="piano-summary-label">Target giorno</span>
-            ${macroVisualCardsHTML(targetDay, { size: 'compact' })}
-          </div>
-        </div>
-        <div class="piano-summary-stats">
-          ${pianoMiniStatCardHTML({
-            cls: hasNoIntake ? 'warn' : remK > 80 ? 'warn' : remK < -80 ? 'ok' : 'neutral',
-            tipKey: 'kcal',
-            kicker: 'Stato kcal',
-            info: 'Confronta le calorie gia registrate oggi con il target del giorno selezionato. Se non hai ancora loggato cibi, il fabbisogno resta tutto da coprire.',
-            main: kcalState,
-            foot: `${remK > 0 ? '-' : '+'}${Math.abs(Math.round(remK))} kcal`,
-          })}
-          ${pianoMiniStatCardHTML({
-            cls: hasNoIntake ? 'warn' : macroGap > 40 ? 'warn' : macroGap <= 20 ? 'ok' : 'neutral',
-            tipKey: 'macro',
-            kicker: 'Stato macro',
-            info: 'Mostra quanto ti manca ancora oggi per arrivare ai target di proteine, carboidrati e grassi del giorno selezionato.',
-            main: macroState,
-            foot: `P ${remP > 0 ? '-' : '+'}${Math.abs(remP).toFixed(0)}g · C ${remC > 0 ? '-' : '+'}${Math.abs(remC).toFixed(0)}g · F ${remF > 0 ? '-' : '+'}${Math.abs(remF).toFixed(0)}g`,
-          })}
-          ${pianoMiniStatCardHTML({
-            cls: 'focus',
-            tipKey: 'focus',
-            kicker: 'Pasto in focus',
-            info: 'E il pasto che l’helper sta usando adesso per generare suggerimenti e template utili.',
-            main: htmlEsc(plannerMeal?.name || 'Seleziona un pasto'),
-            foot: htmlEsc(plannerMeal?.time || 'Helper pronto sul pasto selezionato'),
-          })}
-          ${pianoMiniStatCardHTML({
-            cls: 'template',
-            tipKey: 'template',
-            kicker: 'Template filtro',
-            info: 'Conta quanti template esistono per il tipo di pasto che stai guardando adesso.',
-            main: `${filteredTemplates.length}`,
-            foot: activeMealFilter === 'all' ? 'Tutta la libreria' : `Per ${activeMealFilter}`,
-          })}
-        </div>
-      </div>`;
-  }
   const helperEl = document.getElementById('meal-planner-helper');
   if (helperEl) {
     helperEl.innerHTML = mealPlannerHelperHTML(planType, plannerState);
@@ -2438,22 +2363,32 @@ function renderPiano() {
   const focusMealLabel = htmlEsc(plannerMeal?.name || 'il pasto selezionato');
   const visibleCountLabel = filteredTemplates.length === 1 ? '1 template visibile' : `${filteredTemplates.length} template visibili`;
   const usefulNow = usefulTemplates.length ? usefulTemplates : filteredTemplates.slice(0, 6);
+  const usefulNowIds = new Set(usefulNow.map(t => t.id));
+  const usefulNowDiffers = usefulNow.length > 0 && (
+    usefulNow.length !== filteredTemplates.length ||
+    filteredTemplates.some(t => !usefulNowIds.has(t.id))
+  );
+  const usefulNowCountLabel = usefulNow.length === 1 ? '1 proposta' : `${usefulNow.length} proposte`;
 
   listEl.innerHTML = `
     <div class="piano-template-section piano-template-section-compact">
       <div class="piano-template-overview">
         <div class="piano-template-overview-copy">
           <div class="piano-template-overview-title">Template per ${activeFilterLabel}</div>
-          <div class="piano-template-overview-sub">Scorri, scegli e richiama i pasti che usi davvero.</div>
+          <div class="piano-template-overview-sub">Scegli al volo i pasti che ripeti piu spesso.</div>
         </div>
-        <span class="piano-template-pill">${visibleCountLabel}</span>
+        <div class="piano-template-pill-stack">
+          <span class="piano-template-pill">${visibleCountLabel}</span>
+          ${usefulNowDiffers ? `<span class="piano-template-pill piano-template-pill-soft">${usefulNowCountLabel} utili adesso</span>` : ''}
+        </div>
       </div>
       <div class="tmpl-carousel">${filteredTemplates.map(renderTemplateCard).join('')}</div>
+      ${usefulNowDiffers ? `
       <div class="piano-template-inline-head">
         <div class="piano-template-inline-title">Utili adesso</div>
-        <div class="piano-template-inline-sub">Piu coerenti con ${focusMealLabel}.</div>
+        <div class="piano-template-inline-sub">Quelli piu coerenti con ${focusMealLabel}.</div>
       </div>
-      <div class="tmpl-carousel tmpl-carousel-secondary">${usefulNow.map(renderTemplateCard).join('')}</div>
+      <div class="tmpl-carousel tmpl-carousel-secondary">${usefulNow.map(renderTemplateCard).join('')}</div>` : ''}
     </div>`;
 }
 
@@ -2468,33 +2403,43 @@ function mealPlannerHelperHTML(type, plannerState) {
   const favoriteFoods = typeof normalizeFavoriteFoods === 'function'
     ? normalizeFavoriteFoods(S.favoriteFoods || [])
     : (S.favoriteFoods || []);
+  const selectedFavoriteFoodIds = Array.isArray(plannerState.selectedFavoriteFoodIds)
+    ? plannerState.selectedFavoriteFoodIds
+    : [];
   const eligibility = mealType && typeof getMealHelperEligibility === 'function'
     ? getMealHelperEligibility({ mealType, favoriteFoods })
     : { available: false, compatibleFoods: [], suggestions: [] };
+  let generationIssue = '';
   if (mealType && eligibility.available && typeof generateMealSuggestion === 'function') {
     const generated = generateMealSuggestion({
       mealType,
       targetKcal: target?.k,
       targetMacros: target,
       favoriteFoods,
+      preferredFoodIds: selectedFavoriteFoodIds,
       phase: S.goal?.phase || 'mantieni',
       context: { mealName: meal?.name || '' },
     });
-    plannerState.results = generated.suggestions.map(result => ({
-      ...result,
-      delta: {
-        k: (result.macros.kcal || 0) - (target?.k || 0),
-        p: (result.macros.p || 0) - (target?.p || 0),
-        c: (result.macros.c || 0) - (target?.c || 0),
-        f: (result.macros.f || 0) - (target?.f || 0),
-      },
-      macros: {
-        kcal: result.macros.kcal || 0,
-        p: result.macros.p || 0,
-        c: result.macros.c || 0,
-        f: result.macros.f || 0,
-      },
-    }));
+    if (generated.unavailableReason) {
+      plannerState.results = [];
+      generationIssue = generated.unavailableReason;
+    } else {
+      plannerState.results = generated.suggestions.map(result => ({
+        ...result,
+        delta: {
+          k: (result.macros.kcal || 0) - (target?.k || 0),
+          p: (result.macros.p || 0) - (target?.p || 0),
+          c: (result.macros.c || 0) - (target?.c || 0),
+          f: (result.macros.f || 0) - (target?.f || 0),
+        },
+        macros: {
+          kcal: result.macros.kcal || 0,
+          p: result.macros.p || 0,
+          c: result.macros.c || 0,
+          f: result.macros.f || 0,
+        },
+      }));
+    }
   } else {
     plannerState.results = [];
   }
@@ -2505,19 +2450,39 @@ function mealPlannerHelperHTML(type, plannerState) {
     </button>
   `).join('');
   const compatibleFoods = favoriteFoods.filter(food => !mealType || isFoodCompatibleWithMeal(food, mealType));
-  const helperStateClass = !mealType ? 'idle' : eligibility.available ? 'ready' : 'warn';
-  const helperStateLabel = !mealType ? 'Scegli un pasto' : eligibility.available ? 'Pronto' : 'Dati pochi';
+  const coverageHighlights = Array.isArray(eligibility.coverageHighlights) ? eligibility.coverageHighlights : [];
+  const helperCanWork = !!mealType && eligibility.available;
+  const hasSelectionIssue = !!generationIssue;
+  const helperStateClass = !mealType ? 'idle' : helperCanWork && !hasSelectionIssue ? 'ready' : 'warn';
+  const helperStateLabel = !mealType
+    ? 'Scegli un pasto'
+    : hasSelectionIssue
+      ? 'Da bilanciare'
+      : helperCanWork
+        ? 'Pronto'
+        : 'Dati pochi';
   const helperStateCopy = !mealType
-    ? 'Scegli prima il pasto su cui vuoi lavorare. Poi l helper ti dira subito se puo proporti una bozza credibile.'
-    : eligibility.available
-      ? 'Per questo pasto ci sono abbastanza cibi abituali. Parti da una bozza e poi rifiniscila se vuoi.'
-      : 'Per questo pasto i dati sono ancora pochi. Meglio aggiungere cibi giusti prima di generare.';
+    ? 'Scegli prima il pasto su cui vuoi lavorare.'
+    : hasSelectionIssue
+      ? 'I cibi ci sono, ma questa selezione va ancora rifinita.'
+      : helperCanWork
+      ? 'Per questo pasto posso proporti una bozza credibile.'
+      : 'Per questo pasto servono ancora piu cibi adatti.';
   const helperStatusCopy = !mealType
-    ? 'Seleziona prima uno slot del giorno.'
-    : eligibility.available
-      ? 'Puoi partire da una bozza.'
-      : 'Meglio aggiungere ancora qualche cibo.';
-  const helperBullets = (eligibility.suggestions || []).slice(0, 3);
+    ? 'Scegli prima uno slot del giorno.'
+    : hasSelectionIssue
+      ? 'Tieni questi cibi e lascia al planner il resto.'
+      : helperCanWork
+      ? 'Puoi partire subito.'
+      : 'Aggiungi ancora qualche cibo giusto.';
+  const helperBullets = [generationIssue, ...(eligibility.suggestions || [])].filter(Boolean).slice(0, 3);
+  const selectedFoods = compatibleFoods.filter(food => selectedFavoriteFoodIds.includes(food.id));
+  const helperGlanceBits = [
+    mealType ? `<span class="meal-planner-glance-chip strong">${htmlEsc(mealType)}</span>` : `<span class="meal-planner-glance-chip">nessun pasto</span>`,
+    `<span class="meal-planner-glance-chip">${compatibleFoods.length} cibi adatti</span>`,
+    selectedFoods.length ? `<span class="meal-planner-glance-chip active">${selectedFoods.length} fissati</span>` : `<span class="meal-planner-glance-chip">0 fissati</span>`,
+  ].join('');
+  const pinSvg = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l-2 5 3 3H7l3-3-2-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path><path d="M12 12v8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>`;
   const resultCards = (plannerState.results || []).length
     ? plannerState.results.map((result, idx) => {
         const deltaK = Math.round(result.delta.k);
@@ -2529,7 +2494,7 @@ function mealPlannerHelperHTML(type, plannerState) {
         return `<div class="mph-result-card">
           <div class="mph-result-top">
             <div>
-              <div class="mph-result-kicker">Bozza pronta</div>
+              <div class="mph-result-kicker">Proposta</div>
               <div class="mph-result-title">${htmlEsc(result.title)}</div>
               <div class="mph-result-sub">${htmlEsc(result.summary)}</div>
             </div>
@@ -2546,21 +2511,25 @@ function mealPlannerHelperHTML(type, plannerState) {
           <div class="mph-delta">
             Scarto: ${deltaK >= 0 ? '+' : ''}${deltaK} kcal · P ${deltaP >= 0 ? '+' : ''}${deltaP}g · C ${deltaC >= 0 ? '+' : ''}${deltaC}g · F ${deltaF >= 0 ? '+' : ''}${deltaF}g
           </div>
-          <div class="mph-items">
-            ${result.items.map(it => `<span class="mph-item-chip">${htmlEsc(it.name)} · ${it.grams}g</span>`).join('')}
-          </div>
-          <div class="mph-actions">
-            <button class="mph-btn mph-btn-main" onclick="applyMealPlannerSuggestion('${type}',${idx})">Usa nel piano</button>
-            <button class="mph-btn" onclick="loadMealPlannerSuggestionToToday('${type}',${idx})">Carica in Oggi</button>
-            <button class="mph-btn" onclick="plannerSuggestionToTemplate('${type}',${idx})">Salva come template</button>
+          <div class="mph-result-footer">
+            <div class="mph-items mph-items-inline">
+              ${result.items.map(it => `<span class="mph-item-chip">${htmlEsc(it.name)} · ${it.grams}g</span>`).join('')}
+            </div>
+            <div class="mph-actions mph-actions-inline">
+              <button class="mph-btn mph-btn-main" onclick="applyMealPlannerSuggestion('${type}',${idx})">Usa nel piano</button>
+              <button class="mph-btn" onclick="loadMealPlannerSuggestionToToday('${type}',${idx})">Carica in Oggi</button>
+              <button class="mph-btn" onclick="plannerSuggestionToTemplate('${type}',${idx})">Salva come template</button>
+            </div>
           </div>
         </div>`;
       }).join('')
     : `<div class="mph-empty">
-        <div class="mph-empty-title">${mealType ? 'Prima servono piu cibi giusti' : 'Scegli un pasto'}</div>
+        <div class="mph-empty-title">${mealType ? (hasSelectionIssue ? 'Questa selezione va rifinita' : 'Prima servono piu cibi giusti') : 'Scegli un pasto'}</div>
         <div class="mph-empty-copy">${mealType
-          ? `Per ${mealType} non ci sono ancora abbastanza cibi abituali per creare una proposta credibile.`
-          : 'Scegli lo slot del giorno su cui vuoi lavorare e l helper ti dira subito se puo aiutarti.'}</div>
+          ? (hasSelectionIssue
+            ? `Per ${mealType} i dati ci sono, ma con questi cibi scelti devo ancora chiudere meglio il pasto.`
+            : `Per ${mealType} non ci sono ancora abbastanza cibi abituali per creare una proposta credibile.`)
+          : 'Scegli lo slot del giorno e l helper ti dira subito se puo aiutarti.'}</div>
         <div class="mph-empty-list">
           ${helperBullets.length
             ? helperBullets.map(text => `<span>${htmlEsc(text)}</span>`).join('')
@@ -2573,15 +2542,19 @@ function mealPlannerHelperHTML(type, plannerState) {
 
   return `<div class="meal-planner-helper">
     <div class="meal-planner-head">
-      <div class="support-mini-head-copy">
-        <div class="support-mini-kicker">Piano</div>
-        <div class="support-mini-title-row">
-          <div class="meal-planner-title">Helper del momento</div>
+      <div class="meal-planner-head-main">
+        <div class="meal-planner-kicker">Helper del momento</div>
+        <div class="meal-planner-title-row">
+          <div class="meal-planner-title">Costruisci il prossimo pasto</div>
           <span class="meal-planner-state ${helperStateClass}">${helperStateLabel}</span>
         </div>
-        <div class="meal-planner-sub support-mini-sub">${helperStateCopy}</div>
+        <div class="meal-planner-sub">${helperStateCopy}</div>
+        <div class="meal-planner-glance">${helperGlanceBits}</div>
       </div>
-      ${target ? `<div class="meal-planner-target">${macroVisualCardsHTML(target, { size: 'compact' })}</div>` : ''}
+      ${target ? `<div class="meal-planner-target-card">
+        <div class="meal-planner-target-kicker">Target pasto</div>
+        <div class="meal-planner-target">${macroVisualCardsHTML(target, { size: 'compact' })}</div>
+      </div>` : ''}
     </div>
     <div class="meal-planner-grid">
       <div class="meal-planner-controls">
@@ -2595,19 +2568,27 @@ function mealPlannerHelperHTML(type, plannerState) {
             <div class="meal-planner-status-kicker">Stato dati</div>
             <div class="meal-planner-status-line">${mealType ? `${compatibleFoods.length} cibi adatti a questo pasto` : 'Prima scegli il pasto'}</div>
             <div class="meal-planner-status-copy">${helperStatusCopy}</div>
+            ${coverageHighlights.length ? `<div class="meal-planner-coverage">
+              ${coverageHighlights.map(item => `<span class="meal-planner-coverage-chip ${item.ready ? 'ready' : item.required ? 'missing' : 'optional'}">${htmlEsc(item.label)}</span>`).join('')}
+            </div>` : ''}
           </div>
         </div>
         <div class="mph-chip-group mph-chip-group-meals">
-          <div class="mph-chip-label">Pasto su cui lavorare</div>
+          <div class="mph-chip-label">Pasto</div>
           <div class="mph-meal-chip-row">${mealButtons}</div>
         </div>
         ${compatibleFoods.length ? `<div class="mph-chip-group">
-          <div class="mph-chip-label">Cibi che puo usare adesso</div>
+          <div class="mph-chip-label">Usa adesso</div>
+          <div class="mph-helper-copy">Scegli fino a 3 cibi che vuoi tenere dentro. Il planner completera il resto da solo.</div>
           <div class="mph-inline-row">
             ${compatibleFoods
               .slice(0, 8)
-              .map(food => `<span class="mph-chip-btn mph-chip-btn-min">${htmlEsc(food.name)}</span>`).join('')}
+              .map(food => {
+                const active = selectedFavoriteFoodIds.includes(food.id);
+                return `<button class="mph-chip-btn mph-chip-btn-min${active ? ' active' : ''}" onclick="toggleMealPlannerFavoriteFood('${type}','${food.id}')" title="${active ? 'Cibo fissato nella bozza' : 'Aggiungi questo cibo alla bozza'}">${active ? `<span class="mph-chip-pin" aria-hidden="true">${pinSvg}</span>` : ''}<span>${htmlEsc(food.name)}</span></button>`;
+              }).join('')}
           </div>
+          ${selectedFoods.length ? `<div class="mph-helper-copy">Fissati: ${selectedFoods.map(food => htmlEsc(food.name)).join(' · ')}</div>` : ''}
         </div>` : ''}
         <div class="mph-actions-panel">
           <div class="mph-actions-kicker">Per migliorarlo</div>
@@ -3038,19 +3019,19 @@ function renderStatsToolbar(data) {
         <div class="stats-toolbar-copy support-mini-head-copy">
           <div class="support-mini-kicker">Stats</div>
           <div class="support-mini-title-row">
-            <div class="support-mini-title">Periodo</div>
+            <div class="support-mini-title">Leggi un periodo alla volta</div>
             <span class="support-mini-state progress">${data.bounds.label}</span>
           </div>
-          <div class="support-mini-sub stats-toolbar-note">Scegli il periodo e leggi tutto nello stesso contesto: peso, misure e costanza.</div>
+          <div class="support-mini-sub stats-toolbar-note">Peso, misure e costanza cambiano insieme: qui li leggi con lo stesso filtro.</div>
         </div>
         <div class="stats-toolbar-side">
           <div class="stats-toolbar-quickstats">
             <div class="stats-toolbar-stat support-mini-card">
-              <span class="stats-toolbar-stat-label">Streak</span>
+              <span class="stats-toolbar-stat-label">Streak attiva</span>
               <strong>${calcStreak()} giorni</strong>
             </div>
             <div class="stats-toolbar-stat support-mini-card">
-              <span class="stats-toolbar-stat-label">Giorni attivi</span>
+              <span class="stats-toolbar-stat-label">Giorni con dati</span>
               <strong>${data.adherence.activeDays}/${data.adherence.totalDays}</strong>
             </div>
           </div>
@@ -3101,22 +3082,23 @@ function renderStatsHero(data) {
       <div class="stats-hero-meta">
         <div class="stats-hero-meta-chip">Range · ${data.bounds.label}</div>
         <div class="stats-hero-meta-chip">Score · ${data.kpis.scoreValue}/100</div>
+        <div class="stats-hero-meta-chip">Aderenza · ${data.kpis.adherenceValue}</div>
       </div>
       <div class="stats-kpis">
         <div class="sc-card">
-          <div class="sc-kicker">Stats</div>
+          <div class="sc-kicker">Trend</div>
           <div class="sc-val${data.weight.delta != null && Math.abs(data.weight.delta) >= 0.3 ? ' ok' : ''}">${data.kpis.weightValue}</div>
           <div class="sc-lbl">Trend peso</div>
           <div class="sc-sub">movimento letto su ${data.bounds.label.toLowerCase()}</div>
         </div>
         <div class="sc-card">
-          <div class="sc-kicker">Stats</div>
+          <div class="sc-kicker">Aderenza</div>
           <div class="sc-val${data.adherence.adherenceRate >= 70 ? ' ok' : data.adherence.adherenceRate >= 45 ? ' warn' : ' err'}">${data.kpis.adherenceValue}</div>
           <div class="sc-lbl">Aderenza reale</div>
           <div class="sc-sub">${data.adherence.activeDays} giorni attivi su ${data.adherence.totalDays}</div>
         </div>
         <div class="sc-card">
-          <div class="sc-kicker">Stats</div>
+          <div class="sc-kicker">Costanza</div>
           <div class="sc-val${streak >= 7 ? ' ok' : ''}">${data.kpis.consistencyValue}</div>
           <div class="sc-lbl">Costanza</div>
           <div class="sc-sub">media settimanale · streak attuale ${streak}</div>
@@ -3162,7 +3144,7 @@ function renderStatsWeight(data) {
               <div class="support-mini-title">Andamento peso</div>
               <span class="support-mini-state idle">${data.bounds.label}</span>
             </div>
-            <div class="support-mini-sub">Registra il peso qui sopra per vedere subito il trend del periodo.</div>
+            <div class="support-mini-sub">Registra il peso qui e il trend iniziera subito a prendere forma.</div>
           </div>
           <button class="stats-head-action-btn" onclick="document.getElementById('w-in')?.focus()">+ Peso</button>
         </div>
@@ -3190,18 +3172,18 @@ function renderStatsWeight(data) {
             <div class="support-mini-title">Andamento peso</div>
             <span class="support-mini-state progress">${weight.count} ${weight.count === 1 ? 'pesata' : 'pesate'}</span>
           </div>
-          <div class="support-mini-sub">Registra, rileggi il trend e apri la cronologia per correggere una pesata se serve.</div>
+          <div class="support-mini-sub">Registra, rileggi il trend e apri la cronologia se vuoi correggere una pesata.</div>
         </div>
         <div class="stats-inline-actions">
           <button class="stats-head-action-btn" onclick="document.getElementById('w-in')?.focus()">+ Peso</button>
           <button class="stats-inline-btn" onclick="toggleWeightLog()">Cronologia</button>
         </div>
       </div>
-      <div class="w-stats stats-weight-stats">
-        <div class="ws"><div class="ws-l">Attuale</div><div class="ws-v">${weight.current.toFixed(1)} kg</div></div>
-        <div class="ws"><div class="ws-l">Variazione</div><div class="ws-v" style="color:${weight.delta == null ? 'var(--muted)' : weight.delta > 0 ? 'var(--on)' : weight.delta < 0 ? 'var(--red)' : 'var(--ink)'}">${weight.delta == null ? 'n/d' : `${weight.delta > 0 ? '+' : ''}${weight.delta.toFixed(1)} kg`}</div></div>
-        <div class="ws"><div class="ws-l">Media</div><div class="ws-v">${weight.average != null ? `${weight.average.toFixed(1)} kg` : 'n/d'}</div></div>
-        <div class="ws"><div class="ws-l">Target</div><div class="ws-v">${weight.target == null ? '—' : `${weight.target.toFixed(1)} kg`}</div></div>
+      <div class="stats-glance-row stats-glance-row-weight">
+        <div class="stats-glance-chip"><span>Attuale</span><strong>${weight.current.toFixed(1)} kg</strong></div>
+        <div class="stats-glance-chip${weight.delta != null && Math.abs(weight.delta) >= 0.3 ? ' is-accent' : ''}"><span>Trend</span><strong>${weight.delta == null ? 'n/d' : `${weight.delta > 0 ? '+' : ''}${weight.delta.toFixed(1)} kg`}</strong></div>
+        <div class="stats-glance-chip"><span>Media</span><strong>${weight.average != null ? `${weight.average.toFixed(1)} kg` : 'n/d'}</strong></div>
+        <div class="stats-glance-chip"><span>Target</span><strong>${weight.target == null ? '—' : `${weight.target.toFixed(1)} kg`}</strong></div>
       </div>
       <div class="stats-weight-entry">
         <div class="weight-entry">
@@ -3253,7 +3235,7 @@ function renderStatsMeasurements(data) {
   const phase = S.goal?.phase || 'mantieni';
 
   el.innerHTML = `
-    <div class="stats-panel">
+    <div class="stats-panel stats-panel-measurements">
       <div class="stats-panel-head support-mini-head">
         <div class="support-mini-head-copy">
           <div class="support-mini-kicker">Stats</div>
@@ -3261,7 +3243,7 @@ function renderStatsMeasurements(data) {
             <div class="support-mini-title">Misure e composizione</div>
             <span class="support-mini-state ${data.measurements.count ? 'progress' : 'idle'}">${data.measurements.count} ${data.measurements.count === 1 ? 'rilevazione' : 'rilevazioni'}</span>
           </div>
-          <div class="support-mini-sub">Registra circonferenze e peso per capire se il fisico sta cambiando davvero.</div>
+          <div class="support-mini-sub">Usa le misure per capire se il corpo si sta muovendo davvero, non solo il peso.</div>
         </div>
         <div class="stats-inline-actions">
           <button class="stats-inline-btn" onclick="toggleStatsSection('measurements-form-shell')">Nuova rilevazione</button>
@@ -3301,7 +3283,7 @@ function renderStatsAdherence(data) {
   if (!el) return;
   const adherence = data.adherence;
   el.innerHTML = `
-    <div class="stats-panel">
+    <div class="stats-panel stats-panel-adherence">
       <div class="stats-panel-head support-mini-head">
         <div class="support-mini-head-copy">
           <div class="support-mini-kicker">Stats</div>
@@ -3309,30 +3291,34 @@ function renderStatsAdherence(data) {
             <div class="support-mini-title">Aderenza e costanza</div>
             <span class="support-mini-state ${adherence.adherenceRate >= 70 ? 'done' : adherence.adherenceRate >= 45 ? 'pending' : 'danger'}">${adherence.adherenceRate}%</span>
           </div>
-          <div class="support-mini-sub">Qui capisci quanto spesso hai davvero compilato la giornata, non quanto sei stato perfetto.</div>
+          <div class="support-mini-sub">Qui leggi quanto sei stato regolare, non quanto sei stato perfetto.</div>
         </div>
       </div>
       <div class="stats-kpis stats-kpis-adh">
         <div class="sc-card">
-          <div class="sc-kicker">Stats</div>
+          <div class="sc-kicker">Pieno</div>
           <div class="sc-val ok">${adherence.fullDays}</div>
           <div class="sc-lbl">Giorni completi</div>
           <div class="sc-sub">tutto il piano giornaliero</div>
         </div>
         <div class="sc-card">
-          <div class="sc-kicker">Stats</div>
+          <div class="sc-kicker">Parziale</div>
           <div class="sc-val warn">${adherence.partialDays}</div>
           <div class="sc-lbl">Giorni parziali</div>
           <div class="sc-sub">qualcosa c e, non tutto</div>
         </div>
         <div class="sc-card">
-          <div class="sc-kicker">Stats</div>
+          <div class="sc-kicker">Vuoto</div>
           <div class="sc-val${adherence.emptyDays > 0 ? ' err' : ''}">${adherence.emptyDays}</div>
           <div class="sc-lbl">Giorni vuoti</div>
           <div class="sc-sub">nessuna attivita registrata</div>
         </div>
       </div>
-      <div class="adherence-breakdown">
+      <div class="stats-insight-strip stats-insight-strip-tight">
+        <div class="stats-insight-title">Lettura veloce</div>
+        <div class="stats-insight-body">L aderenza ti dice quanto sei stato regolare nel periodo. I dettagli sotto ti fanno capire dove il ritmo tiene e dove si rompe prima.</div>
+      </div>
+      <div class="adherence-breakdown adherence-breakdown-rail">
         <div class="adh-chip"><span>Pasti</span><strong>${adherence.mealRate}%</strong></div>
         <div class="adh-chip"><span>Acqua</span><strong>${adherence.hydrationRate}%</strong></div>
         <div class="adh-chip"><span>Integratori</span><strong>${adherence.supplementRate}%</strong></div>
@@ -3354,7 +3340,7 @@ function renderStatsPatterns(data) {
     ? data.patterns
     : ['Nessun pattern rilevante nel periodo selezionato.'];
   el.innerHTML = `
-    <div class="stats-panel">
+    <div class="stats-panel stats-panel-patterns">
       <div class="stats-patterns-layout">
         <div class="stats-patterns-side support-mini-head-copy">
           <div class="support-mini-kicker">Stats</div>
@@ -3362,8 +3348,8 @@ function renderStatsPatterns(data) {
             <div class="support-mini-title">Pattern utili</div>
             <span class="support-mini-state idle">${data.bounds.label}</span>
           </div>
-          <div class="support-mini-sub">L app riassume i segnali piu utili emersi nel periodo.</div>
-          <div class="stats-patterns-note">Leggi queste righe come priorita pratiche: cosa sta funzionando e dove conviene intervenire per primo.</div>
+          <div class="support-mini-sub">Qui trovi i segnali piu utili emersi nel periodo.</div>
+          <div class="stats-patterns-note">Leggili come priorita pratiche: cosa sta funzionando e dove conviene intervenire per primo.</div>
         </div>
         <div class="stats-patterns-main">
           <div class="pattern-card pattern-card-featured">
@@ -3386,7 +3372,7 @@ function renderStatsActions() {
 function renderStats() {
   const data = getStatsRangeData(S.statsRange || '30d');
   const streak = calcStreak();
-  document.getElementById('stats-sub').textContent = `${data.bounds.label} · qui leggi peso, misure e costanza con lo stesso filtro`;
+  document.getElementById('stats-sub').textContent = `${data.bounds.label} · peso, misure e costanza nello stesso colpo d occhio`;
   renderStatsToolbar(data);
   renderStatsHero(data);
   renderStatsWeight(data);
@@ -3751,6 +3737,12 @@ function renderWater() {
   const target  = Math.max(6, Math.round(totalMl / 250));
   const waterStateCls = count >= target ? 'done' : count > 0 ? 'progress' : 'idle';
   const waterStateText = count >= target ? 'Completata' : count > 0 ? 'In corso' : 'Da iniziare';
+  const remaining = Math.max(0, target - count);
+  const footText = remaining === 0
+    ? 'Sei in linea con l obiettivo di oggi.'
+    : remaining === 1
+      ? 'Ti manca ancora 1 bicchiere.'
+      : `Ti mancano ancora ${remaining} bicchieri.`;
 
   const pct = Math.min(count / target, 1) * 100;
   const glasses = Array.from({length: target}, (_,i) =>
@@ -3770,7 +3762,7 @@ function renderWater() {
           </div>
           <span class="support-mini-state ${waterStateCls}">${waterStateText}</span>
         </div>
-        <div class="support-mini-sub">${count}/${target} bicchieri · ${count*250} ml su ${totalMl} ml</div>
+        <div class="support-mini-sub">${count}/${target} bicchieri oggi · obiettivo ${totalMl} ml</div>
       </div>
       <div class="water-head-actions">
         <div class="water-btns">
@@ -3784,6 +3776,7 @@ function renderWater() {
       <div class="water-bar-fill" style="width:${pct}%"></div>
     </div>
     <div class="water-glasses">${glasses}</div>
+    <div class="water-foot">${footText}</div>
   </div>`;
 }
 
@@ -3881,12 +3874,12 @@ function renderSuppToday() {
       ? 'Completata'
       : `${doneCount}/${active.length} presi`;
   const subText = active.length === 0
-    ? 'Aggiungi i supplementi che usi spesso e gestiscili da qui ogni giorno.'
+    ? 'Aggiungi qui solo gli integratori che usi davvero ogni giorno.'
     : pendingCount === 0
-      ? 'Oggi hai completato tutta la routine.'
+      ? 'Oggi hai gia chiuso tutta la routine.'
       : doneCount === 0
-        ? 'Tocca un integratore per segnarlo come preso.'
-        : `${pendingCount} ${pendingCount === 1 ? 'integratore rimanente' : 'integratori rimanenti'} da completare.`;
+        ? 'Tocca quelli che stai assumendo per segnarli.'
+        : `${pendingCount} ${pendingCount === 1 ? 'integratore da segnare' : 'integratori da segnare'}.`;
   const rows = active.length ? active.map(s => {
     const done = checked.includes(s.id);
     const suppIndex = S.supplements.findIndex(item => item.id === s.id);
@@ -3918,7 +3911,7 @@ function renderSuppToday() {
           </div>
           <div class="supp-today-sub support-mini-sub">${subText}</div>
         </div>
-        <button class="supp-today-add-btn" onclick="toggleSuppForm('today')">+ Nuovo</button>
+        <button class="supp-today-add-btn" onclick="toggleSuppForm('today')">+ Aggiungi</button>
       </div>
       ${active.length ? `<div class="supp-today-progress"><div class="supp-today-progress-fill ${statusCls}" style="width:${progressPct}%"></div></div>` : ''}
       <div class="supp-today-row">
@@ -4079,32 +4072,6 @@ function hideTip(id) {
   if (tip._outsideHandler) { document.removeEventListener('pointerdown', tip._outsideHandler); tip._outsideHandler = null; }
   if (tip._scrollHandler) { window.removeEventListener('scroll', tip._scrollHandler, { capture: true }); tip._scrollHandler = null; }
   tip.style.display = 'none';
-}
-
-function showPianoSummaryTip(kind, anchor) {
-  const tip = document.getElementById('tip-piano-summary');
-  if (!tip) return;
-  const tips = {
-    kcal: {
-      title: 'Stato kcal',
-      body: 'Confronta il totale calorie del piano con il target del giorno. Ti dice se il piano e gia in linea, troppo alto o troppo basso.',
-    },
-    macro: {
-      title: 'Stato macro',
-      body: 'Riassume quanto proteine, carboidrati e grassi del piano sono vicini ai target del giorno. Serve per capire se il piano e bilanciato prima ancora di guardare il singolo pasto.',
-    },
-    focus: {
-      title: 'Pasto in focus',
-      body: 'E il pasto che il planner sta usando adesso. I suggerimenti, i template rilevanti e il contesto dell helper ruotano intorno a questo slot.',
-    },
-    template: {
-      title: 'Template utili',
-      body: 'Conta i template compatibili con il tipo di pasto selezionato, ad esempio colazioni per colazione o cene per cena. Ti fa capire subito quante basi riusabili hai disponibili.',
-    },
-  };
-  const model = tips[kind] || tips.kcal;
-  tip.innerHTML = `<div class="tip-title">${model.title}</div><div class="tip-desc">${model.body}</div>`;
-  showTip('tip-piano-summary', anchor);
 }
 
 // --- Fabbisogno section tooltips ---
