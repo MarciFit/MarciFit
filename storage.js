@@ -103,7 +103,7 @@ function clearStorage() {
 
 function exportJSON() {
   const raw = JSON.stringify(S, null, 2);
-  dl(new Blob([raw], { type: 'application/json' }), 'piano_federico.json');
+  dl(new Blob([raw], { type: 'application/json' }), buildExportFilename('json'));
   mfDebug('storage', 'export json ok', { bytes: raw.length });
   toast('💾  Salvato');
 }
@@ -128,10 +128,9 @@ function onLoad(e) {
       }
       applyValidatedState(parsed);
       save();
-      initAll();
+      location.reload();
       _storageStatus.lastImportError = null;
       mfDebug('storage', 'import json ok', { keys: Object.keys(parsed || {}).length });
-      toast('📂  Caricato');
     } catch (e) {
       _storageStatus.lastImportError = { code: 'json_parse_failed', detail: e?.message || 'JSON non valido' };
       mfError('storage', 'import json failed', { name: e?.name, message: e?.message });
@@ -141,6 +140,23 @@ function onLoad(e) {
     }
   };
   r.readAsText(f);
+}
+
+function buildExportFilename(ext = 'json') {
+  const rawName = String(
+    S?.anagrafica?.nome ||
+    AUTH?.user?.name ||
+    AUTH?.user?.email ||
+    'backup'
+  ).trim();
+  const safeName = rawName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase() || 'backup';
+  const datePart = new Date().toISOString().slice(0, 10);
+  return `marcifit_${safeName}_${datePart}.${ext}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -168,7 +184,7 @@ if __name__=='__main__':
         print(f"\\nGiorno {t}: {macro['k']} kcal | P {macro['p']}g C {macro['c']}g F {macro['f']}g")
         for m in meals: print(f"  {m[1]}: {m[4]} kcal")
 `;
-  dl(new Blob([py], { type: 'text/plain' }), 'piano_aggiornato.py');
+  dl(new Blob([py], { type: 'text/plain' }), buildExportFilename('py'));
   toast('⬇️  Python scaricato');
 }
 

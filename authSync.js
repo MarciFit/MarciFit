@@ -384,6 +384,38 @@ function authHasMeaningfulState(state) {
   return false;
 }
 
+function authSeedAccountStateFromGuest(userId, options = {}) {
+  const targetUserId = String(userId || '').trim();
+  if (!targetUserId) return false;
+  const baseKey = authCurrentBaseStorageKey();
+  const guestKey = baseKey;
+  const accountKey = `${baseKey}__acct_${targetUserId}`;
+  if (guestKey === accountKey) return false;
+  try {
+    const guestRaw = localStorage.getItem(guestKey);
+    const accountRaw = localStorage.getItem(accountKey);
+    const guestState = authParseRemoteState(guestRaw);
+    const accountState = authParseRemoteState(accountRaw);
+    const hasMeaningfulGuest = authHasMeaningfulState(guestState);
+    const hasMeaningfulAccount = authHasMeaningfulState(accountState);
+    if (!hasMeaningfulGuest) return false;
+    if (hasMeaningfulAccount && !options.force) return false;
+
+    localStorage.setItem(accountKey, guestRaw);
+    const now = new Date().toISOString();
+    localStorage.setItem(`${AUTH_STATE_META_KEY}__acct_${targetUserId}`, JSON.stringify({
+      updatedAt: now,
+      lastSyncedAt: null,
+      remoteUpdatedAt: null,
+      resetPending: false,
+      dirty: !!options.markDirty,
+    }));
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function authDescribeStatePresence(state) {
   return authHasMeaningfulState(state)
     ? { label: 'Contiene dati', cls: 'filled' }
@@ -520,6 +552,7 @@ function signUpLocal(email, password) {
   AUTH.provider = 'local_mock';
   AUTH.user = { id: user.id, email: user.email, name: user.name };
   AUTH.sessionReady = true;
+  authSeedAccountStateFromGuest(user.id);
   return { ok: true, user: AUTH.user };
 }
 
@@ -536,6 +569,7 @@ function signInLocal(email, password) {
   AUTH.provider = 'local_mock';
   AUTH.user = { id: user.id, email: user.email, name: user.name || '' };
   AUTH.sessionReady = true;
+  authSeedAccountStateFromGuest(user.id);
   return { ok: true, user: AUTH.user };
 }
 
@@ -554,6 +588,7 @@ async function signUpWithEmail(email, password) {
       if (!user) return { ok: false, message: 'Registrazione avviata, controlla la tua email' };
       if (data?.session?.user) {
         authApplySupabaseUser(data.session.user);
+        authSeedAccountStateFromGuest(data.session.user.id, { markDirty: true });
         await authEnsureRemoteProfile();
         return { ok: true, user: AUTH.user };
       }
@@ -587,6 +622,7 @@ async function signInWithEmail(email, password) {
       const user = data?.user;
       if (!user) return { ok: false, message: 'Accesso non riuscito' };
       authApplySupabaseUser(user);
+      authSeedAccountStateFromGuest(user.id, { markDirty: true });
       await authEnsureRemoteProfile();
       const storageKey = authGetAppStorageKey(authCurrentBaseStorageKey());
       const localRaw = localStorage.getItem(storageKey);

@@ -1367,6 +1367,77 @@ function removeLogItem(dateKey, mealIdx, itemIdx) {
   save(); refreshMealCard(dayType, mealIdx);
 }
 
+function getLoggedFoodNutrition(item, gramsOverride = null) {
+  const grams = Math.max(0, Number(gramsOverride ?? item?.grams ?? 0) || 0);
+  const factor = grams / 100;
+  return {
+    grams,
+    kcal: Math.round((Number(item?.kcal100 || 0) * factor)),
+    p: Number(item?.p100 || 0) * factor,
+    c: Number(item?.c100 || 0) * factor,
+    f: Number(item?.f100 || 0) * factor,
+  };
+}
+
+function formatFoodMetric(value) {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function foodNutritionRecapHTML(item, { grams = null, kicker = 'Recap nutrizionale', subtitle = 'Per la porzione registrata', showPer100 = true } = {}) {
+  const nutrition = getLoggedFoodNutrition(item, grams);
+  const brand = String(item?.brand || '').trim();
+  return `<div class="food-nutrition-recap fsr-gp-info">
+    <div class="fsr-gp-head">
+      <div class="fsr-gp-copy">
+        <div class="edit-gram-label">${kicker}</div>
+        <div class="food-nutrition-title">${subtitle}</div>
+        <div class="food-nutrition-meta">${nutrition.grams} g registrati${brand ? ` · ${htmlEsc(brand)}` : ''}</div>
+      </div>
+      <div class="fsr-gp-badges">
+        <span class="fsr-gp-badge">${nutrition.kcal} kcal</span>
+      </div>
+    </div>
+    ${typeof macroVisualCardsHTML === 'function'
+      ? macroVisualCardsHTML({ k: nutrition.kcal, p: nutrition.p, c: nutrition.c, f: nutrition.f }, { size: 'compact' })
+      : ''}
+    ${showPer100 ? `<div class="food-nutrition-per100">Per 100 g · ${Math.round(Number(item?.kcal100 || 0))} kcal · P ${formatFoodMetric(Number(item?.p100 || 0))}g · C ${formatFoodMetric(Number(item?.c100 || 0))}g · G ${formatFoodMetric(Number(item?.f100 || 0))}g</div>` : '' }
+  </div>`;
+}
+
+function renderEditGramRecapFromInput(inputEl) {
+  const recap = document.getElementById('edit-gram-recap');
+  if (!recap || !inputEl) return;
+  recap.innerHTML = foodNutritionRecapHTML({
+    name: inputEl.dataset.name || '',
+    brand: inputEl.dataset.brand || '',
+    kcal100: parseFloat(inputEl.dataset.kcal100 || '0') || 0,
+    p100: parseFloat(inputEl.dataset.p100 || '0') || 0,
+    c100: parseFloat(inputEl.dataset.c100 || '0') || 0,
+    f100: parseFloat(inputEl.dataset.f100 || '0') || 0,
+    grams: +inputEl.value || 0,
+  }, {
+    subtitle: 'Recap della porzione attuale',
+    showPer100: true,
+  });
+}
+
+function openLoggedFoodInfo(dateKey, mealIdx, itemIdx) {
+  const item = S.foodLog[dateKey]?.[mealIdx]?.[itemIdx];
+  if (!item) return;
+  showDayModal({
+    icon: 'ℹ️',
+    title: item.name.length > 34 ? item.name.slice(0, 34) + '…' : item.name,
+    eyebrow: 'Valori nutrizionali',
+    modalClass: 'day-modal-detail',
+    noButtons: true,
+    body: `${foodNutritionRecapHTML(item, {
+      subtitle: 'Recap della porzione che hai registrato',
+      showPer100: true,
+    })}`,
+  });
+}
+
 function editLogItem(dateKey, mealIdx, itemIdx) {
   const item = S.foodLog[dateKey]?.[mealIdx]?.[itemIdx];
   if (!item) return;
@@ -1375,10 +1446,14 @@ function editLogItem(dateKey, mealIdx, itemIdx) {
   showDayModal({
     icon: '✏️',
     title: item.name.length > 28 ? item.name.slice(0,28)+'…' : item.name,
-    body: `<div class="edit-gram-row">
+    body: `<div id="edit-gram-recap">${foodNutritionRecapHTML(item, {
+      subtitle: 'Recap della porzione attuale',
+      showPer100: true,
+    })}</div>
+    <div class="edit-gram-row">
       <label class="edit-gram-label">Grammatura (g)</label>
       <div class="edit-gram-inputs">
-        <input id="edit-gram-inp" type="number" class="edit-gram-inp" value="${item.grams}" min="1" max="5000" step="1" data-kcal100="${kcal100}" style="font-size:16px">
+        <input id="edit-gram-inp" type="number" class="edit-gram-inp" value="${item.grams}" min="1" max="5000" step="1" data-name="${htmlEsc(item.name || '')}" data-brand="${htmlEsc(item.brand || '')}" data-kcal100="${kcal100}" data-p100="${Number(item.p100 || 0)}" data-c100="${Number(item.c100 || 0)}" data-f100="${Number(item.f100 || 0)}" style="font-size:16px">
         <span class="edit-gram-unit">g</span>
       </div>
       <div id="edit-gram-calc" class="edit-gram-calc">= ${Math.round(kcal100 * item.grams / 100)} kcal</div>
@@ -1841,6 +1916,7 @@ function bindEditGramPreview() {
     const kcal100 = parseFloat(event.target.dataset.kcal100 || '0') || 0;
     const grams = +event.target.value || 0;
     calc.textContent = '= ' + Math.round(kcal100 * grams / 100) + ' kcal';
+    renderEditGramRecapFromInput(event.target);
   });
   _editGramPreviewBound = true;
 }

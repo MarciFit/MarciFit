@@ -61,6 +61,7 @@ function extraMealCardHTML(key, dateKey) {
     return `<div class="mc-log-row">
       <span class="mc-item-dot"></span>
       <span class="mc-item-name">${htmlEsc(it.name)}</span>
+      <button class="mc-item-info" onclick="openLoggedFoodInfo('${dateKey}','${key}',${ii});event.stopPropagation()" title="Valori nutrizionali" aria-label="Apri valori nutrizionali di ${htmlEsc(it.name)}">i</button>
       <span class="mc-item-grams">${it.grams} g</span>
       <span class="mc-item-kcal">${itK} kcal</span>
       <button class="fir-del" onclick="removeLogItem('${dateKey}','${key}',${ii});event.stopPropagation()"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><polyline points="2,3.5 11,3.5"/><path d="M4.5 3.5V2.5a1 1 0 011-1h2a1 1 0 011 1v1"/><path d="M10 3.5L9.3 10.5a1 1 0 01-1 .9H4.7a1 1 0 01-1-.9L3 3.5"/><line x1="5.5" y1="6" x2="5.5" y2="9"/><line x1="7.5" y1="6" x2="7.5" y2="9"/></svg></button>
@@ -299,6 +300,7 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
       return `<div class="mc-log-row">
         <span class="mc-item-dot"></span>
         <span class="mc-item-name">${htmlEsc(it.name)}</span>
+        <button class="mc-item-info" onclick="openLoggedFoodInfo('${dateKey}',${i},${ii});event.stopPropagation()" title="Valori nutrizionali" aria-label="Apri valori nutrizionali di ${htmlEsc(it.name)}">i</button>
         <span class="mc-item-grams">${it.grams} g</span>
         <span class="mc-item-kcal">${itK} kcal</span>
         <button class="fir-edit" onclick="editLogItem('${dateKey}',${i},${ii});event.stopPropagation()" title="Modifica grammatura"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>

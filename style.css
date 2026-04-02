@@ -413,6 +413,14 @@ select:focus-visible{
 .mc-item-row:last-child{border-bottom:none}
 .mc-item-dot{width:5px;height:5px;border-radius:50%;background:var(--on-m);flex-shrink:0}
 .mc-item-name{flex:1;font-family:'Manrope',sans-serif;color:var(--ink2);font-weight:600;font-size:12.5px;line-height:1.35}
+.mc-item-info{
+  width:18px;height:18px;border-radius:999px;border:1px solid #d7d9dc;
+  background:linear-gradient(180deg,#fff 0%,#f5f7fa 100%);
+  color:#6e7681;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;
+  display:inline-flex;align-items:center;justify-content:center;
+  flex-shrink:0;cursor:pointer;transition:all .13s;
+}
+.mc-item-info:hover{background:#eef4fb;border-color:#bfd1e8;color:#416b9b}
 .mc-item-grams{font-family:'Manrope',sans-serif;color:var(--muted);font-size:10.5px;font-weight:700;width:40px;text-align:right;flex-shrink:0}
 .mc-item-kcal{font-family:'Manrope',sans-serif;color:var(--muted);font-size:10.5px;font-weight:700;width:52px;text-align:right;flex-shrink:0}
 .mc-log-row{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--b1)}
@@ -6015,6 +6023,17 @@ select:focus-visible{
 .edit-gram-inp:focus{border-color:var(--on-m)}
 .edit-gram-unit{font-size:14px;font-weight:600;color:var(--muted)}
 .edit-gram-calc{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--on);font-weight:700}
+.food-nutrition-recap{margin-bottom:12px}
+.food-nutrition-title{
+  font-family:'Lora',serif;font-size:16px;font-weight:600;line-height:1.14;color:var(--ink);
+}
+.food-nutrition-meta{
+  margin-top:4px;font-size:11px;line-height:1.45;color:#5f655b;font-weight:600;
+}
+.food-nutrition-per100{
+  margin-top:9px;padding-top:8px;border-top:1px solid #dce9df;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;line-height:1.5;color:#5f655b;
+}
 
 /* ─── FEATURE: macro detail modal ─── */
 .day-modal-card{
