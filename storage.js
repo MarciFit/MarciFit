@@ -116,7 +116,7 @@ function onLoad(e) {
   const f = e.target.files[0];
   if (!f) return;
   const r = new FileReader();
-  r.onload = ev => {
+  r.onload = async ev => {
     try {
       const parsed = JSON.parse(ev.target.result);
       const validation = validateImportedState(parsed);
@@ -128,13 +128,21 @@ function onLoad(e) {
       }
       applyValidatedState(parsed);
       save();
-      location.reload();
+      if (typeof authEnsureRemoteProfile === 'function') await authEnsureRemoteProfile();
+      if (typeof authSyncStateToCloud === 'function') {
+        const syncResult = await authSyncStateToCloud(true);
+        if (!syncResult?.ok && !syncResult?.skipped) {
+          throw new Error(syncResult?.message || 'Sync cloud non riuscita');
+        }
+      }
       _storageStatus.lastImportError = null;
       mfDebug('storage', 'import json ok', { keys: Object.keys(parsed || {}).length });
+      toast('📂  Caricato');
+      location.reload();
     } catch (e) {
       _storageStatus.lastImportError = { code: 'json_parse_failed', detail: e?.message || 'JSON non valido' };
       mfError('storage', 'import json failed', { name: e?.name, message: e?.message });
-      toast('❌  Errore JSON');
+      toast(`❌  ${e?.message || 'Errore JSON'}`);
     } finally {
       e.target.value = '';
     }
