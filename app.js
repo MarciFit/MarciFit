@@ -1223,7 +1223,6 @@ function toggleSupp(id) {
   if (idx>=0) arr.splice(idx,1); else arr.push(id);
   syncDoneByDate(key, getTrackedDayType(key));
   save();
-  renderSupplements();
   renderSuppToday(); // always update today supp section (cheap, no full re-render)
   refreshTodayDerivedViews();
   refreshTodayAlertSurfaces();
@@ -1262,7 +1261,10 @@ function addWater(delta) {
 }
 function toggleSuppActive(i) {
   S.supplements[i].active = !S.supplements[i].active;
-  save(); renderSupplements(); renderSuppToday(); refreshTodayAlertSurfaces();
+  save();
+  renderSuppToday();
+  refreshTodayDerivedViews();
+  refreshTodayAlertSurfaces();
 }
 function updateItemGrams(type, mealIdx, itemIdx, val) {
   const g = Math.round(parseFloat(val)||0);
@@ -1565,8 +1567,19 @@ function openProfileFavoriteFoods() {
     if (scrollTarget) {
       scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    const addBtn = document.getElementById('ff-add-toggle');
-    if (addBtn) pulseTodayElement('#ff-add-toggle', 'ui-glow');
+    pulseTodayElement('#piano-favorite-foods .piano-coming-soon-card', 'ui-glow');
+  }, 80);
+}
+
+function openPianoTemplates() {
+  closeDayModal();
+  goView('piano');
+  setTimeout(() => {
+    const templateSection = document.querySelector('#view-piano .piano-section-library');
+    if (templateSection) {
+      templateSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    pulseTodayElement('#view-piano .piano-section-library', 'ui-glow');
   }, 80);
 }
 
@@ -1595,11 +1608,11 @@ function openFoodSuggestion(remK, remP, remC, remF) {
   if (!suggestion || !suggestion.picks.length) {
     bodyHTML = `<div class="sug-empty-state">
       <div class="sug-empty-icon">☆</div>
-      <div class="sug-empty-title">Aggiungi cibi abituali</div>
+      <div class="sug-empty-title">Suggerimenti smart in arrivo</div>
       <div class="sug-empty-text">
-        Inserisci nel Piano alcuni alimenti che mangi spesso e useremo quelli per suggerirti come chiudere i gap di calorie e macro.
+        I cibi abituali restano in pausa finche questa parte non sara davvero pronta. Per ora in Piano teniamo attivi solo i template, che sono la base piu affidabile da usare.
       </div>
-      <button class="sug-empty-cta" onclick="openProfileFavoriteFoods()">Apri Piano</button>
+      <button class="sug-empty-cta" onclick="openPianoTemplates()">Apri template</button>
     </div>`;
   } else {
     const { picks, totalK, totalP, totalC } = suggestion;
@@ -1889,7 +1902,12 @@ function addNoteTag(tag) {
 }
 function toggleSuppForm(scope = 'today') {
   const el = document.getElementById(`supp-form-${scope}`);
-  if (el) { el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
+  if (!el) return;
+  const willOpen = el.style.display === 'none';
+  el.style.display = willOpen ? 'block' : 'none';
+  if (willOpen) {
+    setTimeout(() => document.getElementById(`sf-name-${scope}`)?.focus(), 40);
+  }
 }
 function confirmAddSupp(scope = 'today') {
   const name = document.getElementById(`sf-name-${scope}`)?.value.trim();
@@ -1898,8 +1916,9 @@ function confirmAddSupp(scope = 'today') {
   const when = document.getElementById(`sf-when-${scope}`)?.value.trim() || 'mattina';
   S.supplements.push({ id:'supp_'+Date.now(), name, dose, when, active:true });
   save();
-  renderSupplements();
   renderSuppToday();
+  refreshTodayDerivedViews();
+  refreshTodayAlertSurfaces();
   toast('✅  Integratore aggiunto');
 }
 function renderMeasCompare() {

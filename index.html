@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=134">
+<link rel="stylesheet" href="style.css?v=136">
 </head>
 <body>
 <div class="app">
@@ -164,34 +164,7 @@
 <div class="view" id="view-piano">
   <div class="prog-head piano-head">
     <div class="prog-title">Piano</div>
-    <div class="prog-sub">Costruisci i pasti partendo dai cibi che usi davvero, lascia lavorare l helper solo quando i dati bastano e tieni a portata i template che ripeti.</div>
-  </div>
-
-  <!-- SEZIONE: Piano Pasti -->
-  <div class="piano-section piano-section-hero">
-    <div class="piano-section-head">
-      <div class="piano-section-copy">
-        <span class="support-mini-kicker">Piano</span>
-        <div class="support-mini-title-row">
-          <span class="support-mini-title">Genera il prossimo pasto</span>
-        </div>
-        <span class="support-mini-sub">Scegli il pasto, guarda il target e usa l helper solo quando il sistema ha abbastanza dati per proporti una bozza credibile.</span>
-      </div>
-    </div>
-    <div id="meal-planner-helper"></div>
-  </div>
-
-  <div class="piano-section piano-section-dataset">
-    <div class="piano-section-head">
-      <div class="piano-section-copy">
-        <span class="support-mini-kicker">Piano</span>
-        <div class="support-mini-title-row">
-          <span class="support-mini-title">Cibi abituali</span>
-        </div>
-        <span class="support-mini-sub">Qui tieni solo i cibi che compri davvero spesso. L helper usera solo questi per creare pasti credibili.</span>
-      </div>
-    </div>
-    <div id="piano-favorite-foods"></div>
+    <div class="prog-sub">Per ora qui trovi prima di tutto i template, la parte gia pronta da usare davvero. Helper pasto e cibi abituali tornano appena rifiniti bene.</div>
   </div>
 
   <!-- SEZIONE: Libreria Template -->
@@ -254,7 +227,34 @@
     </div>
   </div>
 
+  <!-- SEZIONE: Piano Pasti -->
+  <div class="piano-section piano-section-hero piano-section-coming-soon">
+    <div class="piano-section-head">
+      <div class="piano-section-copy">
+        <span class="support-mini-kicker">Piano</span>
+        <div class="support-mini-title-row">
+          <span class="support-mini-title">Genera il prossimo pasto</span>
+          <span class="piano-section-status">Presto in arrivo</span>
+        </div>
+        <span class="support-mini-sub">Lo stiamo rifinendo con calma prima di mostrarlo davvero: flusso, affidabilita e microcopy devono essere all altezza.</span>
+      </div>
+    </div>
+    <div id="meal-planner-helper"></div>
+  </div>
 
+  <div class="piano-section piano-section-dataset piano-section-coming-soon">
+    <div class="piano-section-head">
+      <div class="piano-section-copy">
+        <span class="support-mini-kicker">Piano</span>
+        <div class="support-mini-title-row">
+          <span class="support-mini-title">Cibi abituali</span>
+          <span class="piano-section-status">Presto in arrivo</span>
+        </div>
+        <span class="support-mini-sub">La libreria tornera quando ricerca, inserimento e gestione saranno abbastanza solidi da non rallentarti.</span>
+      </div>
+    </div>
+    <div id="piano-favorite-foods"></div>
+  </div>
 </div>
 
 <!-- VIEW: STATISTICHE -->
@@ -313,11 +313,6 @@
   <!-- Card: Orari pasti -->
   <div class="stat-section profile-section">
     <div class="prof-card-box" id="prof-times-card"></div>
-  </div>
-
-  <!-- Card: Integratori -->
-  <div class="stat-section profile-section">
-    <div class="prof-card-box" id="supps-card"></div>
   </div>
 
   <!-- Goal extra fields (data inizio, peso target, note) -->
@@ -501,9 +496,9 @@ window.MARCI_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 <script src="mealTaxonomy.js?v=1"></script>
 <script src="templateEngine.js?v=1"></script>
 <script src="mealHelperEngine.js?v=1"></script>
-<script src="uiComponents.js?v=107"></script>
+<script src="uiComponents.js?v=109"></script>
 <script src="bootstrapTools.js?v=5"></script>
-<script src="app.js?v=89"></script>
+<script src="app.js?v=90"></script>
 <script src="barcodeTools.js?v=14"></script>
 <script>lucide.createIcons();</script>
 </body>

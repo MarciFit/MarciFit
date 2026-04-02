@@ -75,7 +75,7 @@
 - **Tooltip piano reali**: gli info button del `Quadro giornaliero` usano `showTip()` con `tip-piano-summary`, non solo il `title` nativo
 - **Smoke suite disponibile**: `smoke:core`, `smoke:dataflow`, `smoke:storage` presenti e tutti verdi in sessione 24
 - **Nota struttura**: `start.html` non è più presente in root; lo sviluppo attuale passa da `index.html` + preview/smoke scripts
-- **Profilo integratori ripristinato**: la tab `Profilo` ha di nuovo il mount `supps-card` e mostra la card dedicata agli integratori
+- **Integratori unificati in Oggi**: la gestione vive solo nella card `Routine integratori` della tab `Oggi`; `Profilo` non mostra più una card separata
 - **Motore nutrizione aggiornato**: TDEE ora basato su `BMR + NEAT + EAT + TEF`, non piu solo `BMR × PAL`
 - **Passi medi giornalieri**: campo opzionale in profilo/onboarding usato per classificare meglio il `NEAT`
 - **Calibrazione 14 giorni**: aggiustamento automatico conservativo dei target kcal in base al trend peso recente

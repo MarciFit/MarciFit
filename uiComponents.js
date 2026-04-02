@@ -1562,8 +1562,8 @@ function buildTodayAlertButtons(alert, { supportMode = false, hasFavFoods = (S.f
       : alert.ctaAction;
     buttons.push(`<button class="today-context-alert-btn" onclick="${action}">${alert.ctaLabel}</button>`);
   }
-  if (alert?.hasSuggest) {
-    buttons.push(`<button class="today-context-alert-btn is-secondary" onclick="openFoodSuggestion(${alert.remK||0},${alert.remP||0},${alert.remC||0},${alert.remF||0})">${hasFavFoods ? 'Vedi cosa mangiare' : 'Aggiungi cibi abituali'}</button>`);
+  if (alert?.hasSuggest && hasFavFoods) {
+    buttons.push(`<button class="today-context-alert-btn is-secondary" onclick="openFoodSuggestion(${alert.remK||0},${alert.remP||0},${alert.remC||0},${alert.remF||0})">Vedi cosa mangiare</button>`);
   }
   return buttons;
 }
@@ -2238,13 +2238,94 @@ function favoriteFoodsProfileRedirectHTML() {
         <div class="support-mini-kicker">Profilo</div>
         <div class="support-mini-title-row">
           <div class="support-mini-title">Cibi abituali</div>
-          <span class="support-mini-state ${favoriteFoodsCount ? 'progress' : 'idle'}">${favoriteFoodsCount ? `${favoriteFoodsCount} salvati` : 'Gestiscili in Piano'}</span>
+          <span class="support-mini-state ${favoriteFoodsCount ? 'progress' : 'idle'}">${favoriteFoodsCount ? `${favoriteFoodsCount} salvati` : 'Presto in arrivo'}</span>
         </div>
-        <div class="support-mini-sub">Ora i cibi abituali si gestiscono nella tab Piano, insieme all helper e ai template.</div>
+        <div class="support-mini-sub">Li stiamo tenendo in pausa finche ricerca, inserimento e suggerimenti non saranno abbastanza solidi da meritarsi davvero spazio nel prodotto.</div>
       </div>
     </div>
-    <div class="ff-inline-note">Li trovi in Piano cosi puoi aggiungerli, rivederli e usarli subito per costruire pasti credibili.</div>
-    <button class="ff-open-add-btn profile-redirect-btn" onclick="openProfileFavoriteFoods()">Apri Piano</button>
+    <div class="ff-inline-note">${favoriteFoodsCount
+      ? 'Quelli gia salvati restano al sicuro. In Piano vedi solo l anteprima della sezione, finche non la riattiviamo nel modo giusto.'
+      : 'In Piano lasciamo visibili solo template pronti all uso e un anteprima soft di cio che tornera piu avanti.'}</div>
+    <button class="ff-open-add-btn profile-redirect-btn" onclick="openProfileFavoriteFoods()">Vedi anteprima in Piano</button>
+  </div>`;
+}
+
+function pianoComingSoonCardHTML(kind) {
+  const config = kind === 'foods'
+    ? {
+        icon: '★',
+        label: 'Cibi abituali',
+        title: 'La tua dispensa smart, pronta a lavorare per te',
+        body: 'Salverai i cibi che usi piu spesso per ritrovarli subito, richiamarli nei template e velocizzare ogni giornata.',
+        bullets: ['ricerca rapida', 'preferiti pronti', 'uso al volo'],
+        preview: `
+          <div class="piano-coming-soon-preview piano-coming-soon-preview-foods" aria-hidden="true">
+            <div class="pcs-search"></div>
+            <div class="pcs-list">
+              <div class="pcs-list-row">
+                <span class="pcs-dot"></span>
+                <div class="pcs-list-lines">
+                  <span class="pcs-line" style="width:42%"></span>
+                  <span class="pcs-line" style="width:66%"></span>
+                </div>
+                <span class="pcs-chip" style="width:54px"></span>
+              </div>
+              <div class="pcs-list-row">
+                <span class="pcs-dot"></span>
+                <div class="pcs-list-lines">
+                  <span class="pcs-line" style="width:48%"></span>
+                  <span class="pcs-line" style="width:58%"></span>
+                </div>
+                <span class="pcs-chip" style="width:62px"></span>
+              </div>
+            </div>
+          </div>`,
+      }
+    : {
+        icon: '✨',
+        label: 'Helper pasto',
+        title: 'Il copilota che ti suggerira il prossimo pasto',
+        body: 'Partira dal momento della giornata e dai tuoi obiettivi per proporti idee piu credibili, veloci da usare e facili da salvare.',
+        bullets: ['idee contestuali', 'target chiari', 'salva in template'],
+        preview: `
+          <div class="piano-coming-soon-preview piano-coming-soon-preview-helper" aria-hidden="true">
+            <div class="pcs-chip-row">
+              <span class="pcs-chip" style="width:74px"></span>
+              <span class="pcs-chip" style="width:88px"></span>
+              <span class="pcs-chip" style="width:62px"></span>
+            </div>
+            <div class="pcs-grid">
+              <div class="pcs-card">
+                <span class="pcs-line" style="width:34%"></span>
+                <span class="pcs-line" style="width:78%"></span>
+                <span class="pcs-line" style="width:52%"></span>
+                <div class="pcs-chip-row pcs-chip-row-tight">
+                  <span class="pcs-chip" style="width:56px"></span>
+                  <span class="pcs-chip" style="width:70px"></span>
+                </div>
+              </div>
+            </div>
+          </div>`,
+      };
+
+  return `<div class="piano-coming-soon-card">
+    <div class="piano-coming-soon-top">
+      <span class="piano-coming-soon-pill"><span class="piano-coming-soon-pill-dot"></span>In arrivo</span>
+      <span class="piano-coming-soon-label">${config.label}</span>
+    </div>
+    <div class="piano-coming-soon-body">
+      <div class="piano-coming-soon-copy">
+        <div class="piano-coming-soon-title-row">
+          <span class="piano-coming-soon-icon" aria-hidden="true">${config.icon}</span>
+          <div class="piano-coming-soon-title">${config.title}</div>
+        </div>
+        <div class="piano-coming-soon-text">${config.body}</div>
+        <div class="piano-coming-soon-bullets">
+          ${config.bullets.map(item => `<span class="piano-coming-soon-bullet">${item}</span>`).join('')}
+        </div>
+      </div>
+      ${config.preview}
+    </div>
   </div>`;
 }
 
@@ -2253,33 +2334,20 @@ function renderPiano() {
   const pianoUi = typeof ensurePianoUiState === 'function'
     ? ensurePianoUiState()
     : { activeMealFilter: 'all', templateSort: 'useful_now', helperExpanded: true };
-  const planType = S.day || S.planTab || 'on';
-  S.planTab = planType;
-  const plannerState = ensureMealPlannerState(planType);
-  const targetDay = S.macro[planType];
-  const plannerMeal = S.meals[planType]?.[plannerState.mealIdx];
-  const plannerMealType = getMealTypeFromName(plannerMeal?.name || '');
-  const activeMealFilter = pianoUi.activeMealFilter || plannerMealType || 'all';
+  const activeMealFilter = pianoUi.activeMealFilter || 'all';
   const mealTypeCounts = typeof getTemplateCountsByMealType === 'function'
     ? getTemplateCountsByMealType(S.templates || [])
     : {};
-  const favoriteFoods = typeof normalizeFavoriteFoods === 'function'
-    ? normalizeFavoriteFoods(S.favoriteFoods || [])
-    : (S.favoriteFoods || []);
-  const favoriteFoodNames = favoriteFoods.map(food => String(food.name || '').toLowerCase());
-  const usefulTemplates = typeof getUsefulTemplatesNow === 'function'
-    ? getUsefulTemplatesNow(S.templates || [], { mealType: activeMealFilter === 'all' ? plannerMealType : activeMealFilter, favoriteFoodNames })
-    : (S.templates || []);
   const filteredTemplates = typeof filterTemplatesByMealType === 'function'
     ? filterTemplatesByMealType(S.templates || [], activeMealFilter)
     : (S.templates || []);
   const helperEl = document.getElementById('meal-planner-helper');
   if (helperEl) {
-    helperEl.innerHTML = mealPlannerHelperHTML(planType, plannerState);
+    helperEl.innerHTML = pianoComingSoonCardHTML('helper');
   }
   const favoriteFoodsEl = document.getElementById('piano-favorite-foods');
   if (favoriteFoodsEl) {
-    favoriteFoodsEl.innerHTML = favoriteFoodsManagerHTML('piano');
+    favoriteFoodsEl.innerHTML = pianoComingSoonCardHTML('foods');
   }
 
   const filtersEl = document.getElementById('tmpl-filters');
@@ -2360,35 +2428,20 @@ function renderPiano() {
     </div>`;
   };
   const activeFilterLabel = activeMealFilter === 'all' ? 'tutti i pasti' : activeMealFilter;
-  const focusMealLabel = htmlEsc(plannerMeal?.name || 'il pasto selezionato');
   const visibleCountLabel = filteredTemplates.length === 1 ? '1 template visibile' : `${filteredTemplates.length} template visibili`;
-  const usefulNow = usefulTemplates.length ? usefulTemplates : filteredTemplates.slice(0, 6);
-  const usefulNowIds = new Set(usefulNow.map(t => t.id));
-  const usefulNowDiffers = usefulNow.length > 0 && (
-    usefulNow.length !== filteredTemplates.length ||
-    filteredTemplates.some(t => !usefulNowIds.has(t.id))
-  );
-  const usefulNowCountLabel = usefulNow.length === 1 ? '1 proposta' : `${usefulNow.length} proposte`;
 
   listEl.innerHTML = `
     <div class="piano-template-section piano-template-section-compact">
       <div class="piano-template-overview">
         <div class="piano-template-overview-copy">
           <div class="piano-template-overview-title">Template per ${activeFilterLabel}</div>
-          <div class="piano-template-overview-sub">Scegli al volo i pasti che ripeti piu spesso.</div>
+          <div class="piano-template-overview-sub">Per ora qui trovi solo la parte gia pronta: salva, richiama e riusa i pasti che ripeti davvero.</div>
         </div>
         <div class="piano-template-pill-stack">
           <span class="piano-template-pill">${visibleCountLabel}</span>
-          ${usefulNowDiffers ? `<span class="piano-template-pill piano-template-pill-soft">${usefulNowCountLabel} utili adesso</span>` : ''}
         </div>
       </div>
       <div class="tmpl-carousel">${filteredTemplates.map(renderTemplateCard).join('')}</div>
-      ${usefulNowDiffers ? `
-      <div class="piano-template-inline-head">
-        <div class="piano-template-inline-title">Utili adesso</div>
-        <div class="piano-template-inline-sub">Quelli piu coerenti con ${focusMealLabel}.</div>
-      </div>
-      <div class="tmpl-carousel tmpl-carousel-secondary">${usefulNow.map(renderTemplateCard).join('')}</div>` : ''}
     </div>`;
 }
 
@@ -3384,7 +3437,6 @@ function renderStats() {
 function renderProfile() {
   renderAnagrafica();
   renderOnDaysPicker();
-  renderSupplements();
   if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
 }
 function drawChart(log, opts = {}) {
@@ -3684,44 +3736,6 @@ function supplementFormHTML(scope) {
       </div>
     </div>`;
 }
-function renderSupplements() {
-  const el = document.getElementById('supps-card');
-  if (!el) return;
-  const dateKey = S.selDate || localDate();
-  const checked = S.suppChecked[dateKey] || [];
-  const activeSupps = S.supplements.filter(s => s.active).length;
-  const suppStateCls = activeSupps ? 'progress' : 'idle';
-  const suppStateText = activeSupps ? `${activeSupps} attivi` : 'Nessuno';
-  const cards = S.supplements.map((s, i) => {
-    const done = checked.includes(s.id);
-    return `<div class="supp-card${done?' done':''}${s.active?'':' supp-inactive'}" data-supp-id="${s.id}" onclick="toggleSupp('${s.id}')">
-      <div class="supp-card-check">${done ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` : ''}</div>
-      <div class="supp-card-name">${htmlEsc(s.name)}</div>
-      <div class="supp-card-meta">${esc(s.dose)}${s.dose && s.when ? ' · ' : ''}${esc(s.when)}</div>
-      <button class="supp-card-toggle" onclick="event.stopPropagation();toggleSuppActive(${i})" title="${s.active?'Disattiva':'Attiva'}">${s.active?'–':'+'}</button>
-    </div>`;
-  }).join('');
-  el.innerHTML = `
-    <div class="profile-card-head support-mini-head">
-      <div class="support-mini-head-copy">
-        <div class="support-mini-kicker">Profilo</div>
-        <div class="support-mini-title-row">
-          <div class="support-mini-title">Integratori</div>
-          <span class="support-mini-state ${suppStateCls}">${suppStateText}</span>
-        </div>
-        <div class="support-mini-sub">Libreria personale degli integratori che vuoi ritrovare anche nella routine giornaliera.</div>
-      </div>
-    </div>
-    <div class="supp-cards-row">
-      ${cards}
-      <button class="supp-card supp-card-add" onclick="toggleSuppForm('profile')">
-        <div class="supp-card-check"></div>
-        <div class="supp-card-name">+ Aggiungi</div>
-        <div class="supp-card-meta"></div>
-      </button>
-    </div>
-    ${supplementFormHTML('profile')}`;
-}
 function renderWater() {
   const el = document.getElementById('water-widget');
   if (!el) return;
@@ -3874,7 +3888,7 @@ function renderSuppToday() {
       ? 'Completata'
       : `${doneCount}/${active.length} presi`;
   const subText = active.length === 0
-    ? 'Aggiungi qui solo gli integratori che usi davvero ogni giorno.'
+    ? 'Costruisci qui la routine che vuoi ritrovarti ogni giorno.'
     : pendingCount === 0
       ? 'Oggi hai gia chiuso tutta la routine.'
       : doneCount === 0
@@ -3897,8 +3911,17 @@ function renderSuppToday() {
     </div>`;
   }).join('') : `<div class="supp-today-empty">
       <div class="supp-today-empty-title">Nessun integratore attivo</div>
-      <div class="supp-today-empty-text">Aggiungine uno per ritrovarti qui la routine quotidiana.</div>
+      <div class="supp-today-empty-text">Aggiungi il primo integratore qui sotto e trasformalo nella tua routine quotidiana.</div>
     </div>`;
+  const addCard = `<button class="supp-today-add-card" onclick="toggleSuppForm('today')">
+      <span class="supp-today-add-mark">
+        <span class="supp-today-add-plus">+</span>
+      </span>
+      <span class="supp-today-add-copy">
+        <span class="supp-today-add-title">Aggiungi integratore</span>
+        <span class="supp-today-add-meta">Nome, dose e momento: lo ritroverai qui ogni giorno, nello stesso ordine della tua routine.</span>
+      </span>
+    </button>`;
 
   el.innerHTML = `
     <div class="support-mini-card support-mini-card-supp">
@@ -3911,15 +3934,15 @@ function renderSuppToday() {
           </div>
           <div class="supp-today-sub support-mini-sub">${subText}</div>
         </div>
-        <button class="supp-today-add-btn" onclick="toggleSuppForm('today')">+ Aggiungi</button>
       </div>
       ${active.length ? `<div class="supp-today-progress"><div class="supp-today-progress-fill ${statusCls}" style="width:${progressPct}%"></div></div>` : ''}
       <div class="supp-today-row">
         ${rows}
+        ${addCard}
       </div>
+      ${supplementFormHTML('today')}
     </div>`;
   el.style.display='block';
-  el.innerHTML += supplementFormHTML('today');
 }
 function showStreakTip(anchor, streak) {
   const tip = document.getElementById('tip-streak');
