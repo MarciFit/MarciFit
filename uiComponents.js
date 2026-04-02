@@ -1724,7 +1724,7 @@ function renderWeekCal(now) {
 
   document.getElementById('week-cal').innerHTML = dayModels.map(day => {
     const doneBadge = day.hasDone
-      ? `<div class="wc-done ${day.isFull ? 'full' : 'partial'}" title="${day.doneTitle || ''}"></div>`
+      ? `<div class="wc-done ${day.isFull ? 'full' : 'partial'}${day.cheat ? ' cheat' : ''}" title="${day.doneTitle || ''}"></div>`
       : '';
     const eventDots = [
       day.hasOverride ? `<span class="wc-marker wc-marker-override" title="${day.overrideTitle}"></span>` : '',
@@ -3421,7 +3421,31 @@ function renderStatsPatterns(data) {
 function renderStatsActions() {
   const el = document.getElementById('stats-actions');
   if (!el) return;
-  el.innerHTML = '';
+  el.innerHTML = `
+    <div class="stats-actions-card">
+      <div class="stats-actions-grid">
+        <div class="stats-actions-stack">
+          <div class="stats-action-row stats-action-row-primary">
+            <div class="stats-action-copy">
+              <div class="stats-actions-title">Peso</div>
+              <div class="stats-actions-note">Salva al volo il peso inserito sopra senza perdere il punto in cui sei.</div>
+            </div>
+            <div class="stats-action-control">
+              <button class="w-btn" onclick="addWeight()">Salva peso</button>
+            </div>
+          </div>
+          <div class="stats-action-row">
+            <div class="stats-action-copy">
+              <div class="stats-actions-title">Misure</div>
+              <div class="stats-actions-note">Apri subito la nuova rilevazione e completa vita, peso e circonferenze in un solo passaggio.</div>
+            </div>
+            <div class="stats-action-control">
+              <button class="stats-secondary-btn" onclick="openMeasurementEntry()">Nuova rilevazione</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderStats() {

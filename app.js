@@ -2796,7 +2796,7 @@ function renderAuthEntry() {
     body = `
       <div class="auth-entry-kicker">Crea account</div>
       <div class="auth-entry-title">Salva i tuoi dati</div>
-      <div class="auth-entry-sub">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Registrazione reale attiva con Supabase.' : 'Registrazione pronta in locale. Se configuri Supabase, questo stesso flow userà il cloud.'}</div>
+      <div class="auth-entry-sub">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Crei l account e ti inviamo subito una mail con il link per attivarlo.' : 'Registrazione pronta in locale. Se configuri Supabase, questo stesso flow userà il cloud.'}</div>
       <div class="auth-entry-form">
         <div class="auth-entry-field">
           <label class="auth-entry-label">Email</label>
@@ -2810,7 +2810,7 @@ function renderAuthEntry() {
           <label class="auth-entry-label">Conferma password</label>
           <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.confirmPassword)}" oninput="setAuthField('confirmPassword', this.value)" placeholder="Ripeti la password">
         </div>
-        <div class="auth-entry-callout">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'L’account verrà creato nel cloud e i dati potranno sincronizzarsi tra dispositivi.' : 'Per ora l’account viene creato in locale su questo dispositivo. Puoi attivare Supabase dalla card Account in Profilo.'}</div>
+        <div class="auth-entry-callout">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Dopo la registrazione riceverai una mail con un link: ti basta aprirlo per attivare l account e poi accedere.' : 'Per ora l’account viene creato in locale su questo dispositivo. Puoi attivare Supabase dalla card Account in Profilo.'}</div>
       </div>`;
   } else {
     body = `
@@ -2898,6 +2898,83 @@ async function requestPasswordReset() {
   toast(`${result.ok ? '✉️' : '⚠️'} ${result.message}`);
 }
 
+async function finalizeAuthEntrySuccess(successMessage, options = {}) {
+  const { syncToCloud = false } = options;
+  let hydrateResult = null;
+  if (typeof authHydrateLocalCacheFromRemote === 'function') {
+    hydrateResult = await authHydrateLocalCacheFromRemote();
+  }
+
+  const hadSaved = loadSaved();
+  const storageStatus = typeof getMarciFitStorageStatus === 'function' ? getMarciFitStorageStatus() : null;
+
+  if (hadSaved && typeof reinitializeImportedState === 'function') {
+    reinitializeImportedState();
+  } else {
+    sanitizeMealIcons(S);
+    ensureBootstrapDefaults(S);
+    migrateTemplateMealTypes(S);
+    migrateProfiloToAnagrafica(S);
+    migrateFlatMealsToItems(S);
+    normalizeLegacyMealIcons(S);
+    finalizeBootstrapState(S, hadSaved);
+    normalizeCheatConfig(S.cheatConfig);
+    syncAnagraficaWeightFromLogs({ preserveIfEmpty: true });
+    refreshNutritionTargetsFromState({ saveDeferred: false });
+    if (!S.cheatMealsByDate || typeof S.cheatMealsByDate !== 'object' || Array.isArray(S.cheatMealsByDate)) {
+      S.cheatMealsByDate = {};
+    }
+    if (typeof authIsAuthenticated === 'function' && authIsAuthenticated()) {
+      S.authEntryCompleted = true;
+    }
+    ensureMealPlannerState('on');
+    ensureMealPlannerState('off');
+    setDay(S.day);
+    resetBootstrapUiState();
+    closeAuthEntry();
+    if (typeof renderNotes === 'function') renderNotes();
+    if (typeof renderAuthNav === 'function') renderAuthNav();
+    if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+    rerender();
+  }
+
+  if (_authEntryState) {
+    _authEntryState.password = '';
+    _authEntryState.confirmPassword = '';
+    _authEntryState.mode = 'gateway';
+  }
+  if (typeof authIsAuthenticated === 'function' && authIsAuthenticated()) {
+    S.authEntryCompleted = true;
+  }
+  save({ skipCloudSync: true });
+  if (typeof renderAuthNav === 'function') renderAuthNav();
+  if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+
+  if (storageStatus?.loadError && storageStatus.hadSavedState) {
+    toast(`⚠️ Ripristino dati da verificare: ${storageStatus.loadError.detail || 'formato non valido'}`);
+  } else if (hydrateResult?.source === 'remote') {
+    toast('☁️ Dati cloud caricati');
+  } else if (hadSaved) {
+    toast('💾 Dati del profilo caricati');
+  }
+
+  if (hydrateResult?.ok === false && !hydrateResult?.skipped) {
+    toast(`⚠️ ${hydrateResult.message || 'Ripristino cloud da verificare'}`);
+  }
+
+  if (syncToCloud && typeof authSyncStateToCloud === 'function') {
+    const syncResult = await authSyncStateToCloud(true);
+    if (!syncResult?.ok && !syncResult?.skipped) {
+      toast(`⚠️ ${syncResult.message || 'Sync cloud non riuscita'}`);
+    }
+  }
+
+  if (!S.onboardingCompleted) openWelcomeOnboarding();
+  else if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
+
+  toast(successMessage);
+}
+
 async function submitAuthPlaceholder(mode) {
   const email = String(_authEntryState?.email || '').trim();
   const password = String(_authEntryState?.password || '');
@@ -2925,9 +3002,7 @@ async function submitAuthPlaceholder(mode) {
     }
     S.authEntryCompleted = true;
     save();
-    if (typeof authSyncStateToCloud === 'function') await authSyncStateToCloud(true);
-    toast('✅ Account creato');
-    location.reload();
+    await finalizeAuthEntrySuccess('✅ Account creato', { syncToCloud: true });
     return;
   }
   const result = typeof signInWithEmail === 'function'
@@ -2937,8 +3012,7 @@ async function submitAuthPlaceholder(mode) {
     toast(`⚠️ ${result.message}`);
     return;
   }
-  toast('✅ Accesso effettuato');
-  location.reload();
+  await finalizeAuthEntrySuccess('✅ Accesso effettuato');
 }
 
 function renderWelcomeOnboarding() {

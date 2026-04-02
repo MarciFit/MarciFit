@@ -17,6 +17,9 @@ const AUTH = {
   lastSyncedAt: null,
   needsEmailConfirmation: false,
   bootstrapReady: false,
+  clientContext: 'browser',
+  bootstrapSource: 'unknown',
+  bootstrapMessage: '',
 };
 
 let _supabaseClient = null;
@@ -72,6 +75,67 @@ function authIsAuthenticated() {
 
 function authProviderLabel() {
   return AUTH.provider === 'supabase' ? 'Supabase' : 'Locale mock';
+}
+
+function authDetectClientContext() {
+  try {
+    if (window.matchMedia?.('(display-mode: standalone)').matches) return 'standalone';
+  } catch (_) {}
+  try {
+    if (window.navigator?.standalone) return 'standalone';
+  } catch (_) {}
+  return 'browser';
+}
+
+function authClientContextLabel(context = authDetectClientContext()) {
+  return context === 'standalone' ? 'Web app Home' : 'Browser';
+}
+
+function authUpdateClientContext() {
+  AUTH.clientContext = authDetectClientContext();
+  return AUTH.clientContext;
+}
+
+function authSetBootstrapHint(source, message = '') {
+  AUTH.bootstrapSource = source || 'unknown';
+  AUTH.bootstrapMessage = String(message || '');
+  authUpdateClientContext();
+}
+
+function authDescribeBootstrapSource(source = AUTH.bootstrapSource) {
+  switch (source) {
+    case 'guest':
+      return 'Sessione guest';
+    case 'guest_seed':
+      return 'Dati locali copiati nel profilo';
+    case 'remote':
+      return 'Dati cloud caricati';
+    case 'local':
+      return 'Dati del dispositivo mantenuti';
+    case 'local_reset':
+      return 'Reset locale mantenuto';
+    case 'empty':
+      return 'Nessun profilo trovato';
+    case 'account_connected':
+      return 'Account collegato';
+    case 'awaiting_email':
+      return 'Attivazione via email in attesa';
+    case 'cloud_push':
+      return 'Cloud aggiornato';
+    case 'error':
+      return 'Sync da verificare';
+    default:
+      return 'Avvio standard';
+  }
+}
+
+function authGetBootstrapDiagnostics() {
+  authUpdateClientContext();
+  return {
+    contextLabel: authClientContextLabel(AUTH.clientContext),
+    sourceLabel: authDescribeBootstrapSource(AUTH.bootstrapSource),
+    detail: AUTH.bootstrapMessage || '',
+  };
 }
 
 function authCurrentBaseStorageKey() {
@@ -174,7 +238,7 @@ function authFormatSyncTime(iso) {
 }
 
 function authStatusMeta() {
-  if (AUTH.needsEmailConfirmation) return { label: 'Conferma email', cls: 'pending' };
+  if (AUTH.needsEmailConfirmation) return { label: 'Mail inviata', cls: 'pending' };
   if (AUTH.isSyncing) return { label: 'Sync in corso', cls: 'syncing' };
   if (authIsAuthenticated() && AUTH.provider === 'supabase') {
     return { label: AUTH.lastSyncedAt ? 'Cloud attivo' : 'Cloud pronto', cls: 'connected' };
@@ -248,6 +312,7 @@ function authSetGuestState() {
   AUTH.user = null;
   AUTH.sessionReady = true;
   AUTH.needsEmailConfirmation = false;
+  authSetBootstrapHint('guest');
 }
 
 function authApplySupabaseUser(user) {
@@ -264,6 +329,7 @@ function authApplySupabaseUser(user) {
   };
   AUTH.sessionReady = true;
   AUTH.needsEmailConfirmation = false;
+  authUpdateClientContext();
   return AUTH;
 }
 
@@ -294,6 +360,8 @@ async function authInit() {
       const user = data?.session?.user || null;
       if (user) {
         authApplySupabaseUser(user);
+        authSeedAccountStateFromGuest(user.id, { markDirty: true });
+        authSetBootstrapHint('account_connected', 'Sessione account recuperata. Ora controlliamo il profilo disponibile tra cloud e dispositivo.');
         return AUTH;
       }
     } catch (_) {}
@@ -320,6 +388,8 @@ async function authInit() {
   };
   AUTH.sessionReady = true;
   AUTH.needsEmailConfirmation = false;
+  authSeedAccountStateFromGuest(user.id);
+  authSetBootstrapHint('local', 'Account locale ripristinato su questo dispositivo.');
   return AUTH;
 }
 
@@ -410,6 +480,7 @@ function authSeedAccountStateFromGuest(userId, options = {}) {
       resetPending: false,
       dirty: !!options.markDirty,
     }));
+    authSetBootstrapHint('guest_seed', 'Abbiamo trovato dati gia presenti su questo dispositivo e li abbiamo collegati a questo account.');
     return true;
   } catch (_) {
     return false;
@@ -447,8 +518,10 @@ function authStoreRemoteStateLocally(state, updatedAt) {
       dirty: false,
     });
     AUTH.lastSyncedAt = updatedAt || new Date().toISOString();
+    authSetBootstrapHint('remote', 'Il profilo cloud e stato caricato e salvato anche su questo dispositivo.');
     return true;
   } catch (_) {
+    authSetBootstrapHint('error', 'Non siamo riusciti a salvare in locale il profilo ricevuto dal cloud.');
     return false;
   }
 }
@@ -469,12 +542,31 @@ async function authHydrateLocalCacheFromRemote() {
     return { ok: false, skipped: true };
   }
   const remote = await authFetchRemoteStateRow();
-  if (!remote.ok || !remote.row) return remote.ok ? { ok: true, hydrated: false } : remote;
+  if (!remote.ok) {
+    authSetBootstrapHint('error', remote.message || 'Lettura cloud non riuscita in avvio.');
+    return remote;
+  }
+  if (!remote.row) {
+    const localRaw = localStorage.getItem(authGetAppStorageKey(authCurrentBaseStorageKey()));
+    const localState = authParseRemoteState(localRaw);
+    if (authHasMeaningfulState(localState)) {
+      authSetBootstrapHint('local', 'Non abbiamo trovato aggiornamenti cloud nuovi, quindi restiamo sui dati gia presenti su questo dispositivo.');
+    } else {
+      authSetBootstrapHint('empty', 'Questo account non ha ancora un profilo cloud completo da ripristinare qui.');
+    }
+    return { ok: true, hydrated: false, source: authHasMeaningfulState(localState) ? 'local' : 'empty' };
+  }
   const remoteState = authParseRemoteState(remote.row.state_json);
-  if (!remoteState) return { ok: false, message: 'Stato cloud non valido' };
+  if (!remoteState) {
+    authSetBootstrapHint('error', 'Il profilo cloud esiste ma non e leggibile in modo sicuro.');
+    return { ok: false, message: 'Stato cloud non valido' };
+  }
   if (typeof validateImportedState === 'function') {
     const validation = validateImportedState(remoteState);
-    if (!validation.ok) return { ok: false, message: validation.detail || 'Stato cloud non valido' };
+    if (!validation.ok) {
+      authSetBootstrapHint('error', validation.detail || 'Stato cloud non valido');
+      return { ok: false, message: validation.detail || 'Stato cloud non valido' };
+    }
   }
 
   const localRaw = localStorage.getItem(authGetAppStorageKey(authCurrentBaseStorageKey()));
@@ -495,6 +587,7 @@ async function authHydrateLocalCacheFromRemote() {
       dirty: authIsAuthenticated() && AUTH.provider === 'supabase',
     });
     AUTH.lastSyncedAt = localMeta.lastSyncedAt || null;
+    authSetBootstrapHint('local_reset', 'Questo dispositivo ha un reset piu recente del cloud: manteniamo quello come base.');
     return { ok: true, hydrated: false, source: 'local_reset' };
   }
 
@@ -505,6 +598,7 @@ async function authHydrateLocalCacheFromRemote() {
 
   if (hasMeaningfulLocal && !hasMeaningfulRemote) {
     AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
+    authSetBootstrapHint('local', 'I dati gia presenti su questo dispositivo restano la base del profilo.');
     return { ok: true, hydrated: false, source: 'local' };
   }
 
@@ -514,6 +608,7 @@ async function authHydrateLocalCacheFromRemote() {
       return { ok: true, hydrated: true, source: 'remote' };
     }
     AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
+    authSetBootstrapHint('local', 'Il dispositivo ha dati piu recenti del cloud: per ora restiamo su quelli.');
     return { ok: true, hydrated: false, source: 'local' };
   }
 
@@ -523,6 +618,7 @@ async function authHydrateLocalCacheFromRemote() {
   }
 
   AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
+  authSetBootstrapHint('local', 'Il profilo e gia presente su questo dispositivo.');
   return { ok: true, hydrated: false, source: 'local' };
 }
 
@@ -553,6 +649,7 @@ function signUpLocal(email, password) {
   AUTH.user = { id: user.id, email: user.email, name: user.name };
   AUTH.sessionReady = true;
   authSeedAccountStateFromGuest(user.id);
+  authSetBootstrapHint('local', 'Account locale attivo su questo dispositivo.');
   return { ok: true, user: AUTH.user };
 }
 
@@ -570,6 +667,7 @@ function signInLocal(email, password) {
   AUTH.user = { id: user.id, email: user.email, name: user.name || '' };
   AUTH.sessionReady = true;
   authSeedAccountStateFromGuest(user.id);
+  authSetBootstrapHint('local', 'Account locale attivo su questo dispositivo.');
   return { ok: true, user: AUTH.user };
 }
 
@@ -589,6 +687,7 @@ async function signUpWithEmail(email, password) {
       if (data?.session?.user) {
         authApplySupabaseUser(data.session.user);
         authSeedAccountStateFromGuest(data.session.user.id, { markDirty: true });
+        authSetBootstrapHint('account_connected', 'Account creato. Ora allineiamo i dati tra questo dispositivo e il cloud.');
         await authEnsureRemoteProfile();
         return { ok: true, user: AUTH.user };
       }
@@ -597,10 +696,11 @@ async function signUpWithEmail(email, password) {
       AUTH.user = null;
       AUTH.sessionReady = true;
       AUTH.needsEmailConfirmation = true;
+      authSetBootstrapHint('awaiting_email', 'Ti abbiamo inviato una mail con un link per attivare l account.');
       return {
         ok: true,
         pendingConfirmation: true,
-        message: 'Controlla la tua email per confermare l’account, poi accedi da qui.',
+        message: 'Ti abbiamo inviato una mail con un link per attivare l’account. Aprila e poi torna qui per accedere.',
       };
     } catch (err) {
       return { ok: false, message: err?.message || 'Errore Supabase' };
@@ -623,6 +723,7 @@ async function signInWithEmail(email, password) {
       if (!user) return { ok: false, message: 'Accesso non riuscito' };
       authApplySupabaseUser(user);
       authSeedAccountStateFromGuest(user.id, { markDirty: true });
+      authSetBootstrapHint('account_connected', 'Account attivo. Ora controlliamo i dati del profilo disponibili tra cloud e dispositivo.');
       await authEnsureRemoteProfile();
       const storageKey = authGetAppStorageKey(authCurrentBaseStorageKey());
       const localRaw = localStorage.getItem(storageKey);
@@ -770,6 +871,7 @@ async function authSyncStateToCloud(force = false) {
     }
     AUTH.isSyncing = false;
     AUTH.lastSyncedAt = updatedAt;
+    authSetBootstrapHint('cloud_push', 'Il cloud e stato aggiornato con i dati correnti del dispositivo.');
     authWriteStateMeta({
       ...meta,
       updatedAt,
@@ -867,6 +969,7 @@ function renderProfileAccountCard() {
     ? `${authFormatSyncTime(backupMeta.createdAt)} · ${authFormatBackupSource(backupMeta.source)}`
     : 'Non ancora creato';
   const status = authStatusMeta();
+  const bootstrapDiag = authGetBootstrapDiagnostics();
   if (authIsAuthenticated()) {
     el.innerHTML = `
       <div class="profile-inline-card profile-account-card">
@@ -885,6 +988,8 @@ function renderProfileAccountCard() {
           <span class="profile-account-status-copy">${AUTH.provider === 'supabase' ? 'I tuoi dati possono restare allineati e disponibili anche sugli altri dispositivi.' : 'Per ora questo profilo salva i dati solo qui sul dispositivo.'}</span>
         </div>
         <div class="profile-account-note">Backup locale di sicurezza: ${htmlEsc(backupLabel)}</div>
+        <div class="profile-account-note">Contesto attuale: ${htmlEsc(bootstrapDiag.contextLabel)}. Ingresso dati: ${htmlEsc(bootstrapDiag.sourceLabel)}.</div>
+        ${bootstrapDiag.detail ? `<div class="profile-account-note">${htmlEsc(bootstrapDiag.detail)}</div>` : ''}
         <div class="profile-account-body">
           <div class="profile-account-email">${htmlEsc(AUTH.user.email)}</div>
           <div class="profile-account-actions">
@@ -903,19 +1008,19 @@ function renderProfileAccountCard() {
           <div class="support-mini-head-copy">
             <div class="support-mini-kicker">Account</div>
             <div class="support-mini-title-row">
-              <div class="support-mini-title">Stai usando MarciFit come guest</div>
-              <span class="support-mini-state ${AUTH.needsEmailConfirmation ? 'pending' : 'idle'}">${AUTH.needsEmailConfirmation ? 'Conferma email' : providerReady}</span>
+              <div class="support-mini-title">${AUTH.needsEmailConfirmation ? 'Attiva il tuo account' : 'Stai usando MarciFit come guest'}</div>
+              <span class="support-mini-state ${AUTH.needsEmailConfirmation ? 'pending' : 'idle'}">${AUTH.needsEmailConfirmation ? 'Mail inviata' : providerReady}</span>
             </div>
-            <div class="support-mini-sub">${AUTH.needsEmailConfirmation ? 'Hai quasi finito: conferma la mail ricevuta e poi accedi per attivare la sincronizzazione.' : authCanUseSupabase() ? 'Puoi entrare con il tuo account e tenere i dati disponibili anche sugli altri dispositivi.' : 'Crea un account per salvare e ritrovare i tuoi dati con piu continuita.'}</div>
+            <div class="support-mini-sub">${AUTH.needsEmailConfirmation ? `Ti abbiamo inviato una mail all indirizzo scelto. Apri il messaggio, tocca il link di attivazione e poi torna qui per accedere.` : authCanUseSupabase() ? 'Puoi entrare con il tuo account e tenere i dati disponibili anche sugli altri dispositivi.' : 'Crea un account per salvare e ritrovare i tuoi dati con piu continuita.'}</div>
           </div>
         </div>
         <div class="profile-account-status-row">
           <span class="profile-account-pill ${status.cls}">${htmlEsc(status.label)}</span>
-          <span class="profile-account-status-copy">${AUTH.needsEmailConfirmation ? 'Conferma la mail ricevuta e poi accedi per collegare il tuo profilo.' : authCanUseSupabase() ? 'La sincronizzazione è pronta: puoi accedere o creare un account.' : 'Per ora l’app salva i dati solo sul dispositivo.'}</span>
+          <span class="profile-account-status-copy">${AUTH.needsEmailConfirmation ? 'Il profilo verrà attivato appena apri il link nella mail. Se non la vedi, controlla anche spam o promozioni.' : authCanUseSupabase() ? 'La sincronizzazione è pronta: puoi accedere o creare un account.' : 'Per ora l’app salva i dati solo sul dispositivo.'}</span>
         </div>
         <div class="profile-account-note">Backup locale di sicurezza: ${htmlEsc(backupLabel)}</div>
         <div class="profile-account-body">
-          <div class="profile-account-email">Dati salvati solo su questo dispositivo</div>
+          <div class="profile-account-email">${AUTH.needsEmailConfirmation ? 'Attivazione account in attesa di conferma via email' : 'Dati salvati solo su questo dispositivo'}</div>
           <div class="profile-account-actions">
             <button class="auth-account-btn" onclick="openAuthEntry()">🔐 Accedi o crea account</button>
             <button class="auth-account-btn" onclick="authClearLocalAccounts()">🧹 Pulisci account locali</button>

@@ -112,6 +112,38 @@ function loadJSON() {
   document.getElementById('fi').click();
 }
 
+function reinitializeImportedState() {
+  if (typeof sanitizeMealIcons === 'function') sanitizeMealIcons(S);
+  if (typeof ensureBootstrapDefaults === 'function') ensureBootstrapDefaults(S);
+  if (typeof migrateTemplateMealTypes === 'function') migrateTemplateMealTypes(S);
+  if (typeof migrateProfiloToAnagrafica === 'function') migrateProfiloToAnagrafica(S);
+  if (typeof migrateFlatMealsToItems === 'function') migrateFlatMealsToItems(S);
+  if (typeof normalizeLegacyMealIcons === 'function') normalizeLegacyMealIcons(S);
+  if (typeof finalizeBootstrapState === 'function') finalizeBootstrapState(S, true);
+  if (typeof normalizeCheatConfig === 'function') normalizeCheatConfig(S.cheatConfig);
+  if (typeof syncAnagraficaWeightFromLogs === 'function') syncAnagraficaWeightFromLogs({ preserveIfEmpty: true });
+  if (typeof refreshNutritionTargetsFromState === 'function') refreshNutritionTargetsFromState({ saveDeferred: false });
+  if (typeof authIsAuthenticated === 'function' && authIsAuthenticated()) {
+    S.authEntryCompleted = true;
+  }
+  if (typeof ensureMealPlannerState === 'function') {
+    ensureMealPlannerState('on');
+    ensureMealPlannerState('off');
+  }
+  if (typeof closeAuthEntry === 'function') closeAuthEntry();
+  if (S.onboardingCompleted && typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
+  if (typeof resetBootstrapUiState === 'function') resetBootstrapUiState();
+
+  const activeViewId = document.querySelector('.view.active')?.id || 'view-profilo';
+  const activeView = activeViewId.replace(/^view-/, '') || 'profilo';
+  if (typeof setDay === 'function') setDay(S.day);
+  if (typeof renderNotes === 'function') renderNotes();
+  if (typeof renderAuthNav === 'function') renderAuthNav();
+  if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+  if (typeof goView === 'function') goView(activeView);
+  else if (typeof rerender === 'function') rerender();
+}
+
 function onLoad(e) {
   const f = e.target.files[0];
   if (!f) return;
@@ -127,6 +159,7 @@ function onLoad(e) {
         return;
       }
       applyValidatedState(parsed);
+      reinitializeImportedState();
       save();
       if (typeof authEnsureRemoteProfile === 'function') await authEnsureRemoteProfile();
       if (typeof authSyncStateToCloud === 'function') {
@@ -138,11 +171,10 @@ function onLoad(e) {
       _storageStatus.lastImportError = null;
       mfDebug('storage', 'import json ok', { keys: Object.keys(parsed || {}).length });
       toast('📂  Caricato');
-      location.reload();
     } catch (e) {
-      _storageStatus.lastImportError = { code: 'json_parse_failed', detail: e?.message || 'JSON non valido' };
+      _storageStatus.lastImportError = { code: 'import_failed', detail: e?.message || 'Import non riuscito' };
       mfError('storage', 'import json failed', { name: e?.name, message: e?.message });
-      toast(`❌  ${e?.message || 'Errore JSON'}`);
+      toast(`❌  ${e?.message || 'Import non riuscito'}`);
     } finally {
       e.target.value = '';
     }
