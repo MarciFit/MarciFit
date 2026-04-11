@@ -19,9 +19,8 @@
       <div class="nav-logo-text">
         <div class="nav-logo-name-row">
           <div class="nav-logo-name">MarciFit</div>
-          <span class="nav-version" title="Versione app">v0.6.0</span>
         </div>
-        <div class="nav-logo-sub">fitness nutrition tracker</div>
+        <div class="nav-logo-sub">alimentazione e progressi</div>
       </div>
     </div>
   </div>
@@ -46,7 +45,7 @@
     <div class="today-dashboard-head">
       <div>
         <div class="today-recap-title">Oggi in breve</div>
-        <div class="today-dashboard-sub">Energia, progressione e settimana attiva nello stesso punto.</div>
+        <div class="today-dashboard-sub">Il quadro giusto per capire subito il prossimo passo.</div>
       </div>
     </div>
     <div id="today-signal-row"></div>
@@ -103,7 +102,7 @@
       <div class="support-mini-title-row">
         <div class="support-mini-title">Pasti di oggi</div>
       </div>
-      <div class="support-mini-sub">Apri il prossimo snodo utile e registra il resto senza perdere il filo.</div>
+      <div class="support-mini-sub">Apri il prossimo pasto utile e registra il resto in pochi tocchi.</div>
     </div>
   </div>
 
@@ -116,7 +115,7 @@
         <div class="support-mini-title-row">
           <div class="support-mini-title">Routine e note</div>
         </div>
-        <div class="support-mini-sub">Promemoria, acqua e appunti restano vicini alla giornata senza appesantirla.</div>
+        <div class="support-mini-sub">Acqua, routine e appunti restano vicini alla giornata senza distrarti.</div>
       </div>
     </div>
     <div class="today-support-layout">
@@ -137,7 +136,7 @@
                 <span class="support-mini-title">Note del giorno</span>
                 <span class="support-mini-state idle notes-autosave" id="notes-autosave"></span>
               </div>
-              <div class="support-mini-sub">Annota solo i segnali che vuoi ritrovare piu tardi.</div>
+              <div class="support-mini-sub">Scrivi solo cio che vuoi ritrovare con facilita.</div>
             </div>
           </div>
           <div class="notes-input-group">
@@ -149,7 +148,7 @@
               <span class="note-tag" onclick="addNoteTag('#stanco')">#stanco</span>
             </div>
             <textarea class="notes-input" id="notes-input" rows="3"
-              placeholder="Come ti senti oggi: energia, reflusso, allenamento, eccezioni..."
+              placeholder="Segna energia, fame, allenamento o qualcosa da ricordare..."
               oninput="onNoteInput(this)"></textarea>
           </div>
           <div class="notes-prev" id="notes-prev"></div>
@@ -164,7 +163,7 @@
 <div class="view" id="view-piano">
   <div class="prog-head piano-head">
     <div class="prog-title">Piano</div>
-    <div class="prog-sub">Per ora qui trovi prima di tutto i template, la parte gia pronta da usare davvero. Helper pasto e cibi abituali tornano appena rifiniti bene.</div>
+    <div class="prog-sub">Qui tieni pronti i pasti che vuoi richiamare al volo e prepari le prossime mosse.</div>
   </div>
 
   <!-- SEZIONE: Libreria Template -->
@@ -175,7 +174,7 @@
         <div class="support-mini-title-row">
           <span class="support-mini-title">Template</span>
         </div>
-        <span class="support-mini-sub">Salva i pasti che ripeti e richiamali al volo quando compili la giornata.</span>
+        <span class="support-mini-sub">Salva i pasti che ripeti e usali al volo quando ti servono.</span>
       </div>
       <button class="btn btn-ghost piano-add-btn" onclick="openNewTemplate()" aria-label="Nuovo template" title="Nuovo template">+</button>
     </div>
@@ -189,7 +188,7 @@
           <div class="support-mini-title-row">
             <div class="support-mini-title tmpl-form-title" id="tmpl-form-title">Nuovo template</div>
           </div>
-          <div class="support-mini-sub">Componi un pasto riutilizzabile e richiamalo velocemente quando compili la giornata.</div>
+          <div class="support-mini-sub">Crea un pasto pronto da richiamare in pochi tocchi.</div>
         </div>
       </div>
       <div class="ed-grid" style="margin-bottom:10px">
@@ -234,9 +233,9 @@
         <span class="support-mini-kicker">Piano</span>
         <div class="support-mini-title-row">
           <span class="support-mini-title">Genera il prossimo pasto</span>
-          <span class="piano-section-status">Presto in arrivo</span>
+          <span class="piano-section-status">In arrivo</span>
         </div>
-        <span class="support-mini-sub">Lo stiamo rifinendo con calma prima di mostrarlo davvero: flusso, affidabilita e microcopy devono essere all altezza.</span>
+        <span class="support-mini-sub">Uno spazio dedicato a idee pasto rapide, pulite e facili da usare.</span>
       </div>
     </div>
     <div id="meal-planner-helper"></div>
@@ -248,9 +247,9 @@
         <span class="support-mini-kicker">Piano</span>
         <div class="support-mini-title-row">
           <span class="support-mini-title">Cibi abituali</span>
-          <span class="piano-section-status">Presto in arrivo</span>
+          <span class="piano-section-status">In arrivo</span>
         </div>
-        <span class="support-mini-sub">La libreria tornera quando ricerca, inserimento e gestione saranno abbastanza solidi da non rallentarti.</span>
+        <span class="support-mini-sub">Una libreria personale per richiamare piu in fretta cio che usi spesso.</span>
       </div>
     </div>
     <div id="piano-favorite-foods"></div>
@@ -298,7 +297,7 @@
   <div class="prog-head profile-head">
     <div class="profile-head-kicker">Identita nutrizionale</div>
     <div class="prog-title">Profilo</div>
-    <div class="prog-sub profile-sub">Parametri, obiettivo, fabbisogno e routine personale in un unico spazio piu ordinato e personale.</div>
+    <div class="prog-sub profile-sub">Dati base, obiettivo e routine in uno spazio semplice da aggiornare.</div>
   </div>
 
   <div class="stat-section profile-section">
@@ -329,10 +328,10 @@
           <div class="support-mini-title-row">
             <div class="support-mini-title">Giorni di allenamento</div>
           </div>
-          <div class="support-mini-sub">Definisci i giorni Workout predefiniti: il calendario e i target giornalieri si aggiornano di conseguenza.</div>
+          <div class="support-mini-sub">Scegli i giorni piu frequenti: il calendario si regola di conseguenza.</div>
         </div>
       </div>
-      <div class="profile-inline-copy">Seleziona i giorni ON &#x2014; il calendario si aggiorna automaticamente.</div>
+      <div class="profile-inline-copy">Seleziona i giorni Workout abituali e lascia che il calendario si allinei.</div>
       <div id="ondays-picker" style="display:flex;gap:6px;flex-wrap:wrap"></div>
     </div>
   </div>
@@ -344,38 +343,31 @@
         <div class="support-mini-head-copy">
           <div class="support-mini-kicker">Profilo</div>
           <div class="support-mini-title-row">
-            <div class="support-mini-title">Dati & backup</div>
+            <div class="support-mini-title">I tuoi dati</div>
           </div>
-          <div class="support-mini-sub">Importa, esporta o ripristina i dati del progetto in modo sicuro.</div>
+          <div class="support-mini-sub">Importa o salva una copia dei tuoi progressi quando vuoi.</div>
         </div>
       </div>
       <div class="backup-grid">
         <button class="backup-card" onclick="loadJSON()">
           <span class="backup-emoji">📂</span>
           <span class="backup-copy">
-            <span class="backup-label">Carica JSON</span>
-            <span class="backup-meta">Importa un backup esistente</span>
+            <span class="backup-label">Importa dati</span>
+            <span class="backup-meta">Riparti da una copia gia salvata</span>
           </span>
         </button>
         <button class="backup-card" onclick="exportJSON()">
           <span class="backup-emoji">💾</span>
           <span class="backup-copy">
-            <span class="backup-label">Esporta JSON</span>
-            <span class="backup-meta">Salva tutto lo stato app</span>
-          </span>
-        </button>
-        <button class="backup-card" onclick="exportPy()">
-          <span class="backup-emoji">⬇️</span>
-          <span class="backup-copy">
-            <span class="backup-label">Esporta Python</span>
-            <span class="backup-meta">Versione script del piano</span>
+            <span class="backup-label">Esporta dati</span>
+            <span class="backup-meta">Salva una copia completa del profilo</span>
           </span>
         </button>
         <button class="backup-card backup-card-danger" onclick="clearStorage()">
           <span class="backup-emoji">🗑️</span>
           <span class="backup-copy">
-            <span class="backup-label">Reset dati</span>
-            <span class="backup-meta">Cancella tutto dal dispositivo</span>
+            <span class="backup-label">Riparti da zero</span>
+            <span class="backup-meta">Cancella tutto e ricomincia</span>
           </span>
         </button>
       </div>
@@ -490,15 +482,15 @@ window.MARCI_SUPABASE_URL = 'https://rlwwzdfcvdouytelqxdf.supabase.co';
 window.MARCI_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsd3d6ZGZjdmRvdXl0ZWxxeGRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDExNTgsImV4cCI6MjA4OTc3NzE1OH0.0iguqJgjBHp34OnthGTJnaFX-T4xfd5a3eSEJDmm5UM';
 </script>
 <script src="debugTools.js?v=4"></script>
-<script src="authSync.js?v=13"></script>
-<script src="storage.js?v=40"></script>
+<script src="authSync.js?v=14"></script>
+<script src="storage.js?v=41"></script>
 <script src="nutritionLogic.js?v=55"></script>
 <script src="mealTaxonomy.js?v=1"></script>
 <script src="templateEngine.js?v=1"></script>
 <script src="mealHelperEngine.js?v=1"></script>
-<script src="uiComponents.js?v=111"></script>
+<script src="uiComponents.js?v=112"></script>
 <script src="bootstrapTools.js?v=5"></script>
-<script src="app.js?v=93"></script>
+<script src="app.js?v=94"></script>
 <script src="barcodeTools.js?v=14"></script>
 <script>lucide.createIcons();</script>
 </body>

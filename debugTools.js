@@ -85,6 +85,28 @@ function getStorageStatus() {
     lastImportError: _storageStatus.lastImportError ? { ..._storageStatus.lastImportError } : null,
   };
 }
+function getStorageDebugSnapshot() {
+  const status = getStorageStatus();
+  let currentKey = 'piano_federico_v2';
+  try {
+    if (typeof currentStorageKey === 'function') currentKey = currentStorageKey();
+    else if (typeof authGetAppStorageKey === 'function') currentKey = authGetAppStorageKey(currentKey);
+  } catch (_) {}
+  let stateMeta = null;
+  try {
+    if (typeof authReadStateMeta === 'function') stateMeta = authReadStateMeta();
+  } catch (_) {}
+  let auth = null;
+  try {
+    if (typeof authGetAccountDiagnostics === 'function') auth = authGetAccountDiagnostics();
+  } catch (_) {}
+  return {
+    ...status,
+    currentKey,
+    stateMeta,
+    auth,
+  };
+}
 function _isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -235,3 +257,4 @@ window.disableMarciFitDebug = function() {
 };
 window.isMarciFitDebugEnabled = isDebugMode;
 window.getMarciFitStorageStatus = getStorageStatus;
+window.getMarciFitStorageSnapshot = getStorageDebugSnapshot;

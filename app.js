@@ -1,5 +1,5 @@
 // app.js — global state S, event handlers, navigation, init
-window.onerror = function(msg, src, line, col, err) {
+function appendGlobalErrorOverlay(message, src = '', line = 0, col = 0, err = null) {
   let box = document.getElementById('_err');
   if (!box) {
     box = document.createElement('div');
@@ -7,10 +7,21 @@ window.onerror = function(msg, src, line, col, err) {
     box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1e1e1e;color:#f87171;font:11px/1.5 monospace;padding:10px 14px;max-height:140px;overflow:auto;border-top:2px solid #ef4444';
     document.body.appendChild(box);
   }
-  box.innerHTML += '<div>⚠️  ' + msg + '<br><span style="color:#94a3b8">L' + line + ':' + col + ' · ' + (src||'').split('/').pop() + '</span>' +
+  const locationLabel = src || line || col
+    ? '<br><span style="color:#94a3b8">L' + line + ':' + col + ' · ' + (src||'').split('/').pop() + '</span>'
+    : '';
+  box.innerHTML += '<div>⚠️  ' + message + locationLabel +
     (err && err.stack ? '<br><span style="color:#fbbf24">' + err.stack.split('\n').slice(0,2).join(' | ') + '</span>' : '') + '</div>';
+}
+window.onerror = function(msg, src, line, col, err) {
+  appendGlobalErrorOverlay(msg, src, line, col, err);
   return false;
 };
+window.addEventListener('unhandledrejection', event => {
+  const reason = event?.reason;
+  const message = reason?.message || String(reason || 'Promise rejection non gestita');
+  appendGlobalErrorOverlay(message, '', 0, 0, reason instanceof Error ? reason : null);
+});
 // ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
 // STATE ? single source of truth
 // ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
@@ -192,6 +203,97 @@ const ANAG_RULES = {
 let _weeklyCheckinDeferredWeek = null;
 const TODAY_GREETING_REFRESH_MS = 30000;
 let _todayGreetingTimer = null;
+const DEFAULT_APP_STATE_SNAPSHOT = JSON.parse(JSON.stringify(S));
+
+function cloneDefaultAppState() {
+  return JSON.parse(JSON.stringify(DEFAULT_APP_STATE_SNAPSHOT));
+}
+
+function resetAppStateToDefaults() {
+  const defaults = cloneDefaultAppState();
+  Object.keys(S).forEach(key => { delete S[key]; });
+  Object.assign(S, defaults);
+}
+
+function bootstrapAppStateFromCurrentStorage({ resetState = true } = {}) {
+  if (resetState) resetAppStateToDefaults();
+  const hadSaved = loadSaved();
+  const storageStatus = typeof getMarciFitStorageStatus === 'function' ? getMarciFitStorageStatus() : null;
+  sanitizeMealIcons(S);
+  ensureBootstrapDefaults(S);
+  migrateTemplateMealTypes(S);
+  migrateProfiloToAnagrafica(S);
+  migrateFlatMealsToItems(S);
+  normalizeLegacyMealIcons(S);
+  finalizeBootstrapState(S, hadSaved);
+  normalizeCheatConfig(S.cheatConfig);
+  syncAnagraficaWeightFromLogs({ preserveIfEmpty: true });
+  refreshNutritionTargetsFromState({ saveDeferred: false });
+  if (!S.cheatMealsByDate || typeof S.cheatMealsByDate !== 'object' || Array.isArray(S.cheatMealsByDate)) {
+    S.cheatMealsByDate = {};
+  }
+  if (typeof authIsAuthenticated === 'function' && authIsAuthenticated()) {
+    S.authEntryCompleted = true;
+  }
+  ensureMealPlannerState('on');
+  ensureMealPlannerState('off');
+  setDay(S.day);
+  resetBootstrapUiState();
+  save({ skipCloudSync: true, preserveMetaTimestamp: hadSaved });
+  return { hadSaved, storageStatus };
+}
+
+function refreshAppAfterBootstrap({ closeAuthOverlay = false, preferredView = null } = {}) {
+  if (closeAuthOverlay && typeof closeAuthEntry === 'function') closeAuthEntry();
+  if (S.onboardingCompleted && typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
+  const activeViewId = preferredView ? `view-${preferredView}` : (document.querySelector('.view.active')?.id || 'view-today');
+  const activeView = activeViewId.replace(/^view-/, '') || 'today';
+  if (typeof renderNotes === 'function') renderNotes();
+  if (typeof renderAuthNav === 'function') renderAuthNav();
+  if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+  if (typeof goView === 'function') goView(activeView);
+  else if (typeof rerender === 'function') rerender();
+}
+
+async function handleMarciFitCloudConflict(conflict, options = {}) {
+  const { pushLocalOnChoice = false, rebootstrap = true } = options;
+  const choice = await askAuthStateConflictChoice(conflict);
+  if (choice === 'remote' && typeof authStoreRemoteStateLocally === 'function') {
+    authStoreRemoteStateLocally(conflict.remoteState, conflict.remoteUpdatedAt);
+    if (rebootstrap) {
+      bootstrapAppStateFromCurrentStorage({ resetState: true });
+      refreshAppAfterBootstrap({ closeAuthOverlay: true });
+    }
+    return { choice: 'remote' };
+  }
+  if (choice === 'local' && typeof authMarkLocalStatePreferred === 'function') {
+    authMarkLocalStatePreferred(conflict.remoteUpdatedAt);
+    let pushResult = null;
+    if (pushLocalOnChoice && typeof authSyncStateToCloud === 'function') {
+      pushResult = await authSyncStateToCloud(true);
+    }
+    if (rebootstrap) {
+      refreshAppAfterBootstrap({ closeAuthOverlay: true });
+    }
+    return { choice: 'local', pushResult };
+  }
+  return { choice: null };
+}
+
+async function handleMarciFitAccountLogoutTransition({ preferredMode = 'login' } = {}) {
+  try {
+    sessionStorage.removeItem('marcifit_post_logout_mode_v1');
+  } catch (_) {}
+  const { hadSaved } = bootstrapAppStateFromCurrentStorage({ resetState: true });
+  S.authEntryCompleted = false;
+  save({ skipCloudSync: true, preserveMetaTimestamp: hadSaved });
+  if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
+  refreshAppAfterBootstrap({ closeAuthOverlay: true, preferredView: 'today' });
+  openAuthEntry(true);
+  if (preferredMode) openAuthMode(preferredMode);
+}
+window.handleMarciFitCloudConflict = handleMarciFitCloudConflict;
+window.handleMarciFitAccountLogoutTransition = handleMarciFitAccountLogoutTransition;
 
 function pulseTodayElement(selector, className = 'ui-bump') {
   requestAnimationFrame(() => {
@@ -394,6 +496,7 @@ function showDayModal({icon, title, body, onConfirm, danger = false, noButtons =
   bodyEl.style.marginBottom = noButtons ? '0' : '20px';
   _modalConfirmFn = onConfirm;
   const ov = document.getElementById('day-modal-ov');
+  ov.style.zIndex = '980';
   ov.style.display = 'flex';
   lockUiScroll();
   confirmBtn.onclick = () => {
@@ -441,37 +544,40 @@ function askAuthStateConflictChoice(conflict) {
   return new Promise(resolve => {
     const localTime = htmlEsc(formatAuthConflictTime(conflict.localUpdatedAt));
     const remoteTime = htmlEsc(formatAuthConflictTime(conflict.remoteUpdatedAt));
+    const contextLabel = typeof authGetBootstrapDiagnostics === 'function'
+      ? authGetBootstrapDiagnostics().contextLabel
+      : 'Questo dispositivo';
     showDayModal({
       icon: '🔄',
-      eyebrow: 'Accesso account',
-      title: 'Abbiamo trovato due versioni dei tuoi dati',
+      eyebrow: 'Profilo',
+      title: 'Abbiamo trovato due versioni del tuo profilo',
       body: `
-        <div class="sync-choice-lead">Scegli da quale versione vuoi ripartire adesso.</div>
+        <div class="sync-choice-lead">Abbiamo trovato una copia su ${htmlEsc(contextLabel)} e una nel cloud. Scegli quale aprire adesso.</div>
         <div class="sync-choice-stack">
           <div class="sync-choice-item">
             <div class="sync-choice-item-top">
-              <span class="sync-choice-chip">Questo telefono</span>
+              <span class="sync-choice-chip">${htmlEsc(contextLabel)}</span>
               ${getAuthConflictBadge(conflict, 'local')}
               ${getAuthConflictPresenceChip(conflict, 'local')}
             </div>
             <div class="sync-choice-time">${localTime}</div>
-            <div class="sync-choice-copy">Mantieni i dati presenti su questo dispositivo e li rimandiamo poi nel cloud.</div>
+            <div class="sync-choice-copy">Continui dalla copia che hai su questo dispositivo e la tieni come base.</div>
           </div>
           <div class="sync-choice-sep">oppure</div>
           <div class="sync-choice-item">
             <div class="sync-choice-item-top">
-              <span class="sync-choice-chip">Cloud</span>
+              <span class="sync-choice-chip">Cloud account</span>
               ${getAuthConflictBadge(conflict, 'remote')}
               ${getAuthConflictPresenceChip(conflict, 'remote')}
             </div>
             <div class="sync-choice-time">${remoteTime}</div>
-            <div class="sync-choice-copy">Carica i dati gia salvati online e usa quelli come base.</div>
+            <div class="sync-choice-copy">Apri la versione trovata nel cloud e usala come nuovo punto di partenza.</div>
           </div>
         </div>
-        <div class="sync-choice-foot">Scegli sempre la versione che contiene davvero i tuoi dati. Se una delle due risulta vuota, evita quella.</div>
+        <div class="sync-choice-foot">Scegli la versione che contiene davvero i dati giusti per te: poi MarciFit riallinea il resto.</div>
       `,
-      confirmText: 'Riparti dal cloud',
-      cancelText: 'Tieni questo telefono',
+      confirmText: 'Usa il cloud',
+      cancelText: 'Tieni questa',
       onConfirm: () => resolve('remote'),
       modalClass: 'day-modal-detail day-modal-sync-choice',
     });
@@ -485,7 +591,9 @@ function askAuthStateConflictChoice(conflict) {
   });
 }
 function closeDayModal() {
-  document.getElementById('day-modal-ov').style.display = 'none';
+  const ov = document.getElementById('day-modal-ov');
+  ov.style.display = 'none';
+  ov.style.zIndex = '400';
   const card = document.getElementById('day-modal-card');
   if (card) card.className = 'day-modal-card';
   _modalConfirmFn = null;
@@ -1683,9 +1791,9 @@ function openFoodSuggestion(remK, remP, remC, remF) {
   if (!suggestion || !suggestion.picks.length) {
     bodyHTML = `<div class="sug-empty-state">
       <div class="sug-empty-icon">☆</div>
-      <div class="sug-empty-title">Suggerimenti smart in arrivo</div>
+      <div class="sug-empty-title">Apri un template e parti da li</div>
       <div class="sug-empty-text">
-        I cibi abituali restano in pausa finche questa parte non sara davvero pronta. Per ora in Piano teniamo attivi solo i template, che sono la base piu affidabile da usare.
+        In questo momento il modo piu rapido per completare il pasto e usare un template gia pronto e adattarlo al volo.
       </div>
       <button class="sug-empty-cta" onclick="openPianoTemplates()">Apri template</button>
     </div>`;
@@ -2749,85 +2857,88 @@ function renderAuthEntry() {
   }
   if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
   const mode = _authEntryState.mode || 'gateway';
+  const isPending = !!_authEntryState.pending;
+  const pendingMessage = String(_authEntryState.pendingMessage || '').trim();
+  const pendingLabel = mode === 'signup' ? 'Sto creando il profilo...' : 'Sto aprendo il profilo...';
 
   let body = '';
   if (mode === 'gateway') {
     body = `
       <div class="auth-entry-kicker">Ingresso</div>
       <div class="auth-entry-title">Scegli come entrare in MarciFit</div>
-      <div class="auth-entry-sub">Puoi iniziare subito in locale oppure attivare un account per tenere profilo, pasti e progressi sempre con te.</div>
+      <div class="auth-entry-sub">Entra come preferisci. Se hai gia un profilo, dopo l accesso proviamo a riaprirlo qui.</div>
       <div class="auth-entry-stack">
         <div class="auth-entry-hero">
           <div class="auth-entry-hero-badge">Pronto in meno di 2 minuti</div>
-          <div class="auth-entry-hero-title">Una base chiara oggi, continuità domani</div>
-          <div class="auth-entry-hero-copy">Allenamento, pasti e progressi partono subito. Se vuoi, il cloud entra dopo senza cambiare esperienza.</div>
+          <div class="auth-entry-hero-title">Parti bene oggi, ritrovati bene domani</div>
+          <div class="auth-entry-hero-copy">Allenamento, pasti e progressi restano in ordine fin dal primo minuto, anche quando torni su un altro ingresso della web app.</div>
         </div>
         <div class="auth-entry-benefits">
-          <span class="auth-entry-benefit">☁️ Backup sicuro</span>
-          <span class="auth-entry-benefit">🔄 Sync multi-device</span>
-          <span class="auth-entry-benefit">⚡ Guest supportato</span>
+          <span class="auth-entry-benefit">✨ Partenza rapida</span>
+          <span class="auth-entry-benefit">🔐 Profilo personale</span>
+          <span class="auth-entry-benefit">📈 Progressi ordinati</span>
         </div>
-        <button class="auth-entry-choice primary" onclick="openAuthMode('signup')">
+        <button class="auth-entry-choice primary" onclick="openAuthMode('signup')" ${isPending ? 'disabled' : ''}>
           <div class="auth-entry-choice-top">
             <span class="auth-entry-choice-icon">✨</span>
             <span class="auth-entry-choice-tag">Consigliato</span>
           </div>
           <div class="auth-entry-choice-title">Crea account</div>
-          <div class="auth-entry-choice-body">Per salvare profilo, pasti e progressi nel cloud e ritrovarli su altri dispositivi.</div>
+          <div class="auth-entry-choice-body">Per tenere tutto in ordine e ritrovare piu facilmente il tuo percorso.</div>
         </button>
-        <button class="auth-entry-choice secondary" onclick="openAuthMode('login')">
+        <button class="auth-entry-choice secondary" onclick="openAuthMode('login')" ${isPending ? 'disabled' : ''}>
           <div class="auth-entry-choice-top">
             <span class="auth-entry-choice-icon">🔐</span>
             <span class="auth-entry-choice-tag">Rientra</span>
           </div>
           <div class="auth-entry-choice-title">Accedi</div>
-          <div class="auth-entry-choice-body">Se hai già un account, riparti subito dai tuoi dati.</div>
+          <div class="auth-entry-choice-body">Se hai gia un profilo, riparti subito da dove avevi lasciato.</div>
         </button>
-        <button class="auth-entry-choice guest" onclick="continueAsGuest()">
+        <button class="auth-entry-choice guest" onclick="continueAsGuest()" ${isPending ? 'disabled' : ''}>
           <div class="auth-entry-choice-top">
             <span class="auth-entry-choice-icon">🚀</span>
             <span class="auth-entry-choice-tag">Subito</span>
           </div>
           <div class="auth-entry-choice-title">Continua senza account</div>
-          <div class="auth-entry-choice-body">Usa l’app subito in locale. Potrai creare un account più avanti.</div>
+          <div class="auth-entry-choice-body">Inizia adesso e sistema il resto con calma piu avanti.</div>
         </button>
       </div>`;
   } else if (mode === 'signup') {
     body = `
       <div class="auth-entry-kicker">Crea account</div>
-      <div class="auth-entry-title">Salva i tuoi dati</div>
-      <div class="auth-entry-sub">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Crei l account e ti inviamo subito una mail con il link per attivarlo.' : 'Registrazione pronta in locale. Se configuri Supabase, questo stesso flow userà il cloud.'}</div>
+      <div class="auth-entry-title">Crea il tuo profilo</div>
+      <div class="auth-entry-sub">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Se hai gia iniziato qui come guest, colleghiamo questi dati al nuovo account prima di sincronizzarli.' : 'Se hai gia iniziato qui come guest, colleghiamo questi dati al nuovo profilo.'}</div>
       <div class="auth-entry-form">
         <div class="auth-entry-field">
           <label class="auth-entry-label">Email</label>
-          <input class="auth-entry-input" type="email" value="${htmlEsc(_authEntryState.email)}" oninput="setAuthField('email', this.value)" placeholder="nome@email.com">
+          <input class="auth-entry-input" type="email" value="${htmlEsc(_authEntryState.email)}" oninput="setAuthField('email', this.value)" placeholder="nome@email.com" ${isPending ? 'disabled' : ''}>
         </div>
         <div class="auth-entry-field">
           <label class="auth-entry-label">Password</label>
-          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.password)}" oninput="setAuthField('password', this.value)" placeholder="Almeno 8 caratteri">
+          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.password)}" oninput="setAuthField('password', this.value)" placeholder="Almeno 8 caratteri" ${isPending ? 'disabled' : ''}>
         </div>
         <div class="auth-entry-field">
           <label class="auth-entry-label">Conferma password</label>
-          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.confirmPassword)}" oninput="setAuthField('confirmPassword', this.value)" placeholder="Ripeti la password">
+          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.confirmPassword)}" oninput="setAuthField('confirmPassword', this.value)" placeholder="Ripeti la password" ${isPending ? 'disabled' : ''}>
         </div>
-        <div class="auth-entry-callout">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Dopo la registrazione riceverai una mail con un link: ti basta aprirlo per attivare l account e poi accedere.' : 'Per ora l’account viene creato in locale su questo dispositivo. Puoi attivare Supabase dalla card Account in Profilo.'}</div>
+        <div class="auth-entry-callout">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Controlla la tua email appena finisci: il link ti porta dentro e riprendiamo i dati gia presenti qui.' : 'Tra poco il tuo profilo sara pronto da usare con i dati che hai gia su questo dispositivo.'}</div>
       </div>`;
   } else {
     body = `
       <div class="auth-entry-kicker">Accedi</div>
       <div class="auth-entry-title">Rientra nel tuo profilo</div>
-      <div class="auth-entry-sub">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Accesso reale attivo con Supabase.' : 'Accesso locale attivo. Se configuri Supabase, da qui userai il cloud senza cambiare flusso.'}</div>
+      <div class="auth-entry-sub">Rientra e riparti dal profilo del tuo account. Se troviamo copie diverse, ti aiutiamo noi a scegliere.</div>
       <div class="auth-entry-form">
         <div class="auth-entry-field">
           <label class="auth-entry-label">Email</label>
-          <input class="auth-entry-input" type="email" value="${htmlEsc(_authEntryState.email)}" oninput="setAuthField('email', this.value)" placeholder="nome@email.com">
+          <input class="auth-entry-input" type="email" value="${htmlEsc(_authEntryState.email)}" oninput="setAuthField('email', this.value)" placeholder="nome@email.com" ${isPending ? 'disabled' : ''}>
         </div>
         <div class="auth-entry-field">
           <label class="auth-entry-label">Password</label>
-          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.password)}" oninput="setAuthField('password', this.value)" placeholder="La tua password">
+          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.password)}" oninput="setAuthField('password', this.value)" placeholder="La tua password" ${isPending ? 'disabled' : ''}>
         </div>
-        <button class="auth-entry-inline-link" type="button" onclick="requestPasswordReset()">Password dimenticata?</button>
-        <div class="auth-entry-callout">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Se il cloud contiene già un profilo, MarciFit lo userà come base e manterrà anche la cache locale del dispositivo.' : 'Ogni account usa un salvataggio locale separato. Puoi attivare Supabase dalla card Account in Profilo per usare il cloud.'}</div>
+        ${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? `<button class="auth-entry-inline-link" type="button" onclick="requestPasswordReset()" ${isPending ? 'disabled' : ''}>Password dimenticata?</button>` : ''}
+        <div class="auth-entry-callout">Se la copia locale e quella cloud non coincidono, ti facciamo scegliere in modo chiaro prima di continuare.</div>
       </div>`;
   }
 
@@ -2836,16 +2947,17 @@ function renderAuthEntry() {
     <div class="auth-entry-shell">
       <div class="auth-entry-top">
         <div class="auth-entry-mark">${mode === 'gateway' ? 'Ingresso' : mode === 'signup' ? 'Registrazione' : 'Accesso'}</div>
-        ${mode !== 'gateway' ? `<button class="auth-entry-back" onclick="openAuthMode('gateway')">Indietro</button>` : ''}
+        ${mode !== 'gateway' ? `<button class="auth-entry-back" onclick="openAuthMode('gateway')" ${isPending ? 'disabled' : ''}>Indietro</button>` : ''}
       </div>
       <div class="auth-entry-card">
         ${body}
       </div>
       <div class="auth-entry-foot">
-        ${mode === 'gateway' ? '' : `<button class="auth-entry-btn primary" onclick="submitAuthPlaceholder('${mode}')">${mode === 'signup' ? 'Crea account' : 'Accedi'}</button>`}
-        ${mode !== 'gateway' ? `<button class="auth-entry-btn secondary" onclick="continueAsGuest()">Continua senza account</button>` : ''}
+        ${pendingMessage ? `<div class="auth-entry-status">${htmlEsc(pendingMessage || pendingLabel)}</div>` : ''}
+        ${mode === 'gateway' ? '' : `<button class="auth-entry-btn primary" onclick="submitAuthPlaceholder('${mode}')" ${isPending ? 'disabled' : ''}>${isPending ? pendingLabel : mode === 'signup' ? 'Crea account' : 'Accedi'}</button>`}
+        ${mode !== 'gateway' ? `<button class="auth-entry-btn secondary" onclick="continueAsGuest()" ${isPending ? 'disabled' : ''}>Continua senza account</button>` : ''}
       </div>
-      ${mode === 'gateway' ? `<div class="auth-entry-note">Potrai sempre creare un account più avanti senza perdere il lavoro fatto in locale.</div>` : ''}
+      ${mode === 'gateway' ? `<div class="auth-entry-note">Puoi iniziare subito e completare il resto con calma.</div>` : ''}
     </div>`;
   lockUiScroll();
 }
@@ -2894,49 +3006,50 @@ async function requestPasswordReset() {
   }
   const result = typeof authSendPasswordReset === 'function'
     ? await authSendPasswordReset(email)
-    : { ok: false, message: 'Reset password non disponibile' };
+    : { ok: false, message: 'Reset password non disponibile in questo momento' };
   toast(`${result.ok ? '✉️' : '⚠️'} ${result.message}`);
 }
 
 async function finalizeAuthEntrySuccess(successMessage, options = {}) {
   const { syncToCloud = false } = options;
+  let didImmediateBootstrap = false;
+  if (
+    typeof authIsAuthenticated === 'function'
+    && authIsAuthenticated()
+    && typeof authReadActiveLocalState === 'function'
+    && typeof authHasMeaningfulState === 'function'
+  ) {
+    const localAccountState = authReadActiveLocalState();
+    if (authHasMeaningfulState(localAccountState)) {
+      const earlyBootstrap = bootstrapAppStateFromCurrentStorage({ resetState: true });
+      refreshAppAfterBootstrap({ closeAuthOverlay: true });
+      if (_authEntryState) {
+        _authEntryState.password = '';
+        _authEntryState.confirmPassword = '';
+        _authEntryState.mode = 'gateway';
+      }
+      S.authEntryCompleted = true;
+      save({ skipCloudSync: true, preserveMetaTimestamp: earlyBootstrap?.hadSaved });
+      if (typeof renderAuthNav === 'function') renderAuthNav();
+      if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+      didImmediateBootstrap = true;
+    }
+  }
+
   let hydrateResult = null;
+  let conflictResolution = null;
   if (typeof authHydrateLocalCacheFromRemote === 'function') {
     hydrateResult = await authHydrateLocalCacheFromRemote();
   }
-
-  const hadSaved = loadSaved();
-  const storageStatus = typeof getMarciFitStorageStatus === 'function' ? getMarciFitStorageStatus() : null;
-
-  if (hadSaved && typeof reinitializeImportedState === 'function') {
-    reinitializeImportedState();
-  } else {
-    sanitizeMealIcons(S);
-    ensureBootstrapDefaults(S);
-    migrateTemplateMealTypes(S);
-    migrateProfiloToAnagrafica(S);
-    migrateFlatMealsToItems(S);
-    normalizeLegacyMealIcons(S);
-    finalizeBootstrapState(S, hadSaved);
-    normalizeCheatConfig(S.cheatConfig);
-    syncAnagraficaWeightFromLogs({ preserveIfEmpty: true });
-    refreshNutritionTargetsFromState({ saveDeferred: false });
-    if (!S.cheatMealsByDate || typeof S.cheatMealsByDate !== 'object' || Array.isArray(S.cheatMealsByDate)) {
-      S.cheatMealsByDate = {};
-    }
-    if (typeof authIsAuthenticated === 'function' && authIsAuthenticated()) {
-      S.authEntryCompleted = true;
-    }
-    ensureMealPlannerState('on');
-    ensureMealPlannerState('off');
-    setDay(S.day);
-    resetBootstrapUiState();
-    closeAuthEntry();
-    if (typeof renderNotes === 'function') renderNotes();
-    if (typeof renderAuthNav === 'function') renderAuthNav();
-    if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
-    rerender();
+  if (hydrateResult?.conflict) {
+    conflictResolution = await handleMarciFitCloudConflict(hydrateResult, {
+      pushLocalOnChoice: false,
+      rebootstrap: false,
+    });
   }
+
+  const { hadSaved, storageStatus } = bootstrapAppStateFromCurrentStorage({ resetState: true });
+  refreshAppAfterBootstrap({ closeAuthOverlay: true });
 
   if (_authEntryState) {
     _authEntryState.password = '';
@@ -2951,21 +3064,30 @@ async function finalizeAuthEntrySuccess(successMessage, options = {}) {
   if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
 
   if (storageStatus?.loadError && storageStatus.hadSavedState) {
-    toast(`⚠️ Ripristino dati da verificare: ${storageStatus.loadError.detail || 'formato non valido'}`);
-  } else if (hydrateResult?.source === 'remote') {
-    toast('☁️ Dati cloud caricati');
-  } else if (hadSaved) {
-    toast('💾 Dati del profilo caricati');
+    toast('⚠️ Abbiamo aperto il profilo, ma alcuni dati richiedono un controllo');
+  } else if (conflictResolution?.choice === 'remote' || hydrateResult?.source === 'remote') {
+    toast('✅ Profilo aggiornato');
+  } else if (hadSaved && !didImmediateBootstrap) {
+    toast('✅ Bentornato');
   }
 
   if (hydrateResult?.ok === false && !hydrateResult?.skipped) {
-    toast(`⚠️ ${hydrateResult.message || 'Ripristino cloud da verificare'}`);
+    toast(`⚠️ ${hydrateResult.message || 'Serve un nuovo tentativo per completare l apertura del profilo'}`);
   }
 
-  if (syncToCloud && typeof authSyncStateToCloud === 'function') {
+  let didSyncLocalChoice = false;
+  if (conflictResolution?.choice === 'local' && typeof authSyncStateToCloud === 'function') {
+    const localSyncResult = await authSyncStateToCloud(true);
+    didSyncLocalChoice = !!localSyncResult?.ok;
+    if (!localSyncResult?.ok && !localSyncResult?.skipped) {
+      toast(`⚠️ ${localSyncResult.message || 'Aggiornamento del profilo non riuscito'}`);
+    }
+  }
+
+  if (syncToCloud && !didSyncLocalChoice && typeof authSyncStateToCloud === 'function') {
     const syncResult = await authSyncStateToCloud(true);
     if (!syncResult?.ok && !syncResult?.skipped) {
-      toast(`⚠️ ${syncResult.message || 'Sync cloud non riuscita'}`);
+      toast(`⚠️ ${syncResult.message || 'Aggiornamento del profilo non riuscito'}`);
     }
   }
 
@@ -2976,43 +3098,61 @@ async function finalizeAuthEntrySuccess(successMessage, options = {}) {
 }
 
 async function submitAuthPlaceholder(mode) {
-  const email = String(_authEntryState?.email || '').trim();
-  const password = String(_authEntryState?.password || '');
-  if (!email) { toast('⚠️ Inserisci l’email'); return; }
-  if (!password) { toast('⚠️ Inserisci la password'); return; }
-  if (mode === 'signup') {
-    const confirmPassword = String(_authEntryState?.confirmPassword || '');
-    if (password !== confirmPassword) {
-      toast('⚠️ Le password non coincidono');
+  if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
+  if (_authEntryState.pending) return;
+  _authEntryState.pending = true;
+  _authEntryState.pendingMessage = mode === 'signup'
+    ? 'Stiamo creando il tuo profilo e collegando i dati presenti qui.'
+    : 'Stiamo aprendo il tuo profilo e controllando eventuali copie salvate.';
+  renderAuthEntry();
+  try {
+    const email = String(_authEntryState?.email || '').trim();
+    const password = String(_authEntryState?.password || '');
+    if (!email) { toast('⚠️ Inserisci l email'); return; }
+    if (!password) { toast('⚠️ Inserisci la password'); return; }
+    if (mode === 'signup') {
+      const confirmPassword = String(_authEntryState?.confirmPassword || '');
+      if (password !== confirmPassword) {
+        toast('⚠️ Le password non coincidono');
+        return;
+      }
+      const result = typeof signUpWithEmail === 'function'
+        ? await signUpWithEmail(email, password)
+        : { ok: false, message: 'Auth non disponibile' };
+      if (!result.ok) {
+        toast(`⚠️ ${result.message}`);
+        return;
+      }
+      if (result.pendingConfirmation) {
+        if (typeof renderAuthNav === 'function') renderAuthNav();
+        if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+        toast(`✉️ ${result.message}`);
+        openAuthMode('login');
+        return;
+      }
+      S.authEntryCompleted = true;
+      save();
+      await finalizeAuthEntrySuccess('✅ Profilo creato', { syncToCloud: true });
       return;
     }
-    const result = typeof signUpWithEmail === 'function'
-      ? await signUpWithEmail(email, password)
+    const result = typeof signInWithEmail === 'function'
+      ? await signInWithEmail(email, password)
       : { ok: false, message: 'Auth non disponibile' };
     if (!result.ok) {
       toast(`⚠️ ${result.message}`);
       return;
     }
-    if (result.pendingConfirmation) {
-      if (typeof renderAuthNav === 'function') renderAuthNav();
-      if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
-      toast(`✉️ ${result.message}`);
-      openAuthMode('login');
-      return;
+    await finalizeAuthEntrySuccess('✅ Bentornato');
+  } catch (err) {
+    console.error('Auth submit failed', err);
+    toast(`⚠️ ${err?.message || 'Accesso non riuscito'}`);
+  } finally {
+    if (_authEntryState) {
+      _authEntryState.pending = false;
+      _authEntryState.pendingMessage = '';
     }
-    S.authEntryCompleted = true;
-    save();
-    await finalizeAuthEntrySuccess('✅ Account creato', { syncToCloud: true });
-    return;
+    renderAuthEntry();
   }
-  const result = typeof signInWithEmail === 'function'
-    ? await signInWithEmail(email, password)
-    : { ok: false, message: 'Auth non disponibile' };
-  if (!result.ok) {
-    toast(`⚠️ ${result.message}`);
-    return;
-  }
-  await finalizeAuthEntrySuccess('✅ Accesso effettuato');
 }
 
 function renderWelcomeOnboarding() {
@@ -3681,7 +3821,7 @@ function onNoteInput(el) {
     // show autosave indicator
     const ind = document.getElementById('notes-autosave');
     if (ind) {
-      ind.textContent = '✅  Salvato';
+      ind.textContent = '✅ Salvata';
       ind.classList.add('show');
       setTimeout(() => ind.classList.remove('show'), 1800);
     }
@@ -3762,83 +3902,89 @@ function macroAlerts() {
 }
 async function initAll() {
   if (typeof authSetBootstrapReady === 'function') authSetBootstrapReady(false);
-  let postLogoutMode = null;
   try {
-    postLogoutMode = sessionStorage.getItem('marcifit_post_logout_mode_v1');
-  } catch (_) {
-    postLogoutMode = null;
-  }
-  if (typeof authInit === 'function') await authInit();
-  let authConflictChoice = null;
-  let authConflictData = null;
-  if (typeof authHydrateLocalCacheFromRemote === 'function') {
-    const hydrateResult = await authHydrateLocalCacheFromRemote();
-    if (hydrateResult?.conflict) {
-      authConflictData = hydrateResult;
-      authConflictChoice = await askAuthStateConflictChoice(hydrateResult);
-      if (authConflictChoice === 'remote' && typeof authStoreRemoteStateLocally === 'function') {
-        authStoreRemoteStateLocally(hydrateResult.remoteState, hydrateResult.remoteUpdatedAt);
-      } else if (authConflictChoice === 'local' && typeof authMarkLocalStatePreferred === 'function') {
-        authMarkLocalStatePreferred(hydrateResult.remoteUpdatedAt);
+    let postLogoutMode = null;
+    let didFastLocalBootstrap = false;
+    try {
+      postLogoutMode = sessionStorage.getItem('marcifit_post_logout_mode_v1');
+    } catch (_) {
+      postLogoutMode = null;
+    }
+    if (postLogoutMode !== 'login' && typeof authMaybeResumeLocalCache === 'function') {
+      const recoveryCandidate = authMaybeResumeLocalCache();
+      if (recoveryCandidate) {
+        bootstrapAppStateFromCurrentStorage({ resetState: true });
+        refreshAppAfterBootstrap();
+        didFastLocalBootstrap = true;
       }
     }
-  }
-  const hadSaved = loadSaved();
-  const storageStatus = typeof getMarciFitStorageStatus === 'function' ? getMarciFitStorageStatus() : null;
-  sanitizeMealIcons(S);
-  ensureBootstrapDefaults(S);
-  migrateTemplateMealTypes(S);
-  migrateProfiloToAnagrafica(S);
-  migrateFlatMealsToItems(S);
-  normalizeLegacyMealIcons(S);
-  finalizeBootstrapState(S, hadSaved);
-  normalizeCheatConfig(S.cheatConfig);
-  syncAnagraficaWeightFromLogs({ preserveIfEmpty: true });
-  refreshNutritionTargetsFromState({ saveDeferred: false });
-  if (!S.cheatMealsByDate || typeof S.cheatMealsByDate !== 'object' || Array.isArray(S.cheatMealsByDate)) {
-    S.cheatMealsByDate = {};
-  }
-  save({ skipCloudSync: true }); // salva subito con le icone aggiornate senza forzare sync al bootstrap
-  if (authIsAuthenticated && authIsAuthenticated()) {
-    S.authEntryCompleted = true;
-  }
-
-  ensureMealPlannerState('on');
-  ensureMealPlannerState('off');
-  setDay(S.day);
-  resetBootstrapUiState();
-  if (storageStatus?.loadError && storageStatus.hadSavedState) {
-    showDayModal({
-      icon: '⚠️',
-      title: 'Dati salvati non leggibili',
-      body: `Abbiamo trovato uno stato salvato, ma non e stato possibile ripristinarlo in modo sicuro.<br><br><strong>Motivo:</strong> ${htmlEsc(storageStatus.loadError.detail || 'formato non valido')}.<br><br>L'app e partita con i dati di base. Se vuoi, puoi usare <strong>Reset dati</strong> dalla sezione backup oppure importare un JSON valido.`,
-      noButtons: true,
-    });
-    toast('⚠️  Ripristino dati non riuscito');
-  } else if (hadSaved) {
-    toast('✅  Dati ripristinati');
-  }
-  if (typeof renderAuthNav === 'function') renderAuthNav();
-  if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
-  if (authConflictChoice === 'local' && authConflictData && typeof authSyncStateToCloud === 'function') {
-    await authSyncStateToCloud(true);
-    toast('☁️ Dati del dispositivo sincronizzati sul cloud');
-  } else if (authConflictChoice === 'remote') {
-    toast('☁️ Dati cloud caricati');
-  }
-  if (postLogoutMode === 'login') {
+    if (typeof authInit === 'function') await authInit();
+    let authConflictResolution = null;
+    let authConflictData = null;
+    if (typeof authHydrateLocalCacheFromRemote === 'function') {
+      const hydrateResult = await authHydrateLocalCacheFromRemote();
+      if (hydrateResult?.conflict) {
+        authConflictData = hydrateResult;
+        authConflictResolution = await handleMarciFitCloudConflict(hydrateResult, {
+          pushLocalOnChoice: false,
+          rebootstrap: false,
+        });
+      }
+    }
+    const { hadSaved, storageStatus } = bootstrapAppStateFromCurrentStorage({ resetState: true });
+    if (storageStatus?.loadError && storageStatus.hadSavedState) {
+      const debugDetail = typeof window.isMarciFitDebugEnabled === 'function' && window.isMarciFitDebugEnabled()
+        ? `<br><br><strong>Dettaglio:</strong> ${htmlEsc(storageStatus.loadError.detail || 'formato non valido')}.`
+        : '';
+      showDayModal({
+        icon: '⚠️',
+        title: 'Non siamo riusciti ad aprire i tuoi dati',
+        body: `Abbiamo trovato una copia salvata, ma non siamo riusciti a leggerla bene.<br><br>MarciFit riparte da una base pulita. Se hai una copia aggiornata, puoi importarla dalla sezione <strong>I tuoi dati</strong>.${debugDetail}`,
+        noButtons: true,
+      });
+      toast('⚠️ Apertura dati da controllare');
+    } else if (hadSaved && !didFastLocalBootstrap) {
+      toast('✅ Bentornato');
+    }
+    refreshAppAfterBootstrap();
+    if (postLogoutMode === 'login') {
+      try {
+        sessionStorage.removeItem('marcifit_post_logout_mode_v1');
+      } catch (_) {}
+      S.authEntryCompleted = false;
+      if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
+      openAuthEntry(true);
+      openAuthMode('login');
+    } else if (!S.onboardingCompleted) {
+      if (!S.authEntryCompleted) openAuthEntry(false);
+      else openWelcomeOnboarding();
+    }
+    if (typeof authSetBootstrapReady === 'function') authSetBootstrapReady(true);
+    if (authConflictResolution?.choice === 'local' && authConflictData && typeof authSyncStateToCloud === 'function') {
+      const syncResult = await authSyncStateToCloud(true);
+      if (syncResult?.ok) toast('✅ Abbiamo tenuto questa versione');
+      else if (!syncResult?.skipped) toast(`⚠️ ${syncResult.message || 'Aggiornamento del profilo non riuscito'}`);
+    } else if (authConflictResolution?.choice === 'remote') {
+      toast('✅ Abbiamo caricato la versione cloud');
+    }
+  } catch (err) {
+    console.error('initAll failed', err);
+    if (typeof authSetBootstrapHint === 'function') {
+      authSetBootstrapHint('error', err?.message || 'Avvio non riuscito');
+    }
     try {
-      sessionStorage.removeItem('marcifit_post_logout_mode_v1');
-    } catch (_) {}
-    S.authEntryCompleted = false;
+      bootstrapAppStateFromCurrentStorage({ resetState: true });
+      refreshAppAfterBootstrap();
+    } catch (recoveryErr) {
+      console.error('Bootstrap recovery failed', recoveryErr);
+    }
     if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
+    S.authEntryCompleted = false;
     openAuthEntry(true);
     openAuthMode('login');
-  } else if (!S.onboardingCompleted) {
-    if (!S.authEntryCompleted) openAuthEntry(false);
-    else openWelcomeOnboarding();
+    toast(`⚠️ ${err?.message || 'Avvio non riuscito'}`);
+    if (typeof authSetBootstrapReady === 'function') authSetBootstrapReady(true);
   }
-  if (typeof authSetBootstrapReady === 'function') authSetBootstrapReady(true);
 }
 initAll();
 bindEditGramPreview();

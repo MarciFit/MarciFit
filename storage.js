@@ -85,13 +85,34 @@ function loadSaved() {
 function clearStorage() {
   showDayModal({
     icon: '🗑️',
-    title: 'Reset tutti i dati',
-    body: 'Questa operazione <strong>cancella definitivamente</strong> tutti i dati salvati (piani, log, misurazioni, profilo) e riporta l\'app ai valori originali.<br><br>L\'operazione non è reversibile.',
+    title: 'Riparti da zero',
+    body: 'Cancellerai <strong>profilo, pasti, misure e progressi</strong> di questo percorso.<br><br>Se vuoi tenerne una copia, esportala prima. Questa azione non si puo annullare.',
     danger: true,
-    onConfirm: () => {
+    confirmText: 'Cancella tutto',
+    cancelText: 'Torna indietro',
+    onConfirm: async () => {
       mfWarn('storage', 'clear storage requested');
       if (typeof authMarkExplicitReset === 'function') authMarkExplicitReset();
       localStorage.removeItem(currentStorageKey());
+      if (typeof bootstrapAppStateFromCurrentStorage === 'function') {
+        bootstrapAppStateFromCurrentStorage({ resetState: true });
+        if (typeof refreshAppAfterBootstrap === 'function') {
+          refreshAppAfterBootstrap({ closeAuthOverlay: true, preferredView: 'today' });
+        }
+        if (!S.onboardingCompleted) {
+          if (S.authEntryCompleted && typeof openWelcomeOnboarding === 'function') openWelcomeOnboarding();
+          else if (typeof openAuthEntry === 'function') openAuthEntry(false);
+        }
+        if (typeof authIsAuthenticated === 'function' && authIsAuthenticated() && typeof authSyncStateToCloud === 'function') {
+          const syncResult = await authSyncStateToCloud(true);
+          if (!syncResult?.ok && !syncResult?.skipped) {
+            toast(`⚠️ ${syncResult.message || 'Aggiornamento del profilo non riuscito'}`);
+            return;
+          }
+        }
+        toast('🧹 Profilo azzerato');
+        return;
+      }
       location.reload();
     },
   });
@@ -105,7 +126,7 @@ function exportJSON() {
   const raw = JSON.stringify(S, null, 2);
   dl(new Blob([raw], { type: 'application/json' }), buildExportFilename('json'));
   mfDebug('storage', 'export json ok', { bytes: raw.length });
-  toast('💾  Salvato');
+  toast('✅ Copia pronta');
 }
 
 function loadJSON() {
@@ -155,7 +176,7 @@ function onLoad(e) {
       if (!validation.ok) {
         _storageStatus.lastImportError = { code: validation.code, detail: validation.detail };
         mfError('storage', 'import json rejected', validation);
-        toast('❌  File JSON non valido');
+        toast('⚠️ Questa copia non sembra valida');
         return;
       }
       applyValidatedState(parsed);
@@ -165,16 +186,16 @@ function onLoad(e) {
       if (typeof authSyncStateToCloud === 'function') {
         const syncResult = await authSyncStateToCloud(true);
         if (!syncResult?.ok && !syncResult?.skipped) {
-          throw new Error(syncResult?.message || 'Sync cloud non riuscita');
+          throw new Error(syncResult?.message || 'Aggiornamento del profilo non riuscito');
         }
       }
       _storageStatus.lastImportError = null;
       mfDebug('storage', 'import json ok', { keys: Object.keys(parsed || {}).length });
-      toast('📂  Caricato');
+      toast('✅ Dati importati');
     } catch (e) {
-      _storageStatus.lastImportError = { code: 'import_failed', detail: e?.message || 'Import non riuscito' };
+      _storageStatus.lastImportError = { code: 'import_failed', detail: e?.message || 'Importazione non riuscita' };
       mfError('storage', 'import json failed', { name: e?.name, message: e?.message });
-      toast(`❌  ${e?.message || 'Import non riuscito'}`);
+      toast(`⚠️ ${e?.message || 'Importazione non riuscita'}`);
     } finally {
       e.target.value = '';
     }
@@ -223,9 +244,9 @@ if __name__=='__main__':
     for t,meals,macro in[('ON',PASTI_ON,MACRO_ON),('OFF',PASTI_OFF,MACRO_OFF)]:
         print(f"\\nGiorno {t}: {macro['k']} kcal | P {macro['p']}g C {macro['c']}g F {macro['f']}g")
         for m in meals: print(f"  {m[1]}: {m[4]} kcal")
-`;
+  `;
   dl(new Blob([py], { type: 'text/plain' }), buildExportFilename('py'));
-  toast('⬇️  Python scaricato');
+  toast('✅ File pronto');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

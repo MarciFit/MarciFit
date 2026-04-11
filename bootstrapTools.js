@@ -37,27 +37,61 @@ function sanitizeMealIcons(state) {
 }
 
 function ensureBootstrapDefaults(state) {
-  if (!state.measurements) state.measurements = [];
-  if (!state.goal) state.goal = { phase: 'bulk', startDate: null, targetWeight: null, notes: '', calibrationOffsetKcal: 0, calibrationMeta: null };
+  if (!Array.isArray(state.measurements)) state.measurements = [];
+  if (!Array.isArray(state.weightLog)) state.weightLog = [];
+  if (!state.notes || typeof state.notes !== 'object' || Array.isArray(state.notes)) state.notes = {};
+  if (!state.profHist || typeof state.profHist !== 'object' || Array.isArray(state.profHist)) state.profHist = {};
+  if (!state.goal || typeof state.goal !== 'object' || Array.isArray(state.goal)) {
+    state.goal = { phase: 'bulk', startDate: null, targetWeight: null, notes: '', calibrationOffsetKcal: 0, calibrationMeta: null };
+  }
   if (!('calibrationOffsetKcal' in state.goal)) state.goal.calibrationOffsetKcal = 0;
   if (!('calibrationMeta' in state.goal)) state.goal.calibrationMeta = null;
-  if (!state.supplements) {
-    state.supplements = [];
+  if (!Array.isArray(state.profilo)) state.profilo = [];
+  if (!state.anagrafica || typeof state.anagrafica !== 'object' || Array.isArray(state.anagrafica)) {
+    state.anagrafica = {
+      nome: '',
+      sesso: 'm',
+      eta: null,
+      altezza: null,
+      peso: null,
+      passiGiornalieri: null,
+      grassoCorporeo: null,
+      professione: 'desk_sedentary',
+      allenamentiSett: '3-4',
+    };
   }
-  if (!state.suppChecked) state.suppChecked = {};
-  if (!state.doneByDate) state.doneByDate = {};
+  if (!state.meals || typeof state.meals !== 'object' || Array.isArray(state.meals)) state.meals = { on: [], off: [] };
+  if (!Array.isArray(state.meals.on)) state.meals.on = [];
+  if (!Array.isArray(state.meals.off)) state.meals.off = [];
+  if (!state.macro || typeof state.macro !== 'object' || Array.isArray(state.macro)) {
+    state.macro = {
+      on: { p: 130, c: 295, f: 70, k: 2350 },
+      off:{ p: 130, c: 235, f: 70, k: 2100 },
+    };
+  }
+  if (!state.macro.on || typeof state.macro.on !== 'object') state.macro.on = { p: 130, c: 295, f: 70, k: 2350 };
+  if (!state.macro.off || typeof state.macro.off !== 'object') state.macro.off = { p: 130, c: 235, f: 70, k: 2100 };
+  if (!Array.isArray(state.supplements)) state.supplements = [];
+  if (!state.suppChecked || typeof state.suppChecked !== 'object' || Array.isArray(state.suppChecked)) state.suppChecked = {};
+  if (!state.doneByDate || typeof state.doneByDate !== 'object' || Array.isArray(state.doneByDate)) state.doneByDate = {};
   if (!['7d', '30d', '8w', 'all'].includes(state.statsRange)) state.statsRange = '30d';
-  if (!state.barcodeCache) state.barcodeCache = {};
-  if (!state.foodCache) state.foodCache = {};
-  if (!state.foodSearchLearn) state.foodSearchLearn = {};
-  if (!state.foodLog) state.foodLog = {};
-  if (!state.templates) state.templates = [];
-  if (!state.mealPlanner) {
+  if (!state.barcodeCache || typeof state.barcodeCache !== 'object' || Array.isArray(state.barcodeCache)) state.barcodeCache = {};
+  if (!state.foodCache || typeof state.foodCache !== 'object' || Array.isArray(state.foodCache)) state.foodCache = {};
+  if (!state.foodSearchLearn || typeof state.foodSearchLearn !== 'object' || Array.isArray(state.foodSearchLearn)) state.foodSearchLearn = {};
+  if (!state.foodLog || typeof state.foodLog !== 'object' || Array.isArray(state.foodLog)) state.foodLog = {};
+  if (!Array.isArray(state.templates)) state.templates = [];
+  if (!Array.isArray(state.customFoods)) state.customFoods = [];
+  if (!Array.isArray(state.favoriteFoods)) state.favoriteFoods = [];
+  if (!state.water || typeof state.water !== 'object' || Array.isArray(state.water)) state.water = {};
+  if (!state.cheatMealsByDate || typeof state.cheatMealsByDate !== 'object' || Array.isArray(state.cheatMealsByDate)) state.cheatMealsByDate = {};
+  if (!state.mealPlanner || typeof state.mealPlanner !== 'object' || Array.isArray(state.mealPlanner)) {
     state.mealPlanner = {
       on: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
       off: { mealIdx: null, prompt: '', useFavorites: true, useTemplates: true, results: [] },
     };
   }
+  if (!Array.isArray(state.onDays) || !state.onDays.length) state.onDays = [1, 3, 5];
+  if (typeof state.noteSearch !== 'string') state.noteSearch = '';
   if (!state.pianoUi || typeof state.pianoUi !== 'object') {
     state.pianoUi = {
       activeMealFilter: 'all',
@@ -152,12 +186,19 @@ function normalizeLegacyMealIcons(state) {
 }
 
 function finalizeBootstrapState(state, hadSaved) {
+  const hasEstablishedState = typeof authHasMeaningfulState === 'function'
+    ? authHasMeaningfulState(state)
+    : !!hadSaved;
   state.selDate = null;
   if (typeof state.authEntryCompleted !== 'boolean') {
-    state.authEntryCompleted = !!hadSaved;
+    state.authEntryCompleted = !!hadSaved || hasEstablishedState;
   }
   if (typeof state.onboardingCompleted !== 'boolean') {
-    state.onboardingCompleted = !!hadSaved;
+    state.onboardingCompleted = !!hadSaved || hasEstablishedState;
+  }
+  if (hasEstablishedState) {
+    state.authEntryCompleted = true;
+    state.onboardingCompleted = true;
   }
   if (!hadSaved) {
     const dow = new Date().getDay();

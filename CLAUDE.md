@@ -142,6 +142,7 @@
 - Componenti renderizzati come stringhe HTML in `uiComponents.js`, iniettati via `innerHTML`
 - Event delegation per elementi dinamici
 - `generateAssistantMessage()` è **RIMOSSA** — usare `getDailyQuote()` + `generateAlerts()` in `uiComponents.js`
+- Guardrail copy prodotto: tutto cio che riguarda infrastruttura, setup, stati interni e limiti temporanei resta fuori dalla UI utente; applicare sempre la checklist in `docs/checklists/product-copy-guardrails.md`
 
 ### Dati
 - Tutto persiste in `localStorage` — nessuna chiamata server per i dati utente
@@ -157,6 +158,7 @@
 - `docs/plans/` contiene roadmap e piani di lavoro
 - `docs/audits/` contiene audit, analisi e dump di ricerca
 - `docs/checklists/` contiene checklist operative
+- `docs/checklists/product-copy-guardrails.md` e la checklist permanente per copy e microcopy di prodotto
 - `docs/supabase/` contiene setup e schema del backend opzionale
 
 ### File `start.html`
