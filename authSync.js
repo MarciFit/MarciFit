@@ -927,12 +927,14 @@ async function authHydrateLocalCacheFromRemote() {
     authSetBootstrapHint('error', 'La versione trovata non e leggibile.');
     return { ok: false, message: 'La versione trovata non e leggibile' };
   }
+  let normalizedRemoteState = remoteState;
   if (typeof validateImportedState === 'function') {
-    const validation = validateImportedState(remoteState);
+    const validation = validateImportedState(remoteState, { relaxed: true });
     if (!validation.ok) {
       authSetBootstrapHint('error', 'La versione trovata non e completa.');
       return { ok: false, message: 'La versione trovata non e completa' };
     }
+    normalizedRemoteState = validation.normalizedState || remoteState;
   }
 
   const localRaw = authReadActiveLocalStateRaw();
@@ -942,7 +944,7 @@ async function authHydrateLocalCacheFromRemote() {
   const localAt = Date.parse(localMeta.updatedAt || localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || 0) || 0;
   const resetAt = Date.parse(localMeta.resetAt || 0) || 0;
   const hasMeaningfulLocal = authHasMeaningfulState(localState);
-  const hasMeaningfulRemote = authHasMeaningfulState(remoteState) && !!remote.row.updated_at && !!remoteAt;
+  const hasMeaningfulRemote = authHasMeaningfulState(normalizedRemoteState) && !!remote.row.updated_at && !!remoteAt;
   const localDirty = !!localMeta.dirty || !!localMeta.resetPending;
 
   if (resetAt && resetAt >= remoteAt && !hasMeaningfulLocal) {
@@ -959,7 +961,7 @@ async function authHydrateLocalCacheFromRemote() {
   }
 
   if (!hasMeaningfulLocal && hasMeaningfulRemote) {
-    authStoreRemoteStateLocally(remoteState, remote.row.updated_at);
+    authStoreRemoteStateLocally(normalizedRemoteState, remote.row.updated_at);
     return { ok: true, hydrated: true, source: 'remote' };
   }
 
@@ -981,13 +983,13 @@ async function authHydrateLocalCacheFromRemote() {
             ? 'remote_newer_local_dirty'
             : 'local_newer_remote_present',
         localState,
-        remoteState,
+        remoteState: normalizedRemoteState,
         localUpdatedAt: localMeta.updatedAt || null,
         remoteUpdatedAt: remote.row.updated_at || null,
       };
     }
     if (remoteAt > localAt) {
-      authStoreRemoteStateLocally(remoteState, remote.row.updated_at);
+      authStoreRemoteStateLocally(normalizedRemoteState, remote.row.updated_at);
       return { ok: true, hydrated: true, source: 'remote' };
     }
     AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
@@ -996,7 +998,7 @@ async function authHydrateLocalCacheFromRemote() {
   }
 
   if (!hasMeaningfulLocal || !localRaw || remoteAt > localAt) {
-    authStoreRemoteStateLocally(remoteState, remote.row.updated_at);
+    authStoreRemoteStateLocally(normalizedRemoteState, remote.row.updated_at);
     return { ok: true, hydrated: true, source: 'remote' };
   }
 

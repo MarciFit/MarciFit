@@ -157,7 +157,12 @@ function _validateAnagraficaRange(value, min, max, code, detail) {
   if (value < min || value > max) return { ok: false, code, detail };
   return { ok: true };
 }
-function validateImportedState(state) {
+function validateImportedState(state, options = {}) {
+  const relaxed = !!options.relaxed;
+  if (relaxed && typeof normalizePersistedStateForBootstrap === 'function') {
+    const normalizedState = normalizePersistedStateForBootstrap(state);
+    if (normalizedState) state = normalizedState;
+  }
   if (!_isPlainObject(state)) return { ok: false, code: 'root_invalid', detail: 'Il file importato non contiene un oggetto valido.' };
   if ('day' in state && !['on', 'off'].includes(state.day)) return { ok: false, code: 'day_invalid', detail: 'Il tipo giorno non e valido.' };
   if ('planTab' in state && !['on', 'off'].includes(state.planTab)) return { ok: false, code: 'plantab_invalid', detail: 'Il tab piano non e valido.' };
@@ -242,7 +247,7 @@ function validateImportedState(state) {
       if (!offValidation.ok) return offValidation;
     }
   }
-  return { ok: true };
+  return relaxed ? { ok: true, normalizedState: state } : { ok: true };
 }
 
 window.enableMarciFitDebug = function() {

@@ -63,14 +63,14 @@ function loadSaved() {
     }
     _storageStatus.hadSavedState = true;
     const saved = JSON.parse(resolved);
-    const validation = validateImportedState(saved);
+    const validation = validateImportedState(saved, { relaxed: true });
     if (!validation.ok) {
       _setStorageLoadError(validation.code, validation.detail);
       mfError('storage', 'load validation failed', validation);
       return false;
     }
 
-    applyValidatedState(saved);
+    applyValidatedState(validation.normalizedState || saved);
 
     mfDebug('storage', 'load ok', { keys: Object.keys(saved).length, bytes: resolved.length });
     return true;
