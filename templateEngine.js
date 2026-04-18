@@ -5,6 +5,7 @@
     const text = String(value || '').toLowerCase();
     if (text.includes('colazione')) return 'colazione';
     if (text.includes('spuntino') || text.includes('merenda')) return 'spuntino';
+    if (text.includes('snack')) return 'spuntino';
     if (text.includes('pranzo')) return 'pranzo';
     if (text.includes('cena')) return 'cena';
     return 'altro';
@@ -24,7 +25,12 @@
 
   function filterTemplatesByMealType(templates = [], mealType = 'all') {
     if (!mealType || mealType === 'all') return [...templates];
-    return templates.filter(template => getTemplateMealType(template) === mealType);
+    return templates.filter(template => getTemplateMealType(template) === normalizeMealType(mealType));
+  }
+
+  function templateMatchesMealType(template, mealType) {
+    if (!mealType || mealType === 'all') return true;
+    return getTemplateMealType(template) === normalizeMealType(mealType);
   }
 
   function scoreTemplateForMeal(template, context = {}) {
@@ -65,10 +71,32 @@
     }, { k: 0, p: 0, c: 0, f: 0 });
   }
 
+  function scaleTemplateItems(items = [], multiplier = 1) {
+    const safeMultiplier = Math.max(0.05, Number(multiplier) || 1);
+    return (items || []).map(item => ({
+      ...item,
+      grams: Math.max(1, Math.round(Number(item.grams || 0) * safeMultiplier)),
+    }));
+  }
+
+  function getTemplatePortionOptions() {
+    return [
+      { value: 1, label: 'Intero', hint: '100%' },
+      { value: 0.75, label: '3/4', hint: '75%' },
+      { value: 0.5, label: 'Meta', hint: '50%' },
+      { value: 0.25, label: '1/4', hint: '25%' },
+      { value: 1.5, label: '1,5x', hint: '150%' },
+      { value: 2, label: 'Doppio', hint: '200%' },
+    ];
+  }
+
   window.getTemplateMealType = getTemplateMealType;
   window.getTemplateCountsByMealType = getTemplateCountsByMealType;
   window.filterTemplatesByMealType = filterTemplatesByMealType;
+  window.templateMatchesMealType = templateMatchesMealType;
   window.sortTemplatesForContext = sortTemplatesForContext;
   window.getUsefulTemplatesNow = getUsefulTemplatesNow;
   window.computeTemplateMacros = computeTemplateMacros;
+  window.scaleTemplateItems = scaleTemplateItems;
+  window.getTemplatePortionOptions = getTemplatePortionOptions;
 })();

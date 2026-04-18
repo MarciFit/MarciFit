@@ -797,6 +797,106 @@ let _tmplFilter = 'tutti';
 let _tmplFormItems = [];
 let _editingTmplId = null;
 let _tmplMealType = '';
+let _templatePortionResolver = null;
+
+function closeTemplatePortionModal() {
+  _templatePortionResolver = null;
+  closeDayModal();
+}
+
+function selectTemplatePortion(multiplier) {
+  const resolver = _templatePortionResolver;
+  _templatePortionResolver = null;
+  closeDayModal();
+  if (typeof resolver === 'function') resolver(Number(multiplier) || 1);
+}
+
+function cancelTemplatePortionSelection() {
+  const resolver = _templatePortionResolver;
+  _templatePortionResolver = null;
+  closeDayModal();
+  if (typeof resolver === 'function') resolver(null);
+}
+
+function askTemplatePortionMultiplier(templateName = 'questo template') {
+  return new Promise(resolve => {
+    _templatePortionResolver = resolve;
+    const options = typeof getTemplatePortionOptions === 'function'
+      ? getTemplatePortionOptions()
+      : [
+          { value: 1, label: 'Intero', hint: '100%' },
+          { value: 0.5, label: 'Meta', hint: '50%' },
+          { value: 0.25, label: '1/4', hint: '25%' },
+          { value: 1.5, label: '1,5x', hint: '150%' },
+        ];
+    showDayModal({
+      icon: '🍽️',
+      eyebrow: 'Template',
+      title: 'Quanto ne vuoi inserire?',
+      noButtons: true,
+      modalClass: 'template-portion-modal',
+      body: `
+        <div class="sync-choice-lead">Scegli la porzione per <strong>${htmlEsc(templateName)}</strong>.</div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px">
+          ${options.map(option => `
+            <button
+              class="auth-entry-choice secondary"
+              style="padding:14px 12px;text-align:left"
+              onclick="selectTemplatePortion(${option.value})">
+              <div class="auth-entry-choice-title">${htmlEsc(option.label)}</div>
+              <div class="auth-entry-choice-body">${htmlEsc(option.hint)}</div>
+            </button>
+          `).join('')}
+        </div>
+        <button class="auth-entry-btn secondary" style="width:100%;margin-top:12px" onclick="cancelTemplatePortionSelection()">Annulla</button>`,
+    });
+  });
+}
+
+function cloneTemplateItemsForPortion(template, multiplier = 1) {
+  const items = template?.items || [];
+  if (typeof scaleTemplateItems === 'function') return scaleTemplateItems(items, multiplier);
+  const safeMultiplier = Math.max(0.05, Number(multiplier) || 1);
+  return items.map(item => ({
+    ...item,
+    grams: Math.max(1, Math.round(Number(item.grams || 0) * safeMultiplier)),
+  }));
+}
+
+function upsertTemplateUsage(template) {
+  if (!template) return;
+  template.usageCount = Number(template.usageCount || 0) + 1;
+}
+
+function applyTemplateToMealLog(template, dateKey, mealIdx, options = {}) {
+  const { multiplier = 1, confirmMerge = true } = options;
+  if (!template || !dateKey) return { ok: false, reason: 'missing_template' };
+  if (!S.foodLog[dateKey]) S.foodLog[dateKey] = {};
+  if (!S.foodLog[dateKey][mealIdx]) S.foodLog[dateKey][mealIdx] = [];
+  const existing = S.foodLog[dateKey][mealIdx];
+  if (existing.length && confirmMerge && !confirm(`Aggiungere "${template.name}" al log esistente?`)) {
+    return { ok: false, reason: 'cancelled' };
+  }
+  existing.push(...cloneTemplateItemsForPortion(template, multiplier));
+  upsertTemplateUsage(template);
+  return { ok: true };
+}
+
+function getTemplateLoadTargets(template, type) {
+  const targets = (S.meals[type] || []).map((meal, idx) => ({
+    key: idx,
+    label: meal.name,
+    isExtra: false,
+  }));
+  const templateMealType = typeof getTemplateMealType === 'function'
+    ? getTemplateMealType(template)
+    : (template?.mealType || template?.tag || 'altro');
+  if (templateMealType === 'spuntino') {
+    targets.push({ key: 'merenda', label: EXTRA_MEALS?.merenda?.name || 'Merenda', isExtra: true });
+    targets.push({ key: 'spuntino', label: EXTRA_MEALS?.spuntino?.name || 'Spuntino', isExtra: true });
+  }
+  return targets;
+}
 
 function setTmplFilter(tag) { _tmplFilter = tag; renderPiano(); }
 function toggleTmplItems(id) { const el=document.getElementById('ti-'+id); if(el) el.style.display=el.style.display==='none'?'block':'none'; }
@@ -1083,37 +1183,50 @@ function saveTemplate() {
 
 function deleteTemplate(id) {
   if (!confirm('Eliminare questo template?')) return;
+  if (_editingTmplId === id) closeTemplateForm();
   S.templates = S.templates.filter(t=>t.id!==id);
   save(); renderPiano();
+  toast('🗑️ Template eliminato');
 }
 
-function loadTemplateToLog(tmplId) {
+async function loadTemplateToLog(tmplId) {
   const t = S.templates.find(t=>t.id===tmplId); if (!t) return;
-  t.usageCount = Number(t.usageCount || 0) + 1;
   const dateKey = S.selDate || localDate();
   const type = S.day;
-  const mealNames = S.meals[type].map((m,i) => `${i+1}. ${m.name}`).join('\n');
-  const choice = prompt(`Carica "${t.name}" in quale pasto?\n${mealNames}\n\nNumero (1-${S.meals[type].length}):`);
-  const idx = parseInt(choice) - 1;
-  if (isNaN(idx) || idx<0 || idx>=S.meals[type].length) return;
-  if (!S.foodLog[dateKey]) S.foodLog[dateKey] = {};
-  if (S.foodLog[dateKey][idx]?.length && !confirm('Aggiungere al log esistente?')) return;
-  if (!S.foodLog[dateKey][idx]) S.foodLog[dateKey][idx] = [];
-  S.foodLog[dateKey][idx].push(...t.items.map(it=>({...it})));
-  syncLoggedMealState(dateKey, idx, type);
-  save(); goView('today'); toast(`✅ ${t.name} caricato`);
+  const targets = getTemplateLoadTargets(t, type);
+  const mealNames = targets.map((target, idx) => `${idx + 1}. ${target.label}`).join('\n');
+  const choice = prompt(`Carica "${t.name}" in quale pasto?\n${mealNames}\n\nNumero (1-${targets.length}):`);
+  const target = targets[parseInt(choice, 10) - 1];
+  if (!target) return;
+  const multiplier = await askTemplatePortionMultiplier(t.name);
+  if (multiplier == null) return;
+  if (target.isExtra) {
+    if (!S.extraMealsActive[dateKey]) S.extraMealsActive[dateKey] = {};
+    S.extraMealsActive[dateKey][target.key] = true;
+  }
+  const applied = applyTemplateToMealLog(t, dateKey, target.key, { multiplier, confirmMerge: true });
+  if (!applied.ok) return;
+  syncLoggedMealState(dateKey, target.key, type);
+  save();
+  goView('today');
+  renderTodayLog();
+  toast(`✅ ${t.name} caricato`);
 }
-function loadTemplateToMeal(tmplId, dateKey, mealIdx) {
+async function loadTemplateToMeal(tmplId, dateKey, mealIdx) {
   const t = S.templates.find(t=>t.id===tmplId); if (!t) return;
   const dayType = resolveDayTypeForDate(dateKey);
-  if (!S.foodLog[dateKey]) S.foodLog[dateKey] = {};
-  if (!S.foodLog[dateKey][mealIdx]) S.foodLog[dateKey][mealIdx] = [];
-  const existing = S.foodLog[dateKey][mealIdx];
-  if (existing.length && !confirm(`Aggiungere "${t.name}" al log esistente?`)) return;
-  S.foodLog[dateKey][mealIdx].push(...t.items.map(it=>({...it})));
+  const multiplier = await askTemplatePortionMultiplier(t.name);
+  if (multiplier == null) return;
+  if (typeof mealIdx === 'string') {
+    if (!S.extraMealsActive[dateKey]) S.extraMealsActive[dateKey] = {};
+    S.extraMealsActive[dateKey][mealIdx] = true;
+  }
+  const applied = applyTemplateToMealLog(t, dateKey, mealIdx, { multiplier, confirmMerge: true });
+  if (!applied.ok) return;
   syncLoggedMealState(dateKey, mealIdx, dayType);
   save();
-  refreshMealCard(dayType, mealIdx);
+  if (typeof mealIdx === 'number') refreshMealCard(dayType, mealIdx);
+  else renderTodayLog();
   renderMacroStrip(dayType, S.meals[dayType], S.macro[dayType]);
   toast(`✅ ${t.name} caricato`);
 }
@@ -2860,6 +2973,20 @@ function renderAuthEntry() {
   const isPending = !!_authEntryState.pending;
   const pendingMessage = String(_authEntryState.pendingMessage || '').trim();
   const pendingLabel = mode === 'signup' ? 'Sto creando il profilo...' : 'Sto aprendo il profilo...';
+  const attemptDiag = typeof authGetLastAttemptDiagnostics === 'function'
+    ? authGetLastAttemptDiagnostics()
+    : null;
+  const attemptHtml = attemptDiag && mode !== 'gateway' ? `
+    <div class="auth-attempt-box">
+      <div class="auth-attempt-head">Diagnostica ultimo tentativo${attemptDiag.email ? ` · ${htmlEsc(attemptDiag.email)}` : ''}</div>
+      ${attemptDiag.lines.map(line => `
+        <div class="auth-attempt-row ${line.status}">
+          <span class="auth-attempt-stage">${htmlEsc(line.label)}</span>
+          <span class="auth-attempt-meta">${htmlEsc(line.elapsedLabel)}</span>
+          <span class="auth-attempt-msg">${htmlEsc(line.message || '')}</span>
+        </div>
+      `).join('')}
+    </div>` : '';
 
   let body = '';
   if (mode === 'gateway') {
@@ -2954,6 +3081,7 @@ function renderAuthEntry() {
       </div>
       <div class="auth-entry-foot">
         ${pendingMessage ? `<div class="auth-entry-status">${htmlEsc(pendingMessage || pendingLabel)}</div>` : ''}
+        ${attemptHtml}
         ${mode === 'gateway' ? '' : `<button class="auth-entry-btn primary" onclick="submitAuthPlaceholder('${mode}')" ${isPending ? 'disabled' : ''}>${isPending ? pendingLabel : mode === 'signup' ? 'Crea account' : 'Accedi'}</button>`}
         ${mode !== 'gateway' ? `<button class="auth-entry-btn secondary" onclick="continueAsGuest()" ${isPending ? 'disabled' : ''}>Continua senza account</button>` : ''}
       </div>
@@ -3012,6 +3140,9 @@ async function requestPasswordReset() {
 
 async function finalizeAuthEntrySuccess(successMessage, options = {}) {
   const { syncToCloud = false } = options;
+  if (typeof authRecordAttemptStage === 'function') {
+    authRecordAttemptStage('bootstrap', 'pending', 'Apro il profilo su questo dispositivo...');
+  }
   let didImmediateBootstrap = false;
   if (
     typeof authIsAuthenticated === 'function'
@@ -3033,6 +3164,9 @@ async function finalizeAuthEntrySuccess(successMessage, options = {}) {
       if (typeof renderAuthNav === 'function') renderAuthNav();
       if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
       didImmediateBootstrap = true;
+      if (typeof authRecordAttemptStage === 'function') {
+        authRecordAttemptStage('bootstrap', 'success', 'Cache account trovata e aperta subito');
+      }
     }
   }
 
@@ -3094,6 +3228,9 @@ async function finalizeAuthEntrySuccess(successMessage, options = {}) {
   if (!S.onboardingCompleted) openWelcomeOnboarding();
   else if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
 
+  if (typeof authRecordAttemptStage === 'function') {
+    authRecordAttemptStage('done', 'success', 'Profilo pronto');
+  }
   toast(successMessage);
 }
 
@@ -3145,6 +3282,9 @@ async function submitAuthPlaceholder(mode) {
     await finalizeAuthEntrySuccess('✅ Bentornato');
   } catch (err) {
     console.error('Auth submit failed', err);
+    if (typeof authRecordAttemptStage === 'function') {
+      authRecordAttemptStage('bootstrap', 'error', err?.message || 'Accesso non riuscito');
+    }
     toast(`⚠️ ${err?.message || 'Accesso non riuscito'}`);
   } finally {
     if (_authEntryState) {

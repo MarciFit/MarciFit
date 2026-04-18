@@ -77,6 +77,29 @@ function extraMealCardHTML(key, dateKey) {
   </div>` : '';
 
   const addBtn = `<button class="mc-add-btn" onclick="toggleLogSearch('${domKey}');event.stopPropagation()" title="Aggiungi alimento"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
+  const matchingTmpls = (S.templates || []).filter(t => (
+    typeof templateMatchesMealType === 'function'
+      ? templateMatchesMealType(t, key)
+      : String(t?.mealType || t?.tag || '').toLowerCase().includes(key)
+  ));
+  const tmplPickerHTML = matchingTmpls.length ? `
+    <div class="mc-tmpl-picker">
+      <div class="mc-tmpl-title">Template consigliati</div>
+      ${matchingTmpls.map(t => {
+        const mk = (typeof computeTemplateMacros === 'function'
+          ? computeTemplateMacros(t.items || []).k
+          : (t.items || []).reduce((s, it) => s + Math.round(it.kcal100 * it.grams / 100), 0));
+        const mp = (t.items || []).reduce((s, it) => s + ((it.p100 || 0) * (it.grams || 0) / 100), 0);
+        return `<div class="mc-tmpl-row">
+          <div class="mc-tmpl-info">
+            <div class="mc-tmpl-name">${htmlEsc(t.name)}</div>
+            <div class="mc-tmpl-macros">${mk} kcal · P ${mp.toFixed(1)}g</div>
+          </div>
+          <button class="mc-tmpl-load" onclick="loadTemplateToMeal('${t.id}','${dateKey}','${key}');event.stopPropagation()">Usa</button>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="mc-tmpl-sep">oppure cerca un alimento</div>` : '';
 
   return `<div class="mc mc-extra" id="mc-${domKey}">
     <div class="mc-row">
@@ -93,6 +116,7 @@ function extraMealCardHTML(key, dateKey) {
     <div class="mc-log-panel" id="mlp-${domKey}">
       ${hasLog ? `<div class="mc-log-items">${logRows}</div>${logSummary}` : ''}
       <div class="mc-log-search" id="mls-${domKey}" style="display:none">
+        ${tmplPickerHTML}
         <div class="food-search-input-row">
           <span class="food-search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></span>
           <input type="text" class="food-search-input" id="mlsi-${domKey}"
@@ -318,11 +342,11 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
         </div>` : '';
     // Template picker: filter templates matching this meal type
     const mealType = getMealTypeFromName(base.name);
-    const matchingTmpls = (S.templates || []).filter(t => {
-      if (!mealType) return false;
-      const tmplType = (t.mealType || t.tag || '').toLowerCase();
-      return tmplType.includes(mealType);
-    });
+    const matchingTmpls = (S.templates || []).filter(t => mealType && (
+      typeof templateMatchesMealType === 'function'
+        ? templateMatchesMealType(t, mealType)
+        : String(t?.mealType || t?.tag || '').toLowerCase().includes(mealType)
+    ));
     const tmplPickerHTML = matchingTmpls.length ? `
       <div class="mc-tmpl-picker">
         <div class="mc-tmpl-title">Template consigliati</div>
@@ -2740,6 +2764,9 @@ function renderPiano() {
         <button class="tmpl-btn-load" onclick="loadTemplateToLog('${t.id}')">Usa</button>
         <button class="tmpl-btn-sec tmpl-btn-icon" onclick="editTemplate('${t.id}')" title="Modifica template" aria-label="Modifica template">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </button>
+        <button class="tmpl-btn-sec tmpl-btn-icon" onclick="deleteTemplate('${t.id}')" title="Elimina template" aria-label="Elimina template">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
         </button>
       </div>
     </div>`;

@@ -28,6 +28,7 @@ const AUTH = {
   bootstrapMessage: '',
   localRecoveryKey: null,
   localRecoveryMeta: null,
+  lastAttempt: null,
 };
 
 let _supabaseClient = null;
@@ -62,6 +63,14 @@ function authShouldRetryTransientError(err) {
     || message.includes('network request failed')
     || message.includes('fetch')
     || message.includes('load failed')
+    || message.includes('timed out')
+    || message.includes('timeout');
+}
+
+function authIsTimeoutError(err) {
+  const message = String(err?.message || err?.cause?.message || '').toLowerCase();
+  return err?.name === 'AuthTimeoutError'
+    || err?.name === 'TimeoutError'
     || message.includes('timed out')
     || message.includes('timeout');
 }
@@ -259,6 +268,101 @@ function authGetBootstrapDiagnostics() {
   };
 }
 
+function authAttemptMaskEmail(email) {
+  const raw = String(email || '').trim().toLowerCase();
+  const atIndex = raw.indexOf('@');
+  if (atIndex <= 1) return raw;
+  const local = raw.slice(0, atIndex);
+  const domain = raw.slice(atIndex + 1);
+  return `${local.slice(0, 2)}***@${domain}`;
+}
+
+function authAttemptStageLabel(stage) {
+  switch (stage) {
+    case 'auth_gateway':
+      return 'Gateway auth';
+    case 'sign_in':
+      return 'Login account';
+    case 'sign_in_fallback':
+      return 'Login diretto';
+    case 'profile_sync':
+      return 'Profilo base';
+    case 'remote_state':
+      return 'Stato cloud';
+    case 'bootstrap':
+      return 'Apertura profilo';
+    case 'done':
+      return 'Completato';
+    default:
+      return 'Diagnostica';
+  }
+}
+
+function authNotifyAttemptUi() {
+  if (typeof renderAuthEntry === 'function') renderAuthEntry();
+  if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+}
+
+function authStartAttempt(mode, email = '') {
+  AUTH.lastAttempt = {
+    mode: mode || 'login',
+    email: authAttemptMaskEmail(email),
+    status: 'pending',
+    currentStage: 'idle',
+    startedAt: new Date().toISOString(),
+    startedMs: Date.now(),
+    updatedAt: new Date().toISOString(),
+    lines: [],
+  };
+  authNotifyAttemptUi();
+  return AUTH.lastAttempt;
+}
+
+function authRecordAttemptStage(stage, status, message = '') {
+  if (!AUTH.lastAttempt) authStartAttempt('login');
+  const nowMs = Date.now();
+  const elapsedMs = Math.max(0, nowMs - (AUTH.lastAttempt.startedMs || nowMs));
+  const line = {
+    stage: stage || 'idle',
+    label: authAttemptStageLabel(stage),
+    status: status || 'info',
+    message: String(message || ''),
+    elapsedMs,
+    createdAt: new Date().toISOString(),
+  };
+  AUTH.lastAttempt.currentStage = line.stage;
+  AUTH.lastAttempt.updatedAt = line.createdAt;
+  AUTH.lastAttempt.lines = [...(AUTH.lastAttempt.lines || []).filter(entry => entry.stage !== line.stage), line].slice(-8);
+  if (status === 'error') AUTH.lastAttempt.status = 'error';
+  else if (status === 'success' && stage === 'done') AUTH.lastAttempt.status = 'success';
+  else if (AUTH.lastAttempt.status !== 'error') AUTH.lastAttempt.status = 'pending';
+  authNotifyAttemptUi();
+  return line;
+}
+
+function authClearAttemptDiagnostics() {
+  AUTH.lastAttempt = null;
+  authNotifyAttemptUi();
+}
+
+function authGetLastAttemptDiagnostics() {
+  const attempt = AUTH.lastAttempt;
+  if (!attempt?.lines?.length) return null;
+  const lines = attempt.lines.map(line => ({
+    ...line,
+    elapsedLabel: `${Math.max(0, Math.round((line.elapsedMs || 0) / 100) / 10)}s`,
+  }));
+  const latest = lines[lines.length - 1];
+  return {
+    mode: attempt.mode,
+    email: attempt.email,
+    status: attempt.status,
+    currentStage: attempt.currentStage,
+    latest,
+    lines,
+  };
+}
+
 function authReadActiveLocalStateRaw() {
   try {
     return localStorage.getItem(authGetAppStorageKey(authCurrentBaseStorageKey()));
@@ -276,12 +380,20 @@ function authGetStandaloneSessionNote() {
   return 'Se in Safari eri gia dentro, qui puo servirti un accesso la prima volta: la web app Home mantiene una sessione separata.';
 }
 
+function authGatewayFailureHelp() {
+  const standaloneHint = AUTH.clientContext === 'standalone'
+    ? 'Apri MarciFit direttamente in Safari e riprova.'
+    : 'Riprova da Safari nello stesso dispositivo.';
+  return `${standaloneHint} Se usi VPN, Private Relay, DNS filtrato o adblock, disattivali un attimo e ritenta.`;
+}
+
 function authGetAccountDiagnostics() {
   authUpdateClientContext();
   const meta = authReadStateMeta();
   const localState = authReadActiveLocalState();
   const hasMeaningfulLocal = authHasMeaningfulState(localState);
   const bootstrapDiag = authGetBootstrapDiagnostics();
+  const lastAttempt = authGetLastAttemptDiagnostics();
   const lastSyncedAt = AUTH.lastSyncedAt || meta.lastSyncedAt || null;
   const dirty = !!meta.dirty;
   const standaloneSessionNote = authGetStandaloneSessionNote();
@@ -344,6 +456,7 @@ function authGetAccountDiagnostics() {
     standaloneSessionNote,
     lastSyncedAt,
     lastSyncedLabel: authFormatSyncTime(lastSyncedAt),
+    lastAttempt,
   };
 }
 
@@ -502,6 +615,100 @@ function authGetSupabaseClient() {
   return _supabaseClient;
 }
 
+async function authSignInViaDirectHttp(email, password) {
+  if (!authCanUseSupabase()) {
+    return { ok: false, message: 'Auth cloud non configurato' };
+  }
+  const cfg = authResolveSupabaseConfig();
+  const endpoint = `${String(cfg.url || '').replace(/\/+$/, '')}/auth/v1/token?grant_type=password`;
+  try {
+    const response = await authWithTimeout(
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          apikey: cfg.anonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      }),
+      'Il login diretto sta impiegando troppo tempo',
+      AUTH_LOGIN_TIMEOUT_MS
+    );
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: payload?.msg || payload?.error_description || payload?.error || `Auth HTTP ${response.status}`,
+        payload,
+      };
+    }
+    const user = payload?.user || null;
+    const accessToken = payload?.access_token || '';
+    const refreshToken = payload?.refresh_token || '';
+    if (!user?.id || !accessToken || !refreshToken) {
+      return { ok: false, message: 'La risposta auth non contiene una sessione valida', payload };
+    }
+
+    const client = authGetSupabaseClient();
+    if (client?.auth?.setSession) {
+      const { data, error } = await authWithTimeout(
+        client.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        }),
+        'La sessione cloud non si e allineata in tempo',
+        AUTH_ASYNC_TIMEOUT_MS
+      );
+      if (error) {
+        return { ok: false, message: error.message || 'Sessione cloud non disponibile dopo il login diretto' };
+      }
+      return {
+        ok: true,
+        user: data?.user || data?.session?.user || user,
+        session: data?.session || null,
+      };
+    }
+
+    authApplySupabaseUser(user);
+    return { ok: true, user, session: { access_token: accessToken, refresh_token: refreshToken } };
+  } catch (err) {
+    return { ok: false, message: err?.message || 'Login diretto non disponibile in questo momento' };
+  }
+}
+
+async function authProbeAuthGateway() {
+  if (!authCanUseSupabase()) {
+    return { ok: false, skipped: true, message: 'Auth cloud non configurato' };
+  }
+  if (typeof window !== 'undefined' && window.__mfFakeSupabaseState && !window.__mfForceGatewayProbe) {
+    return { ok: true, message: 'Gateway auth fake disponibile' };
+  }
+  const cfg = authResolveSupabaseConfig();
+  const endpoint = `${String(cfg.url || '').replace(/\/+$/, '')}/auth/v1/settings`;
+  try {
+    const response = await authWithTimeout(
+      fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          apikey: cfg.anonKey,
+        },
+        cache: 'no-store',
+      }),
+      'Il gateway auth non risponde in tempo',
+      4500
+    );
+    if ([200, 401, 403].includes(response.status)) {
+      return { ok: true, status: response.status, message: `Gateway auth raggiunto (${response.status})` };
+    }
+    return { ok: false, status: response.status, message: `Gateway auth ha risposto ${response.status}` };
+  } catch (err) {
+    return { ok: false, message: err?.message || 'Gateway auth non raggiungibile' };
+  }
+}
+
 function authConfigureSupabase(url, anonKey) {
   const cfg = { url: String(url || '').trim(), anonKey: String(anonKey || '').trim() };
   if (!cfg.url || !cfg.anonKey) return false;
@@ -647,6 +854,28 @@ function authSubscribeSupabaseSession() {
 async function authInit() {
   const recoverableLocalCache = authResolveRecoverableLocalCache();
   if (authCanUseSupabase() && recoverableLocalCache) {
+    try {
+      const client = authGetSupabaseClient();
+      authSubscribeSupabaseSession();
+      const { data, error } = await authRunWithRetry(
+        () => client.auth.getSession(),
+        {
+          attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
+          timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
+          timeoutMessage: 'Il cloud sta impiegando troppo tempo a rispondere',
+          retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
+        }
+      );
+      if (!error) {
+        const user = data?.session?.user || null;
+        if (user) {
+        authApplySupabaseUser(user);
+        authSeedAccountStateFromGuest(user.id, { markDirty: true });
+        authSetBootstrapHint('account_connected', 'Stiamo preparando il tuo profilo.');
+          return AUTH;
+        }
+      }
+    } catch (_) {}
     AUTH.status = 'guest';
     AUTH.provider = 'supabase';
     AUTH.user = null;
@@ -661,27 +890,6 @@ async function authInit() {
         ? `Abbiamo riaperto la copia locale di ${recoverableLocalCache.name}.`
         : 'Abbiamo riaperto l ultima copia locale trovata su questo dispositivo.'
     );
-    try {
-      const client = authGetSupabaseClient();
-      authSubscribeSupabaseSession();
-      authRunWithRetry(
-        () => client.auth.getSession(),
-        {
-          attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
-          timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
-          timeoutMessage: 'Il cloud sta impiegando troppo tempo a rispondere',
-          retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
-        }
-      ).then(({ data, error }) => {
-        if (error) return;
-        const user = data?.session?.user || null;
-        if (!user) return;
-        authApplySupabaseUser(user);
-        authSeedAccountStateFromGuest(user.id, { markDirty: true });
-        authSetBootstrapHint('account_connected', 'Stiamo preparando il tuo profilo.');
-        authRefreshUi();
-      }).catch(() => {});
-    } catch (_) {}
     return AUTH;
   }
   if (authCanUseSupabase()) {
@@ -746,6 +954,7 @@ async function authInit() {
 async function authEnsureRemoteProfile() {
   if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !authCanUseSupabase()) return { ok: false, skipped: true };
   try {
+    authRecordAttemptStage('profile_sync', 'pending', 'Controllo profilo base account...');
     const client = authGetSupabaseClient();
     const payload = {
       user_id: AUTH.user.id,
@@ -763,9 +972,14 @@ async function authEnsureRemoteProfile() {
         retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
       }
     );
-    if (error) return { ok: false, message: error.message || 'Non siamo riusciti a preparare il profilo' };
+    if (error) {
+      authRecordAttemptStage('profile_sync', 'error', error.message || 'Profilo base non disponibile');
+      return { ok: false, message: error.message || 'Non siamo riusciti a preparare il profilo' };
+    }
+    authRecordAttemptStage('profile_sync', 'success', 'Profilo base pronto');
     return { ok: true };
   } catch (err) {
+    authRecordAttemptStage('profile_sync', 'error', err?.message || 'Profilo base non disponibile');
     return { ok: false, message: err?.message || 'Non siamo riusciti a preparare il profilo' };
   }
 }
@@ -907,9 +1121,11 @@ async function authHydrateLocalCacheFromRemote() {
   if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !authCanUseSupabase()) {
     return { ok: false, skipped: true };
   }
+  authRecordAttemptStage('remote_state', 'pending', 'Recupero stato cloud...');
   const remote = await authFetchRemoteStateRow();
   if (!remote.ok) {
     authSetBootstrapHint('error', remote.message || 'Stiamo avendo un attimo di difficolta a recuperare il tuo profilo.');
+    authRecordAttemptStage('remote_state', 'error', remote.message || 'Stato cloud non disponibile');
     return remote;
   }
   if (!remote.row) {
@@ -920,11 +1136,13 @@ async function authHydrateLocalCacheFromRemote() {
     } else {
       authSetBootstrapHint('empty', 'Parti da un profilo nuovo.');
     }
+    authRecordAttemptStage('remote_state', 'success', authHasMeaningfulState(localState) ? 'Cloud vuoto, uso cache locale' : 'Cloud vuoto, nessun profilo remoto');
     return { ok: true, hydrated: false, source: authHasMeaningfulState(localState) ? 'local' : 'empty' };
   }
   const remoteState = authParseRemoteState(remote.row.state_json);
   if (!remoteState) {
     authSetBootstrapHint('error', 'La versione trovata non e leggibile.');
+    authRecordAttemptStage('remote_state', 'error', 'Stato cloud non leggibile');
     return { ok: false, message: 'La versione trovata non e leggibile' };
   }
   let normalizedRemoteState = remoteState;
@@ -932,6 +1150,7 @@ async function authHydrateLocalCacheFromRemote() {
     const validation = validateImportedState(remoteState, { relaxed: true });
     if (!validation.ok) {
       authSetBootstrapHint('error', 'La versione trovata non e completa.');
+      authRecordAttemptStage('remote_state', 'error', 'Stato cloud legacy non valido');
       return { ok: false, message: 'La versione trovata non e completa' };
     }
     normalizedRemoteState = validation.normalizedState || remoteState;
@@ -957,23 +1176,27 @@ async function authHydrateLocalCacheFromRemote() {
     });
     AUTH.lastSyncedAt = localMeta.lastSyncedAt || null;
     authSetBootstrapHint('local_reset', 'Ripartiamo da questa versione del profilo.');
+    authRecordAttemptStage('remote_state', 'success', 'Reset locale mantenuto');
     return { ok: true, hydrated: false, source: 'local_reset' };
   }
 
   if (!hasMeaningfulLocal && hasMeaningfulRemote) {
     authStoreRemoteStateLocally(normalizedRemoteState, remote.row.updated_at);
+    authRecordAttemptStage('remote_state', 'success', 'Stato cloud caricato');
     return { ok: true, hydrated: true, source: 'remote' };
   }
 
   if (hasMeaningfulLocal && !hasMeaningfulRemote) {
     AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
     authSetBootstrapHint('local', 'Restiamo sulla versione che hai gia qui.');
+    authRecordAttemptStage('remote_state', 'success', 'Cloud vuoto, cache locale mantenuta');
     return { ok: true, hydrated: false, source: 'local' };
   }
 
   if (hasMeaningfulLocal && hasMeaningfulRemote && (!localAt || !remoteAt || remoteAt !== localAt)) {
     if (!localAt || !remoteAt || localDirty) {
       authSetBootstrapHint('local', 'Abbiamo trovato una copia locale e una nel cloud: scegliamo insieme quella giusta.');
+      authRecordAttemptStage('remote_state', 'success', 'Conflitto rilevato tra locale e cloud');
       return {
         ok: true,
         conflict: true,
@@ -990,20 +1213,24 @@ async function authHydrateLocalCacheFromRemote() {
     }
     if (remoteAt > localAt) {
       authStoreRemoteStateLocally(normalizedRemoteState, remote.row.updated_at);
+      authRecordAttemptStage('remote_state', 'success', 'Versione cloud piu recente caricata');
       return { ok: true, hydrated: true, source: 'remote' };
     }
     AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
     authSetBootstrapHint('local', 'La cache del tuo account qui sembra la versione piu aggiornata.');
+    authRecordAttemptStage('remote_state', 'success', 'Cache locale gia aggiornata');
     return { ok: true, hydrated: false, source: 'local' };
   }
 
   if (!hasMeaningfulLocal || !localRaw || remoteAt > localAt) {
     authStoreRemoteStateLocally(normalizedRemoteState, remote.row.updated_at);
+    authRecordAttemptStage('remote_state', 'success', 'Stato cloud sincronizzato in locale');
     return { ok: true, hydrated: true, source: 'remote' };
   }
 
   AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
   authSetBootstrapHint('local', 'Il tuo profilo e gia pronto.');
+  authRecordAttemptStage('remote_state', 'success', 'Stato locale gia pronto');
   return { ok: true, hydrated: false, source: 'local' };
 }
 
@@ -1108,22 +1335,81 @@ async function signInWithEmail(email, password) {
   const cleanEmail = String(email || '').trim().toLowerCase();
   if (authCanUseSupabase()) {
     try {
+      authStartAttempt('login', cleanEmail);
+      authRecordAttemptStage('auth_gateway', 'pending', 'Verifico il gateway di accesso...');
+      const gatewayProbe = await authProbeAuthGateway();
+      if (!gatewayProbe.ok) {
+        authRecordAttemptStage('auth_gateway', 'error', gatewayProbe.message || 'Gateway auth non raggiungibile');
+        const failureHelp = authGatewayFailureHelp();
+        return {
+          ok: false,
+          message: AUTH.localRecoveryKey
+            ? `${gatewayProbe.message || 'Questo browser non riesce a raggiungere il gateway auth'}. ${failureHelp} La copia locale del profilo resta comunque disponibile su questo dispositivo.`
+            : `${gatewayProbe.message || 'Questo browser non riesce a raggiungere il gateway auth'}. ${failureHelp}`,
+        };
+      }
+      authRecordAttemptStage('auth_gateway', 'success', gatewayProbe.message || 'Gateway auth raggiunto');
+      authRecordAttemptStage('sign_in', 'pending', 'Connessione al servizio di accesso...');
       const client = authGetSupabaseClient();
-      const { data, error } = await authRunWithRetry(
-        () => client.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        }),
-        {
-          attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
-          timeoutMs: AUTH_LOGIN_TIMEOUT_MS,
-          timeoutMessage: 'L accesso sta impiegando troppo tempo',
-          retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
+      let data = null;
+      let error = null;
+      try {
+        ({ data, error } = await authWithTimeout(
+          client.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          }),
+          'L accesso sta impiegando troppo tempo',
+          AUTH_LOGIN_TIMEOUT_MS
+        ));
+      } catch (sdkErr) {
+        if (!authShouldRetryTransientError(sdkErr)) throw sdkErr;
+        if (!authIsTimeoutError(sdkErr)) {
+          authRecordAttemptStage('sign_in', 'pending', 'Rete instabile: riprovo una volta...');
+          try {
+            ({ data, error } = await authWithTimeout(
+              client.auth.signInWithPassword({
+                email: cleanEmail,
+                password,
+              }),
+              'L accesso sta impiegando troppo tempo',
+              AUTH_LOGIN_TIMEOUT_MS
+            ));
+          } catch (retryErr) {
+            if (!authIsTimeoutError(retryErr)) throw retryErr;
+            sdkErr = retryErr;
+          }
         }
-      );
-      if (error) return { ok: false, message: error.message || 'Accesso non riuscito' };
+        if (!data && !error && authIsTimeoutError(sdkErr)) {
+          authRecordAttemptStage('sign_in_fallback', 'pending', 'SDK lento: provo il login diretto al gateway auth...');
+          const fallbackResult = await authSignInViaDirectHttp(cleanEmail, password);
+          if (!fallbackResult.ok) {
+            authRecordAttemptStage('sign_in_fallback', 'error', fallbackResult.message || 'Login diretto non riuscito');
+            return {
+              ok: false,
+              message: AUTH.localRecoveryKey
+                ? `${fallbackResult.message || 'Il login cloud non risponde in tempo'}. La copia locale del profilo resta comunque disponibile su questo dispositivo.`
+                : (fallbackResult.message || 'Il login cloud non risponde in tempo'),
+            };
+          }
+          authRecordAttemptStage('sign_in_fallback', 'success', 'Gateway auth raggiunto correttamente');
+          data = {
+            user: fallbackResult.user,
+            session: fallbackResult.session || null,
+          };
+          error = null;
+        }
+      }
+      if (error) {
+        authRecordAttemptStage('sign_in', 'error', error.message || 'Credenziali non valide o login non riuscito');
+        return { ok: false, message: error.message || 'Accesso non riuscito' };
+      }
       const user = data?.user;
-      if (!user) return { ok: false, message: 'Accesso non riuscito' };
+      if (!user) {
+        authRecordAttemptStage('sign_in', 'error', 'Sessione non restituita dal provider');
+        return { ok: false, message: 'Accesso non riuscito' };
+      }
+      authRecordAttemptStage('sign_in', 'success', 'Accesso riuscito');
       authApplySupabaseUser(user);
       authSeedAccountStateFromGuest(user.id, { markDirty: true });
       authSetBootstrapHint('account_connected', 'Bentornato. Stiamo aprendo il tuo profilo.');
@@ -1137,6 +1423,7 @@ async function signInWithEmail(email, password) {
       return { ok: true, user: AUTH.user };
     } catch (err) {
       if (authShouldRetryTransientError(err)) {
+        authRecordAttemptStage('sign_in', 'error', err?.message || 'Timeout di accesso');
         return {
           ok: false,
           message: AUTH.localRecoveryKey
@@ -1144,6 +1431,7 @@ async function signInWithEmail(email, password) {
             : 'Il cloud sta rispondendo troppo lentamente anche dopo un nuovo tentativo. Riprova tra poco.',
         };
       }
+      authRecordAttemptStage('sign_in', 'error', err?.message || 'Accesso non disponibile');
       return { ok: false, message: err?.message || 'Accesso non disponibile in questo momento' };
     }
   }
@@ -1502,6 +1790,17 @@ function renderProfileAccountCard() {
     <div class="profile-account-notes">
       ${notes.map(note => `<div class="profile-account-note">${htmlEsc(note)}</div>`).join('')}
     </div>`;
+  const attemptDiagHtml = accountDiag.lastAttempt ? `
+    <div class="auth-attempt-box auth-attempt-box-inline">
+      <div class="auth-attempt-head">Diagnostica ultimo tentativo${accountDiag.lastAttempt.email ? ` · ${htmlEsc(accountDiag.lastAttempt.email)}` : ''}</div>
+      ${accountDiag.lastAttempt.lines.map(line => `
+        <div class="auth-attempt-row ${line.status}">
+          <span class="auth-attempt-stage">${htmlEsc(line.label)}</span>
+          <span class="auth-attempt-meta">${htmlEsc(line.elapsedLabel)}</span>
+          <span class="auth-attempt-msg">${htmlEsc(line.message || '')}</span>
+        </div>
+      `).join('')}
+    </div>` : '';
   const devPanel = showDevUi ? `
     <div class="profile-account-config">
       <div class="profile-account-config-title">Strumenti sviluppo</div>
@@ -1560,6 +1859,7 @@ function renderProfileAccountCard() {
         </div>
         ${factGrid}
         ${notesHtml}
+        ${attemptDiagHtml}
         <div class="profile-account-body">
           <div class="profile-account-email">${htmlEsc(AUTH.user.email)}</div>
           <div class="profile-account-actions">
@@ -1619,6 +1919,7 @@ function renderProfileAccountCard() {
         </div>
         ${factGrid}
         ${notesHtml}
+        ${attemptDiagHtml}
         <div class="profile-account-body">
           <div class="profile-account-email">${htmlEsc(emailLabel)}</div>
           <div class="profile-account-actions">
