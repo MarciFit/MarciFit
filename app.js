@@ -798,6 +798,7 @@ let _tmplFormItems = [];
 let _editingTmplId = null;
 let _tmplMealType = '';
 let _templatePortionResolver = null;
+let _templateTargetResolver = null;
 
 function closeTemplatePortionModal() {
   _templatePortionResolver = null;
@@ -816,6 +817,50 @@ function cancelTemplatePortionSelection() {
   _templatePortionResolver = null;
   closeDayModal();
   if (typeof resolver === 'function') resolver(null);
+}
+
+function selectTemplateLoadTarget(index) {
+  const resolver = _templateTargetResolver;
+  _templateTargetResolver = null;
+  closeDayModal();
+  if (typeof resolver === 'function') resolver(Number.isInteger(index) ? index : null);
+}
+
+function cancelTemplateLoadTarget() {
+  const resolver = _templateTargetResolver;
+  _templateTargetResolver = null;
+  closeDayModal();
+  if (typeof resolver === 'function') resolver(null);
+}
+
+function askTemplateLoadTarget(template, type) {
+  const targets = getTemplateLoadTargets(template, type);
+  return new Promise(resolve => {
+    _templateTargetResolver = selectedIndex => {
+      resolve(Number.isInteger(selectedIndex) ? targets[selectedIndex] || null : null);
+    };
+    showDayModal({
+      icon: '📥',
+      eyebrow: 'Template',
+      title: 'Dove vuoi inserirlo?',
+      noButtons: true,
+      modalClass: 'day-modal-detail template-target-modal',
+      body: `
+        <div class="sync-choice-lead">Scegli il pasto in cui caricare <strong>${htmlEsc(template?.name || 'questo template')}</strong>.</div>
+        <div class="template-target-stack">
+          ${targets.map((target, idx) => `
+            <button class="template-target-btn" onclick="selectTemplateLoadTarget(${idx})">
+              <span class="template-target-copy">
+                <span class="template-target-name">${htmlEsc(target.label)}</span>
+                <span class="template-target-meta">${target.isExtra ? 'Pasto extra' : 'Pasto principale'}</span>
+              </span>
+              <span class="template-target-arrow">›</span>
+            </button>
+          `).join('')}
+        </div>
+        <button class="auth-entry-btn secondary" style="width:100%;margin-top:12px" onclick="cancelTemplateLoadTarget()">Annulla</button>`,
+    });
+  });
 }
 
 function askTemplatePortionMultiplier(templateName = 'questo template') {
@@ -1149,8 +1194,15 @@ function renderTmplFormItems() {
       <div class="fir-kcal">${k} kcal</div>
       <button class="fir-del">\xd7</button>`;
     row.querySelector('.fir-grams').addEventListener('input', function() {
-      _tmplFormItems[ii].grams = Math.round(+this.value||0);
-      renderTmplFormItems();
+      const nextGrams = Math.max(0, Math.round(+this.value || 0));
+      _tmplFormItems[ii].grams = nextGrams;
+      const kcalEl = row.querySelector('.fir-kcal');
+      if (kcalEl) kcalEl.textContent = `${Math.round(it.kcal100 * nextGrams / 100)} kcal`;
+    });
+    row.querySelector('.fir-grams').addEventListener('blur', function() {
+      const nextGrams = Math.max(0, Math.round(+this.value || 0));
+      _tmplFormItems[ii].grams = nextGrams;
+      this.value = nextGrams;
     });
     row.querySelector('.fir-del').addEventListener('click', () => {
       _tmplFormItems.splice(ii, 1);
@@ -1182,21 +1234,48 @@ function saveTemplate() {
 }
 
 function deleteTemplate(id) {
-  if (!confirm('Eliminare questo template?')) return;
-  if (_editingTmplId === id) closeTemplateForm();
-  S.templates = S.templates.filter(t=>t.id!==id);
-  save(); renderPiano();
-  toast('🗑️ Template eliminato');
+  const template = S.templates.find(t => t.id === id);
+  if (!template) return;
+  const itemCount = Array.isArray(template.items) ? template.items.length : 0;
+  const mealType = typeof getTemplateMealType === 'function'
+    ? getTemplateMealType(template)
+    : (template.mealType || template.tag || 'altro');
+  const mealLabel = mealType ? `${mealType.charAt(0).toUpperCase()}${mealType.slice(1)}` : 'Template';
+  showDayModal({
+    icon: '🗑️',
+    eyebrow: 'Template',
+    title: 'Eliminare questo template?',
+    danger: true,
+    confirmText: 'Elimina template',
+    cancelText: 'Tieni template',
+    modalClass: 'day-modal-detail template-delete-modal',
+    body: `
+      <div class="template-delete-summary">
+        <div class="template-delete-name">${htmlEsc(template.name || 'Template')}</div>
+        <div class="template-delete-pill-row">
+          <span class="template-delete-pill">${htmlEsc(mealLabel)}</span>
+          <span class="template-delete-pill">${itemCount} ${itemCount === 1 ? 'alimento' : 'alimenti'}</span>
+        </div>
+      </div>
+      <div class="template-delete-note">
+        Elimini solo il template salvato dalla libreria. I pasti gia registrati nel diario non verranno toccati.
+      </div>
+    `,
+    onConfirm: () => {
+      if (_editingTmplId === id) closeTemplateForm();
+      S.templates = S.templates.filter(t => t.id !== id);
+      save();
+      renderPiano();
+      toast('🗑️ Template eliminato');
+    },
+  });
 }
 
 async function loadTemplateToLog(tmplId) {
   const t = S.templates.find(t=>t.id===tmplId); if (!t) return;
   const dateKey = S.selDate || localDate();
   const type = S.day;
-  const targets = getTemplateLoadTargets(t, type);
-  const mealNames = targets.map((target, idx) => `${idx + 1}. ${target.label}`).join('\n');
-  const choice = prompt(`Carica "${t.name}" in quale pasto?\n${mealNames}\n\nNumero (1-${targets.length}):`);
-  const target = targets[parseInt(choice, 10) - 1];
+  const target = await askTemplateLoadTarget(t, type);
   if (!target) return;
   const multiplier = await askTemplatePortionMultiplier(t.name);
   if (multiplier == null) return;
@@ -3210,11 +3289,16 @@ async function finalizeAuthEntrySuccess(successMessage, options = {}) {
   }
 
   let didSyncLocalChoice = false;
-  if (conflictResolution?.choice === 'local' && typeof authSyncStateToCloud === 'function') {
+  const shouldSyncPreferredLocal =
+    conflictResolution?.choice === 'local'
+    || hydrateResult?.source === 'local_newer';
+  if (shouldSyncPreferredLocal && typeof authSyncStateToCloud === 'function') {
     const localSyncResult = await authSyncStateToCloud(true);
     didSyncLocalChoice = !!localSyncResult?.ok;
     if (!localSyncResult?.ok && !localSyncResult?.skipped) {
       toast(`⚠️ ${localSyncResult.message || 'Aggiornamento del profilo non riuscito'}`);
+    } else if (hydrateResult?.source === 'local_newer' && localSyncResult?.ok) {
+      toast('✅ Abbiamo tenuto e riallineato la versione piu recente di questo dispositivo');
     }
   }
 
@@ -3824,6 +3908,30 @@ function calMove(delta) {
   renderWeekCal(new Date());
 }
 
+let _weekCalSwipeBound = false;
+let _weekCalTouchStartX = 0;
+let _weekCalTouchStartY = 0;
+
+function attachWeekCalendarSwipe() {
+  const el = document.getElementById('week-cal');
+  if (!el || _weekCalSwipeBound) return;
+  el.addEventListener('touchstart', evt => {
+    const touch = evt.changedTouches?.[0];
+    if (!touch) return;
+    _weekCalTouchStartX = touch.clientX;
+    _weekCalTouchStartY = touch.clientY;
+  }, { passive: true });
+  el.addEventListener('touchend', evt => {
+    const touch = evt.changedTouches?.[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - _weekCalTouchStartX;
+    const deltaY = touch.clientY - _weekCalTouchStartY;
+    if (Math.abs(deltaX) < 36 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    calMove(deltaX < 0 ? 1 : -1);
+  }, { passive: true });
+  _weekCalSwipeBound = true;
+}
+
 function calGoToday() {
   S.calOffset = 0;
   S.selDate = localDate();
@@ -4100,9 +4208,18 @@ async function initAll() {
       else openWelcomeOnboarding();
     }
     if (typeof authSetBootstrapReady === 'function') authSetBootstrapReady(true);
-    if (authConflictResolution?.choice === 'local' && authConflictData && typeof authSyncStateToCloud === 'function') {
+    const shouldSyncPreferredLocal =
+      authConflictResolution?.choice === 'local'
+      || authConflictData?.source === 'local_newer';
+    if (shouldSyncPreferredLocal && typeof authSyncStateToCloud === 'function') {
       const syncResult = await authSyncStateToCloud(true);
-      if (syncResult?.ok) toast('✅ Abbiamo tenuto questa versione');
+      if (syncResult?.ok) {
+        toast(
+          authConflictResolution?.choice === 'local'
+            ? '✅ Abbiamo tenuto questa versione'
+            : '✅ Abbiamo tenuto e riallineato la versione locale piu recente'
+        );
+      }
       else if (!syncResult?.skipped) toast(`⚠️ ${syncResult.message || 'Aggiornamento del profilo non riuscito'}`);
     } else if (authConflictResolution?.choice === 'remote') {
       toast('✅ Abbiamo caricato la versione cloud');

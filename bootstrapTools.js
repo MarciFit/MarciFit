@@ -76,6 +76,23 @@ function ensureBootstrapDefaults(state) {
   if (!state.doneByDate || typeof state.doneByDate !== 'object' || Array.isArray(state.doneByDate)) state.doneByDate = {};
   if (!['7d', '30d', '8w', 'all'].includes(state.statsRange)) state.statsRange = '30d';
   if (!state.barcodeCache || typeof state.barcodeCache !== 'object' || Array.isArray(state.barcodeCache)) state.barcodeCache = {};
+  else {
+    Object.keys(state.barcodeCache).forEach(code => {
+      const entry = state.barcodeCache[code];
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        delete state.barcodeCache[code];
+        return;
+      }
+      state.barcodeCache[code] = {
+        ...entry,
+        barcode: String(entry.barcode || code || '').replace(/\D/g, ''),
+        source: entry.source || 'cache',
+        completeness: Number(entry.completeness || entry.completeness_score || 0) || 0,
+        updatedAt: entry.updatedAt || entry.updated_at || entry.cachedAt || null,
+        cachedAt: entry.cachedAt || entry.updatedAt || entry.updated_at || new Date().toISOString(),
+      };
+    });
+  }
   if (!state.foodCache || typeof state.foodCache !== 'object' || Array.isArray(state.foodCache)) state.foodCache = {};
   if (!state.foodSearchLearn || typeof state.foodSearchLearn !== 'object' || Array.isArray(state.foodSearchLearn)) state.foodSearchLearn = {};
   if (!state.foodLog || typeof state.foodLog !== 'object' || Array.isArray(state.foodLog)) state.foodLog = {};

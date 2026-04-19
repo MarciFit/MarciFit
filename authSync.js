@@ -1145,6 +1145,124 @@ async function authFetchRemoteStateRow() {
   }
 }
 
+function authNormalizeSharedBarcodePayload(item = {}, { includeAudit = false } = {}) {
+  const barcode = String(item?.barcode || '').replace(/\D/g, '');
+  const name = String(item?.name || '').trim().slice(0, 120);
+  const brand = String(item?.brand || '').trim().slice(0, 60);
+  const quantity = String(item?.quantity || '').trim().slice(0, 40);
+  const kcal100 = Math.round(Number(item?.kcal100 || 0));
+  const p100 = Math.round(Number(item?.p100 || 0) * 10) / 10;
+  const c100 = Math.round(Number(item?.c100 || 0) * 10) / 10;
+  const f100 = Math.round(Number(item?.f100 || 0) * 10) / 10;
+  if (!barcode || !name || !Number.isFinite(kcal100) || kcal100 <= 0) return null;
+  const hasFullMacros = [p100, c100, f100].every(val => Number.isFinite(val) && val >= 0)
+    && (p100 > 0 || c100 > 0 || f100 > 0);
+  const completenessScore = (name ? 1 : 0) + (kcal100 > 0 ? 2 : 0) + (hasFullMacros ? 2 : 0) + ((brand || quantity) ? 1 : 0);
+  const payload = {
+    barcode,
+    name,
+    brand,
+    quantity,
+    kcal100,
+    p100: Number.isFinite(p100) ? p100 : 0,
+    c100: Number.isFinite(c100) ? c100 : 0,
+    f100: Number.isFinite(f100) ? f100 : 0,
+    source: item?.source === 'off' ? 'off' : 'user_manual',
+    completeness_score: Number(item?.completeness_score || item?.completeness || completenessScore) || completenessScore,
+    updated_at: item?.updated_at || item?.updatedAt || new Date().toISOString(),
+  };
+  if (includeAudit && AUTH.user?.id) payload.created_by = AUTH.user.id;
+  return payload;
+}
+
+async function authFetchSharedBarcode(barcode) {
+  const normalizedBarcode = String(barcode || '').replace(/\D/g, '');
+  if (!normalizedBarcode) return { ok: false, skipped: true, reason: 'invalid_barcode' };
+  if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !authCanUseSupabase()) {
+    return { ok: false, skipped: true };
+  }
+  try {
+    if (authCanUseLocalProxy() && authHasProxySession()) {
+      try {
+        const proxyResult = await authWithTimeout(
+          authProxyJson(`/__supabase_proxy/barcode_catalog?barcode=${encodeURIComponent(normalizedBarcode)}`, {
+            token: authGetProxyAccessToken(),
+          }),
+          'Il catalogo barcode condiviso sta impiegando troppo tempo a rispondere',
+          AUTH_ASYNC_TIMEOUT_MS
+        );
+        if (proxyResult.ok) {
+          return { ok: true, row: authNormalizeSharedBarcodePayload(proxyResult.payload || {}) };
+        }
+      } catch (_) {
+        // Fallback diretto Supabase qui sotto.
+      }
+    }
+    const client = authGetSupabaseClient();
+    const { data, error } = await authRunWithRetry(
+      () => client
+        .from('barcode_catalog')
+        .select('barcode, name, brand, quantity, kcal100, p100, c100, f100, source, completeness_score, updated_at, created_by')
+        .eq('barcode', normalizedBarcode)
+        .maybeSingle(),
+      {
+        attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
+        timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
+        timeoutMessage: 'Il catalogo barcode condiviso sta impiegando troppo tempo a rispondere',
+        retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
+      }
+    );
+    if (error) return { ok: false, message: error.message || 'Catalogo barcode non disponibile' };
+    return { ok: true, row: authNormalizeSharedBarcodePayload(data || {}) };
+  } catch (err) {
+    return { ok: false, message: err?.message || 'Catalogo barcode non disponibile' };
+  }
+}
+
+async function authUpsertSharedBarcode(item) {
+  const payload = authNormalizeSharedBarcodePayload(item, { includeAudit: true });
+  if (!payload) return { ok: false, skipped: true, reason: 'invalid_payload' };
+  if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !authCanUseSupabase()) {
+    return { ok: false, skipped: true };
+  }
+  try {
+    if (authCanUseLocalProxy() && authHasProxySession()) {
+      try {
+        const proxyResult = await authWithTimeout(
+          authProxyJson('/__supabase_proxy/barcode_catalog', {
+            method: 'POST',
+            token: authGetProxyAccessToken(),
+            body: payload,
+          }),
+          'Il catalogo barcode condiviso sta impiegando troppo tempo ad aggiornarsi',
+          AUTH_ASYNC_TIMEOUT_MS
+        );
+        if (proxyResult.ok) return { ok: true, row: authNormalizeSharedBarcodePayload(proxyResult.payload || payload) };
+      } catch (_) {
+        // Fallback diretto Supabase qui sotto.
+      }
+    }
+    const client = authGetSupabaseClient();
+    const { data, error } = await authRunWithRetry(
+      () => client
+        .from('barcode_catalog')
+        .upsert(payload, { onConflict: 'barcode' })
+        .select('barcode, name, brand, quantity, kcal100, p100, c100, f100, source, completeness_score, updated_at, created_by')
+        .maybeSingle(),
+      {
+        attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
+        timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
+        timeoutMessage: 'Il catalogo barcode condiviso sta impiegando troppo tempo ad aggiornarsi',
+        retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
+      }
+    );
+    if (error) return { ok: false, message: error.message || 'Aggiornamento catalogo barcode non riuscito' };
+    return { ok: true, row: authNormalizeSharedBarcodePayload(data || payload) };
+  } catch (err) {
+    return { ok: false, message: err?.message || 'Aggiornamento catalogo barcode non riuscito' };
+  }
+}
+
 function authParseRemoteState(rawState) {
   if (!rawState) return null;
   if (typeof rawState === 'string') {
@@ -1254,6 +1372,102 @@ function authMarkLocalStatePreferred(remoteUpdatedAt) {
   });
 }
 
+function authStableStateStringify(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map(authStableStateStringify).join(',')}]`;
+  }
+  const keys = Object.keys(value).sort();
+  return `{${keys.map(key => `${JSON.stringify(key)}:${authStableStateStringify(value[key])}`).join(',')}}`;
+}
+
+function authStatesAreEquivalent(localState, remoteState) {
+  if (!localState || !remoteState) return false;
+  try {
+    return authStableStateStringify(localState) === authStableStateStringify(remoteState);
+  } catch (_) {
+    return false;
+  }
+}
+
+function authEstimateStateRichness(state) {
+  if (!state || typeof state !== 'object') return 0;
+  let score = 0;
+  score += Array.isArray(state.weightLog) ? state.weightLog.length * 4 : 0;
+  score += Array.isArray(state.measurements) ? state.measurements.length * 4 : 0;
+  score += Array.isArray(state.customFoods) ? state.customFoods.length * 2 : 0;
+  score += Array.isArray(state.favoriteFoods) ? state.favoriteFoods.length * 2 : 0;
+  score += state.foodLog && typeof state.foodLog === 'object' ? Object.keys(state.foodLog).length * 5 : 0;
+  score += state.doneByDate && typeof state.doneByDate === 'object' ? Object.keys(state.doneByDate).length * 3 : 0;
+  score += state.notes && typeof state.notes === 'object' ? Object.keys(state.notes).length * 2 : 0;
+  score += state.water && typeof state.water === 'object' ? Object.keys(state.water).length * 2 : 0;
+  score += state.cheatMealsByDate && typeof state.cheatMealsByDate === 'object' ? Object.keys(state.cheatMealsByDate).length * 2 : 0;
+  score += state.onboardingCompleted ? 3 : 0;
+  score += String(state.anagrafica?.nome || '').trim() ? 2 : 0;
+  score += Number.isFinite(Number(state.anagrafica?.peso)) && Number(state.anagrafica?.peso) > 0 ? 2 : 0;
+  return score;
+}
+
+function authResolvePreferredState({
+  localState,
+  remoteState,
+  localUpdatedAt,
+  remoteUpdatedAt,
+  localDirty = false,
+}) {
+  const hasMeaningfulLocal = authHasMeaningfulState(localState);
+  const hasMeaningfulRemote = authHasMeaningfulState(remoteState);
+  const localAt = Date.parse(localUpdatedAt || 0) || 0;
+  const remoteAt = Date.parse(remoteUpdatedAt || 0) || 0;
+  const equivalent = authStatesAreEquivalent(localState, remoteState);
+  const localRichness = authEstimateStateRichness(localState);
+  const remoteRichness = authEstimateStateRichness(remoteState);
+
+  if (equivalent) {
+    return {
+      choice: remoteAt && remoteAt >= localAt ? 'remote' : 'local',
+      reason: 'equivalent_state',
+      equivalent,
+      localRichness,
+      remoteRichness,
+    };
+  }
+  if (!hasMeaningfulLocal && hasMeaningfulRemote) {
+    return { choice: 'remote', reason: 'remote_only', equivalent, localRichness, remoteRichness };
+  }
+  if (hasMeaningfulLocal && !hasMeaningfulRemote) {
+    return { choice: 'local', reason: 'local_only', equivalent, localRichness, remoteRichness };
+  }
+  if (localAt && remoteAt && localAt !== remoteAt) {
+    return {
+      choice: remoteAt > localAt ? 'remote' : 'local',
+      reason: remoteAt > localAt ? 'remote_newer' : 'local_newer',
+      equivalent,
+      localRichness,
+      remoteRichness,
+    };
+  }
+  if (localRichness !== remoteRichness) {
+    return {
+      choice: localRichness > remoteRichness ? 'local' : 'remote',
+      reason: localRichness > remoteRichness ? 'local_richer' : 'remote_richer',
+      equivalent,
+      localRichness,
+      remoteRichness,
+    };
+  }
+  if (remoteAt && !localAt) {
+    return { choice: 'remote', reason: 'remote_timestamp_only', equivalent, localRichness, remoteRichness };
+  }
+  if (localAt && !remoteAt) {
+    return { choice: 'local', reason: 'local_timestamp_only', equivalent, localRichness, remoteRichness };
+  }
+  if (localDirty) {
+    return { choice: 'local', reason: 'local_dirty', equivalent, localRichness, remoteRichness };
+  }
+  return { choice: 'remote', reason: 'default_remote', equivalent, localRichness, remoteRichness };
+}
+
 async function authHydrateLocalCacheFromRemote() {
   if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !authCanUseSupabase()) {
     return { ok: false, skipped: true };
@@ -1330,33 +1544,33 @@ async function authHydrateLocalCacheFromRemote() {
     return { ok: true, hydrated: false, source: 'local' };
   }
 
-  if (hasMeaningfulLocal && hasMeaningfulRemote && (!localAt || !remoteAt || remoteAt !== localAt)) {
-    if (!localAt || !remoteAt || localDirty) {
-      authSetBootstrapHint('local', 'Abbiamo trovato una copia locale e una nel cloud: scegliamo insieme quella giusta.');
-      authRecordAttemptStage('remote_state', 'success', 'Conflitto rilevato tra locale e cloud');
-      return {
-        ok: true,
-        conflict: true,
-        reason: !localAt || !remoteAt
-          ? 'timestamp_missing'
-          : remoteAt > localAt
-            ? 'remote_newer_local_dirty'
-            : 'local_newer_remote_present',
-        localState,
-        remoteState: normalizedRemoteState,
-        localUpdatedAt: localMeta.updatedAt || null,
-        remoteUpdatedAt: remote.row.updated_at || null,
-      };
-    }
-    if (remoteAt > localAt) {
+  if (hasMeaningfulLocal && hasMeaningfulRemote) {
+    const resolution = authResolvePreferredState({
+      localState,
+      remoteState: normalizedRemoteState,
+      localUpdatedAt: localMeta.updatedAt || localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null,
+      remoteUpdatedAt: remote.row.updated_at || null,
+      localDirty,
+    });
+    if (resolution.choice === 'remote') {
+      if (!resolution.equivalent) {
+        authCreateStateBackup('auto_remote_replace', localState, { updatedAt: localMeta.updatedAt || null });
+      }
       authStoreRemoteStateLocally(normalizedRemoteState, remote.row.updated_at);
-      authRecordAttemptStage('remote_state', 'success', 'Versione cloud piu recente caricata');
+      authRecordAttemptStage('remote_state', 'success', resolution.reason === 'equivalent_state' ? 'Cloud riallineato senza differenze reali' : 'Versione cloud selezionata automaticamente');
       return { ok: true, hydrated: true, source: 'remote' };
     }
+    if (!resolution.equivalent && (localDirty || resolution.reason === 'local_newer' || resolution.reason === 'local_richer' || resolution.reason === 'local_timestamp_only')) {
+      authMarkLocalStatePreferred(remote.row.updated_at);
+    }
     AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
-    authSetBootstrapHint('local', 'La cache del tuo account qui sembra la versione piu aggiornata.');
-    authRecordAttemptStage('remote_state', 'success', 'Cache locale gia aggiornata');
-    return { ok: true, hydrated: false, source: 'local' };
+    authSetBootstrapHint('local', 'Abbiamo tenuto in automatico la versione locale piu aggiornata.');
+    authRecordAttemptStage('remote_state', 'success', 'Versione locale selezionata automaticamente');
+    return {
+      ok: true,
+      hydrated: false,
+      source: resolution.reason === 'equivalent_state' ? 'local' : 'local_newer',
+    };
   }
 
   if (!hasMeaningfulLocal || !localRaw || remoteAt > localAt) {
@@ -1718,25 +1932,23 @@ async function authSyncStateToCloud(force = false) {
     const hasMeaningfulLocal = authHasMeaningfulState(parsed);
     const hasMeaningfulRemote = authHasMeaningfulState(remoteState);
 
-    if (!force && hasMeaningfulRemote && (!hasMeaningfulLocal || remoteAt > localAt)) {
-      AUTH.isSyncing = false;
-      AUTH.lastSyncedAt = remote?.row?.updated_at || AUTH.lastSyncedAt;
-      authWriteStateMeta({
-        ...meta,
-        remoteUpdatedAt: remote?.row?.updated_at || meta.remoteUpdatedAt || null,
-        lastSyncedAt: remote?.row?.updated_at || meta.lastSyncedAt || null,
-        dirty: hasMeaningfulLocal ? meta.dirty : false,
-      });
-      authRefreshUi();
-      return {
-        ok: false,
-        conflict: true,
-        reason: !hasMeaningfulLocal ? 'local_empty_remote_present' : 'remote_newer',
+    if (!force && hasMeaningfulRemote) {
+      const resolution = authResolvePreferredState({
         localState: parsed,
         remoteState,
-        localUpdatedAt: meta.updatedAt || null,
+        localUpdatedAt: meta.updatedAt || meta.lastSyncedAt || meta.remoteUpdatedAt || null,
         remoteUpdatedAt: remote?.row?.updated_at || null,
-      };
+        localDirty: !!meta.dirty || !!meta.resetPending,
+      });
+      if (resolution.choice === 'remote') {
+        if (hasMeaningfulLocal && !resolution.equivalent) {
+          authCreateStateBackup('auto_remote_replace', parsed, { updatedAt: meta.updatedAt || null });
+        }
+        authStoreRemoteStateLocally(remoteState, remote?.row?.updated_at || null);
+        AUTH.isSyncing = false;
+        authRefreshUi();
+        return { ok: true, hydrated: true, source: 'remote' };
+      }
     }
 
     await authEnsureRemoteProfile();

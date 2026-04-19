@@ -77,10 +77,11 @@ function extraMealCardHTML(key, dateKey) {
   </div>` : '';
 
   const addBtn = `<button class="mc-add-btn" onclick="toggleLogSearch('${domKey}');event.stopPropagation()" title="Aggiungi alimento"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
+  const extraMealType = getMealTypeFromName(def.name);
   const matchingTmpls = (S.templates || []).filter(t => (
     typeof templateMatchesMealType === 'function'
-      ? templateMatchesMealType(t, key)
-      : String(t?.mealType || t?.tag || '').toLowerCase().includes(key)
+      ? templateMatchesMealType(t, extraMealType || key)
+      : String(t?.mealType || t?.tag || '').toLowerCase().includes(extraMealType || key)
   ));
   const tmplPickerHTML = matchingTmpls.length ? `
     <div class="mc-tmpl-picker">
@@ -428,7 +429,6 @@ function mealCardHTML(type, i, mode, isCurrent=false) {
             ${mode === 'today' ? `<div class="mc-head-side">${addBtn}</div>` : `<span class="mc-time-wrap">${currentBadge}<span class="mc-time">${clockSVG}${base.time}</span></span>`}
           </div>
           ${mode === 'today' ? `<div class="mc-badge-row">${targetBadge}</div>` : targetBadge}
-          ${mode === 'today' ? `<div class="mc-ingr mc-ingr-plan clamp">${mealHint}</div>` : ''}
           ${mode !== 'today' ? `<div class="${ingrCls}">${m.ingr}</div>` : ''}
         </div>
         ${editBtn}
@@ -1772,7 +1772,7 @@ function renderDashboardAlertSummary(type, dateKey) {
   const model = splitTodayAlerts(type, dateKey);
   const count = model.orderedAlerts.length;
   if (!count) { el.innerHTML = ''; return; }
-  const label = count === 1 ? '1 punto utile' : `${count} punti utili`;
+  const label = count === 1 ? '1 avviso da leggere' : `${count} avvisi da leggere`;
   el.innerHTML = `
     <button class="today-alerts-summary-btn" onclick="document.querySelector('.today-support-panel')?.scrollIntoView({behavior:'smooth',block:'start'})">
       <span class="today-alerts-summary-icon" aria-hidden="true">!</span>
@@ -2054,9 +2054,12 @@ function renderWeekCal(now) {
     const cheatCount = dayModels.filter(day => day.cheat).length;
     const fullCount = dayModels.filter(day => day.isFull).length;
     const chips = [
-      fullCount ? `<span class="week-meta-chip progress"><strong>${fullCount}</strong> completi</span>` : '',
-      overrideCount ? `<span class="week-meta-chip override"><strong>${overrideCount}</strong> modifiche <span class="week-meta-dot" aria-hidden="true"></span></span>` : '',
-      cheatCount ? `<span class="week-meta-chip cheat"><strong>${cheatCount}</strong> sgarro <span class="week-meta-dot" aria-hidden="true"></span></span>` : '',
+      dayModels.filter(day => day.visualOn).length
+        ? `<span class="week-meta-chip workout"><strong>${dayModels.filter(day => day.visualOn).length}</strong> ${dayModels.filter(day => day.visualOn).length === 1 ? 'allenamento' : 'allenamenti'}</span>`
+        : '',
+      cheatCount
+        ? `<span class="week-meta-chip cheat"><strong>${cheatCount}</strong> ${cheatCount === 1 ? 'sgarro' : 'sgarri'} <span class="week-meta-dot" aria-hidden="true"></span></span>`
+        : '',
     ].filter(Boolean);
     weekMetaEl.innerHTML = chips.join('');
   }
@@ -2084,6 +2087,7 @@ function renderWeekCal(now) {
       </div>
     </div>`;
   }).join('');
+  if (typeof attachWeekCalendarSwipe === 'function') attachWeekCalendarSwipe();
 }
 function renderMacroStrip(type, meals, tgt) {
   const dateKey = S.selDate || localDate();
@@ -2143,7 +2147,7 @@ function renderMacroStrip(type, meals, tgt) {
   const kRc  = kRem < 0 ? 'err' : kRem < effectiveTargetK * 0.15 ? 'warn' : 'ok';
   const kRt  = kRem <= 0
     ? (eK > effectiveTargetK ? `+${Math.round(eK - effectiveTargetK)} kcal oltre` : 'In linea con il target')
-    : `${Math.abs(Math.round(kRem))} kcal da chiudere`;
+    : `${Math.abs(Math.round(kRem))} kcal mancanti`;
   const basePct = effectiveTargetK > 0 ? Math.min(baseTargetK / effectiveTargetK, 1) * 100 : 0;
   const extraPct = effectiveTargetK > 0 ? Math.min(cheatExtraK / effectiveTargetK, 1) * 100 : 0;
   const eatenPct = effectiveTargetK > 0 ? Math.min(eK / effectiveTargetK, 1) * 100 : 0;
@@ -2176,7 +2180,7 @@ function renderMacroStrip(type, meals, tgt) {
     const diff = Math.abs(Math.round(rem));
     const rt  = rem <= 0
       ? (m.eaten > m.tgt ? `+${Math.round(m.eaten - m.tgt)}g oltre` : 'Target centrato')
-      : `${diff}g da chiudere`;
+      : `${diff}g mancanti`;
     return `<div class="ms-macro-card ${m.cls}" onclick="openMacroDetail('${m.cls}')" title="Vedi dettaglio ${m.lbl.toLowerCase()}">
       <div class="ms-macro-top">
         <div class="ms-macro-icon">${m.icon}</div>
@@ -2736,6 +2740,10 @@ function renderPiano() {
     const visibleNames = itemNames.slice(0, 2);
     const extraCount = Math.max(0, itemNames.length - visibleNames.length);
     const summary = visibleNames.join(' · ');
+    const detailLines = (t.items || []).map(item => {
+      const grams = Number(item.grams || 0) || 0;
+      return `<div class="tmpl-detail-line"><span class="tmpl-detail-name">${htmlEsc(item.name || 'Ingrediente')}</span><span class="tmpl-detail-grams">${grams} g</span></div>`;
+    }).join('');
     return `<div class="tmpl-card tmpl-card-compact">
       <div class="tmpl-card-compact-main">
         <div class="tmpl-card-topline">
@@ -2753,6 +2761,8 @@ function renderPiano() {
           <span>G ${macros.f.toFixed(0)}g</span>
         </div>
         ${summary ? `<div class="tmpl-card-summary">${htmlEsc(summary)}${extraCount ? ` · +${extraCount}` : ''}</div>` : ''}
+        ${detailLines ? `<button class="tmpl-detail-toggle" onclick="toggleTemplateCardDetails('${t.id}', ${extraCount > 0 ? 'true' : 'false'})" aria-expanded="false" id="tmpl-detail-toggle-${t.id}">${extraCount > 0 ? 'Mostra tutti' : 'Dettagli'}</button>` : ''}
+        ${detailLines ? `<div class="tmpl-detail-list" id="tmpl-detail-${t.id}" style="display:none">${detailLines}</div>` : ''}
       </div>
       <div class="tmpl-card-actions tmpl-card-actions-compact">
         <button class="tmpl-btn-load" onclick="loadTemplateToLog('${t.id}')">Usa</button>
@@ -2774,9 +2784,18 @@ function renderPiano() {
         <div class="tmpl-rail-title">Template per ${activeFilterLabel}</div>
         <span class="piano-template-pill">${visibleCountLabel}</span>
       </div>
-      <div class="tmpl-rail-copy">Scorri solo se ce ne sono piu di tre.</div>
       <div class="tmpl-vertical-rail">${filteredTemplates.map(renderTemplateCard).join('')}</div>
     </div>`;
+}
+
+function toggleTemplateCardDetails(id, hasHiddenItems = false) {
+  const body = document.getElementById(`tmpl-detail-${id}`);
+  const btn = document.getElementById(`tmpl-detail-toggle-${id}`);
+  if (!body || !btn) return;
+  const opening = body.style.display === 'none';
+  body.style.display = opening ? 'grid' : 'none';
+  btn.textContent = opening ? 'Nascondi dettagli' : (hasHiddenItems ? 'Mostra tutti' : 'Dettagli');
+  btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
 }
 
 function mealPlannerHelperHTML(type, plannerState) {
@@ -3242,32 +3261,6 @@ function getStatsScoreLabel(score) {
   return 'Instabile';
 }
 
-function getStatsPatterns(data) {
-  const patterns = [];
-  const prevAdh = data.previous?.adherence?.adherenceRate ?? null;
-  if (prevAdh != null) {
-    const diff = data.adherence.adherenceRate - prevAdh;
-    if (Math.abs(diff) >= 10) {
-      patterns.push(diff > 0
-        ? `Le ultime ${data.bounds.days} giornate sono piu solide del periodo precedente: aderenza +${diff} punti.`
-        : `L aderenza e scesa di ${Math.abs(diff)} punti rispetto al periodo precedente: serve riportare ritmo prima di leggere troppo il trend fisico.`);
-    }
-  }
-  if (data.adherence.weekendAdherenceRate && data.adherence.adherenceRate - data.adherence.weekendAdherenceRate >= 15) {
-    patterns.push('La costanza cala soprattutto nel weekend: e il punto piu chiaro su cui intervenire adesso.');
-  }
-  if (data.adherence.hydrationRate <= 40 && data.adherence.activeDays >= 4) {
-    patterns.push('L acqua e il comportamento meno stabile del periodo: la base alimentare regge meglio dell idratazione.');
-  }
-  if (data.weight.count <= 1 && data.adherence.adherenceRate >= 60) {
-    patterns.push('Stai registrando il comportamento molto piu del peso: una pesata in piu a settimana renderebbe la dashboard piu leggibile.');
-  }
-  if (!patterns.length) {
-    patterns.push('Il quadro e abbastanza lineare: continua a costruire dati su peso e misure per far emergere pattern piu specifici.');
-  }
-  return patterns.slice(0, 4);
-}
-
 function getWeightInsight(weight, adherenceRate) {
   if (!weight.count) return 'Mancano pesate nel periodo selezionato, quindi la lettura del trend e ancora da costruire.';
   if (weight.count === 1) return 'C e una sola pesata nel periodo: utile come riferimento, ma non basta ancora per leggere un trend affidabile.';
@@ -3326,6 +3319,321 @@ function getStatsHero(data) {
   };
 }
 
+function getStatsDailyLogTotals(dateKey) {
+  const dayLog = S.foodLog?.[dateKey] || {};
+  return Object.values(dayLog).reduce((acc, items) => {
+    if (!Array.isArray(items)) return acc;
+    items.forEach(item => {
+      const grams = Number(item?.grams || 0) / 100;
+      acc.k += Math.round((Number(item?.kcal100 || 0) || 0) * grams);
+      acc.p += (Number(item?.p100 || 0) || 0) * grams;
+      acc.c += (Number(item?.c100 || 0) || 0) * grams;
+      acc.f += (Number(item?.f100 || 0) || 0) * grams;
+    });
+    return acc;
+  }, { k: 0, p: 0, c: 0, f: 0 });
+}
+
+function getStatsMacroSummary(bounds) {
+  const days = [];
+  const cursor = new Date(bounds.start);
+  while (cursor <= bounds.end) {
+    const key = localDate(cursor);
+    const type = typeof resolveDayTypeForDate === 'function'
+      ? resolveDayTypeForDate(key)
+      : getTrackedDayType(key, getScheduledDayType(key));
+    const totals = getStatsDailyLogTotals(key);
+    const targetK = typeof getEffectiveKcalTarget === 'function'
+      ? getEffectiveKcalTarget(key, type)
+      : (S.macro?.[type]?.k || 0);
+    const hasLog = totals.k > 0;
+    const deltaK = hasLog && targetK ? Math.round(totals.k - targetK) : null;
+    const isAligned = deltaK != null && Math.abs(deltaK) <= Math.max(180, Math.round(targetK * 0.12));
+    days.push({
+      key,
+      type,
+      targetK,
+      totals,
+      deltaK,
+      hasLog,
+      isAligned,
+      info: S.doneByDate?.[key] || null,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  const loggedDays = days.filter(day => day.hasLog);
+  const onLogged = loggedDays.filter(day => day.type === 'on');
+  const offLogged = loggedDays.filter(day => day.type === 'off');
+  const avg = list => list.length
+    ? Math.round(list.reduce((sum, day) => sum + day.totals.k, 0) / list.length)
+    : null;
+  return {
+    days,
+    loggedDays: loggedDays.length,
+    kcalAlignedDays: loggedDays.filter(day => day.isAligned).length,
+    avgLoggedKcal: avg(loggedDays),
+    avgOnKcal: avg(onLogged),
+    avgOffKcal: avg(offLogged),
+    onLoggedDays: onLogged.length,
+    offLoggedDays: offLogged.length,
+  };
+}
+
+function getStatsDataCoverage(range = (S.statsRange || '30d'), resolvedData = null) {
+  const data = resolvedData?.bounds ? resolvedData : getStatsRangeData(range);
+  const measurementSnapshots = Object.values(data.measurements?.deltas || {});
+  const readableMeasurementDeltas = measurementSnapshots.filter(snapshot => snapshot?.delta != null).length;
+  const weightReliable = data.weight.count >= 2;
+  const weightStrong = data.weight.count >= 3;
+  const measuresReadable = data.measurements.count >= 2 && readableMeasurementDeltas >= 1;
+  const behaviorReadable =
+    data.adherence.activeDays >= Math.max(4, Math.round(data.bounds.days * 0.35))
+    || data.macro.loggedDays >= Math.max(3, Math.round(data.bounds.days * 0.25));
+  const recoveryReadable =
+    (data.adherence.onDays + data.adherence.offDays) >= Math.max(6, Math.round(data.bounds.days * 0.45))
+    && (data.adherence.activeDays >= Math.max(4, Math.round(data.bounds.days * 0.25)) || data.macro.loggedDays >= 3);
+  const physicalReadable = weightReliable && measuresReadable;
+  const quality = physicalReadable
+    ? (weightStrong && readableMeasurementDeltas >= 2 ? 'forte' : 'utile')
+    : (behaviorReadable || recoveryReadable ? 'utile' : 'iniziale');
+  return {
+    weightReliable,
+    weightStrong,
+    measuresReadable,
+    readableMeasurementDeltas,
+    physicalReadable,
+    behaviorReadable,
+    recoveryReadable,
+    quality,
+  };
+}
+
+function getStatsPrimaryModule(range = (S.statsRange || '30d'), resolvedData = null) {
+  const data = resolvedData?.bounds ? resolvedData : getStatsRangeData(range);
+  const coverage = data.coverage || getStatsDataCoverage(range, data);
+  if (coverage.physicalReadable) return 'physical';
+  if (coverage.recoveryReadable && coverage.behaviorReadable) return 'recovery';
+  if (coverage.behaviorReadable) return 'behavior';
+  if (coverage.recoveryReadable) return 'recovery';
+  return 'behavior';
+}
+
+function getStatsNextBestAction(range = (S.statsRange || '30d'), resolvedData = null) {
+  const data = resolvedData?.bounds ? resolvedData : getStatsRangeData(range);
+  const coverage = data.coverage || getStatsDataCoverage(range, data);
+  const weekendGap = data.adherence.adherenceRate - data.adherence.weekendAdherenceRate;
+  const alignmentRate = data.macro.loggedDays
+    ? Math.round(data.macro.kcalAlignedDays / Math.max(1, data.macro.loggedDays) * 100)
+    : 0;
+  if (!coverage.weightReliable) {
+    return {
+      title: 'Metti dentro 2-3 pesate',
+      body: 'Con un minimo di continuita il fisico smette di essere rumoroso e la lettura diventa molto piu concreta.',
+      ctaLabel: 'Aggiungi peso',
+      onClick: `openStatsQuickAction('stats-actions-weight-form-shell','w-in')`,
+      icon: '⚖️',
+    };
+  }
+  if (!coverage.measuresReadable) {
+    return {
+      title: 'Completa una seconda rilevazione misure',
+      body: 'Basta poco per capire se il peso si sta muovendo insieme alla composizione oppure no.',
+      ctaLabel: 'Nuova rilevazione',
+      onClick: 'openMeasurementEntry()',
+      icon: '📏',
+    };
+  }
+  if (data.adherence.hydrationRate <= 45 && data.adherence.activeDays >= 4) {
+    return {
+      title: 'Rendi piu stabile l acqua',
+      body: 'Tra i segnali del periodo e il comportamento che cede per primo: sistemarlo pulisce tutto il resto.',
+      ctaLabel: 'Torna a oggi',
+      onClick: `goView('today')`,
+      icon: '💧',
+    };
+  }
+  if (weekendGap >= 15 && data.adherence.weekendAdherenceRate > 0) {
+    return {
+      title: 'Proteggi meglio il weekend',
+      body: 'Il ritmo si rompe soprattutto li: basta ridurre lo scarto per dare piu stabilita a tutto il periodo.',
+      ctaLabel: 'Torna a oggi',
+      onClick: `goView('today')`,
+      icon: '📅',
+    };
+  }
+  if (alignmentRate && alignmentRate < 45) {
+    return {
+      title: 'Allinea meglio le kcal ai giorni attivi',
+      body: 'Il comportamento c e, ma il ritmo calorico e ancora poco coerente tra giornate diverse.',
+      ctaLabel: 'Torna a oggi',
+      onClick: `goView('today')`,
+      icon: '🔥',
+    };
+  }
+  return {
+    title: 'Rivedi il quadro e poi resta regolare',
+    body: 'Hai gia abbastanza dati: adesso il vantaggio arriva dal tenere il ritmo, non dall aggiungere complessita.',
+    ctaLabel: 'Apri profilo',
+    onClick: `goView('profilo')`,
+    icon: '🧭',
+  };
+}
+
+function getStatsHeroAction(range = (S.statsRange || '30d'), primaryModule = null, resolvedData = null) {
+  const data = resolvedData?.bounds ? resolvedData : getStatsRangeData(range);
+  const moduleKey = primaryModule || data.primaryModule || getStatsPrimaryModule(range, data);
+  const nextAction = data.nextAction || getStatsNextBestAction(range, data);
+  const moduleLabel = moduleKey === 'physical'
+    ? 'peso + misure'
+    : moduleKey === 'recovery'
+      ? 'allenamento + recovery'
+      : 'aderenza + routine';
+  return {
+    label: `Focus attivo: ${moduleLabel}`,
+    body: `In questo periodo il segnale piu leggibile arriva da ${moduleLabel}. ${nextAction.body}`,
+  };
+}
+
+function getStatsBehaviorSummary(range = (S.statsRange || '30d'), resolvedData = null) {
+  const data = resolvedData?.bounds ? resolvedData : getStatsRangeData(range);
+  const alignmentRate = data.macro.loggedDays
+    ? Math.round(data.macro.kcalAlignedDays / Math.max(1, data.macro.loggedDays) * 100)
+    : 0;
+  const weekendGap = data.adherence.adherenceRate - data.adherence.weekendAdherenceRate;
+  if (data.adherence.activeDays < Math.max(4, Math.round(data.bounds.days * 0.25))) {
+    return {
+      title: 'Il ritmo c e solo a tratti',
+      body: 'Prima di leggere troppo i dettagli conviene semplicemente dare piu continuita ai giorni registrati.',
+      coach: 'La priorita non e essere perfetto: e rendere il periodo abbastanza leggibile da fidarti della dashboard.',
+      weakestLabel: 'Giorni attivi',
+      weakestValue: `${data.adherence.activeDays}/${data.adherence.totalDays}`,
+      alignmentRate,
+    };
+  }
+  if (weekendGap >= 15 && data.adherence.weekendAdherenceRate > 0) {
+    return {
+      title: 'La settimana regge, il weekend rompe il ritmo',
+      body: 'Il comportamento nei giorni feriali e gia abbastanza solido: il punto vero da sistemare e il passaggio al weekend.',
+      coach: 'Difendere 1-2 decisioni chiave nel weekend vale piu che inseguire la precisione ogni giorno.',
+      weakestLabel: 'Weekend',
+      weakestValue: `${data.adherence.weekendAdherenceRate}%`,
+      alignmentRate,
+    };
+  }
+  if (data.adherence.hydrationRate <= 45) {
+    return {
+      title: 'La routine piu fragile resta l acqua',
+      body: 'Il resto del piano tiene meglio dell idratazione: sistemare quello rende la giornata piu pulita e prevedibile.',
+      coach: 'Quando l acqua parte bene, spesso anche il resto della routine diventa piu facile da seguire.',
+      weakestLabel: 'Acqua',
+      weakestValue: `${data.adherence.hydrationRate}%`,
+      alignmentRate,
+    };
+  }
+  if (alignmentRate && alignmentRate < 45) {
+    return {
+      title: 'Le giornate ci sono, ma il ritmo kcal e ancora irregolare',
+      body: 'Stai registrando abbastanza, pero le kcal restano spesso troppo lontane dal riferimento del giorno.',
+      coach: 'Qui non serve piu controllo: serve una chiusura piu semplice e ripetibile nei giorni in cui resti indietro.',
+      weakestLabel: 'Kcal in linea',
+      weakestValue: `${alignmentRate}%`,
+      alignmentRate,
+    };
+  }
+  return {
+    title: 'La routine e abbastanza leggibile',
+    body: 'Il periodo mostra un comportamento gia utile da leggere: ora il margine viene dal consolidare i punti meno automatici.',
+    coach: 'Quando la routine tiene, anche il fisico diventa molto piu semplice da interpretare.',
+    weakestLabel: 'Giorni completi',
+    weakestValue: `${data.adherence.fullDays}`,
+    alignmentRate,
+  };
+}
+
+function getStatsRecoverySummary(range = (S.statsRange || '30d'), resolvedData = null) {
+  const data = resolvedData?.bounds ? resolvedData : getStatsRangeData(range);
+  const onOffDiff = (data.macro.avgOnKcal != null && data.macro.avgOffKcal != null)
+    ? data.macro.avgOnKcal - data.macro.avgOffKcal
+    : null;
+  const theoreticalOnPct = Math.round((S.onDays?.length || 0) / 7 * 100);
+  const actualOnPct = Math.round(data.adherence.onDays / Math.max(1, data.adherence.onDays + data.adherence.offDays) * 100);
+  if (onOffDiff != null && onOffDiff >= 120) {
+    return {
+      title: 'ON e OFF hanno una separazione energetica leggibile',
+      body: 'Le giornate di allenamento ricevono piu energia delle rest: il setup e abbastanza coerente con il ritmo settimanale.',
+      coach: 'Mantieni semplice questa differenza: e uno dei segnali pratici piu utili che hai gia dentro l app.',
+      onOffDiff,
+      theoreticalOnPct,
+      actualOnPct,
+    };
+  }
+  if (onOffDiff != null && onOffDiff < 80) {
+    return {
+      title: 'ON e OFF oggi si assomigliano troppo',
+      body: 'Il ritmo settimanale c e, ma dal lato kcal le giornate stanno diventando troppo piatte per aiutarti davvero.',
+      coach: 'Non serve estremizzare: basta rendere un po piu netta la differenza tra allenamento e recupero.',
+      onOffDiff,
+      theoreticalOnPct,
+      actualOnPct,
+    };
+  }
+  if (data.adherence.onDays < 2 || data.adherence.offDays < 2) {
+    return {
+      title: 'Il recupero e ancora poco leggibile nel periodo scelto',
+      body: 'Ci sono ancora pochi giorni ON/OFF distinti per capire se il ritmo settimanale ti sta aiutando davvero.',
+      coach: 'Con qualche giornata in piu la lettura ON/OFF diventa molto piu concreta.',
+      onOffDiff,
+      theoreticalOnPct,
+      actualOnPct,
+    };
+  }
+  return {
+    title: 'Il ritmo allenamento-recupero e presente ma non ancora forte',
+    body: 'La distribuzione settimanale e leggibile, ma il beneficio pratico dipende da quanto riesci a farla sentire anche nella routine.',
+    coach: 'Qui conta piu la coerenza che la precisione: ON e OFF devono essere diversi in modo semplice.',
+    onOffDiff,
+    theoreticalOnPct,
+    actualOnPct,
+  };
+}
+
+function getStatsPatterns(data) {
+  const patterns = [];
+  const weekendGap = data.adherence.adherenceRate - data.adherence.weekendAdherenceRate;
+  const alignmentRate = data.macro.loggedDays
+    ? Math.round(data.macro.kcalAlignedDays / Math.max(1, data.macro.loggedDays) * 100)
+    : 0;
+  const onOffDiff = (data.macro.avgOnKcal != null && data.macro.avgOffKcal != null)
+    ? data.macro.avgOnKcal - data.macro.avgOffKcal
+    : null;
+  if (data.primaryModule === 'physical') {
+    if ((S.goal?.phase === 'cut') && (data.weight.delta || 0) < 0 && data.measurements.deltas.vita?.delta != null && data.measurements.deltas.vita.delta < 0) {
+      patterns.push('Peso e vita scendono insieme: il segnale del periodo e pulito, quindi non complicare quello che sta gia funzionando.');
+    } else if ((S.goal?.phase === 'bulk') && (data.weight.delta || 0) > 0 && data.measurements.deltas.vita?.delta != null && data.measurements.deltas.vita.delta <= 0.5) {
+      patterns.push('Il bulk sta salendo senza allargare troppo la vita: il setup e sotto controllo piu di quanto sembri.');
+    } else {
+      patterns.push('Il fisico e finalmente leggibile: usa questa finestra per confermare il trend, non per inseguire micro-correzioni ogni giorno.');
+    }
+  }
+  if (weekendGap >= 15 && data.adherence.weekendAdherenceRate > 0) {
+    patterns.push('Il punto piu chiaro da sistemare resta il weekend: difendere li il ritmo vale piu di migliorare i giorni gia solidi.');
+  } else if (data.adherence.hydrationRate <= 45 && data.adherence.activeDays >= 4) {
+    patterns.push('Tra i comportamenti registrati, l acqua e ancora il segnale piu instabile: e li che puoi recuperare ordine senza sforzo alto.');
+  } else if (alignmentRate && alignmentRate < 45) {
+    patterns.push('Stai registrando abbastanza, ma le kcal restano spesso fuori traccia: una chiusura piu semplice la sera avrebbe impatto immediato.');
+  }
+  if (onOffDiff != null && onOffDiff < 80 && data.primaryModule !== 'physical') {
+    patterns.push('ON e OFF sono troppo simili dal lato energia: rendere piu netta quella differenza darebbe piu senso a tutto il ritmo settimanale.');
+  }
+  if (data.nextAction?.title) {
+    patterns.push(`Priorita pratica: ${data.nextAction.title.toLowerCase()}.`);
+  }
+  if (!patterns.length) {
+    patterns.push('La base dati e gia abbastanza coerente: il vantaggio adesso viene dal restare regolare, non dal cercare nuovi numeri.');
+  }
+  return [...new Set(patterns)].slice(0, 3);
+}
+
 function getStatsRangeData(range = (S.statsRange || '30d')) {
   const bounds = getStatsRangeBounds(range);
   const previousBounds = getPreviousRangeBounds(bounds);
@@ -3345,7 +3653,6 @@ function getStatsRangeData(range = (S.statsRange || '30d')) {
   const previous = previousBounds ? {
     adherence: getCompletionStatsForBounds(previousBounds),
   } : null;
-
   const weight = {
     entries: weightEntries,
     count: weightEntries.length,
@@ -3359,11 +3666,11 @@ function getStatsRangeData(range = (S.statsRange || '30d')) {
     insight: '',
   };
   weight.insight = getWeightInsight(weight, adherence.adherenceRate);
-
   const avgActivePerWeek = Math.max(0, Math.min(7, Math.round(adherence.activeDays / Math.max(1, bounds.days / 7))));
   const streak = calcStreak();
   const consistencyScore = computeStatsConsistencyScore(adherence, streak);
-  const hero = getStatsHero({ bounds, weight, adherence, previous });
+  const macro = getStatsMacroSummary(bounds);
+  const hero = getStatsHero({ bounds, weight, adherence, previous, macro });
   const measurementEntries = getMeasurementsForBounds(bounds);
   const measurementKeys = ['vita', 'fianchi', 'petto', 'braccio', 'coscia'];
   const measurements = {
@@ -3372,15 +3679,14 @@ function getStatsRangeData(range = (S.statsRange || '30d')) {
   };
   measurements.count = measurementEntries.length;
   measurements.insight = getMeasurementsInsight(S.goal?.phase || 'mantieni', weight.delta, measurements.deltas);
-
-  return {
+  const data = {
     bounds,
     hero,
     weight,
     adherence,
     measurements,
+    macro,
     previous,
-    patterns: getStatsPatterns({ bounds, weight, adherence, previous, measurements }),
     kpis: {
       weightValue: weight.delta == null ? 'n/d' : `${weight.delta > 0 ? '+' : ''}${weight.delta.toFixed(1)} kg`,
       adherenceValue: `${adherence.adherenceRate}%`,
@@ -3389,6 +3695,14 @@ function getStatsRangeData(range = (S.statsRange || '30d')) {
       scoreLabel: getStatsScoreLabel(consistencyScore),
     },
   };
+  data.coverage = getStatsDataCoverage(range, data);
+  data.primaryModule = getStatsPrimaryModule(range, data);
+  data.behaviorSummary = getStatsBehaviorSummary(range, data);
+  data.recoverySummary = getStatsRecoverySummary(range, data);
+  data.nextAction = getStatsNextBestAction(range, data);
+  data.heroAction = getStatsHeroAction(range, data.primaryModule, data);
+  data.patterns = getStatsPatterns(data);
+  return data;
 }
 
 function renderStatsToolbar(data) {
@@ -3400,26 +3714,31 @@ function renderStatsToolbar(data) {
     { key: '8w', label: '8 SETT' },
     { key: 'all', label: 'TOTALE' },
   ];
+  const focusLabel = data.primaryModule === 'physical'
+    ? 'Peso e misure'
+    : data.primaryModule === 'recovery'
+      ? 'Allenamento e recovery'
+      : 'Aderenza e routine';
   el.innerHTML = `
     <div class="stats-toolbar-card">
       <div class="stats-toolbar">
         <div class="stats-toolbar-copy support-mini-head-copy">
           <div class="support-mini-kicker">Stats</div>
           <div class="support-mini-title-row">
-            <div class="support-mini-title">Guarda un periodo alla volta</div>
+            <div class="support-mini-title">Leggi un periodo alla volta</div>
             <span class="support-mini-state progress">${data.bounds.label}</span>
           </div>
-          <div class="support-mini-sub stats-toolbar-note">Peso, misure e costanza letti insieme hanno molto piu senso.</div>
+          <div class="support-mini-sub stats-toolbar-note">In questo periodo il segnale piu utile arriva da ${focusLabel.toLowerCase()}.</div>
         </div>
         <div class="stats-toolbar-side">
           <div class="stats-toolbar-quickstats">
             <div class="stats-toolbar-stat support-mini-card">
-              <span class="stats-toolbar-stat-label">Serie attuale</span>
-              <strong>${calcStreak()} giorni</strong>
+              <span class="stats-toolbar-stat-label">Focus</span>
+              <strong>${focusLabel}</strong>
             </div>
             <div class="stats-toolbar-stat support-mini-card">
-              <span class="stats-toolbar-stat-label">Giorni con dati</span>
-              <strong>${data.adherence.activeDays}/${data.adherence.totalDays}</strong>
+              <span class="stats-toolbar-stat-label">Qualita dati</span>
+              <strong>${data.coverage.quality}</strong>
             </div>
           </div>
           <div class="stats-range-chips" role="tablist" aria-label="Seleziona periodo statistiche">
@@ -3436,66 +3755,58 @@ function renderStatsHero(data) {
   const el = document.getElementById('stats-summary');
   if (!el) return;
   const toneClass = data.hero.tone === 'ok' ? ' tone-ok' : data.hero.tone === 'warn' ? ' tone-warn' : '';
-  const streak = calcStreak();
-  const streakBadge = streakBadgeStyle(streak);
+  const signalLabel = data.primaryModule === 'physical'
+    ? 'Fisico leggibile'
+    : data.primaryModule === 'recovery'
+      ? 'Recovery leggibile'
+      : 'Routine leggibile';
   el.innerHTML = `
-    <div class="stats-hero${toneClass}">
-      <div class="stats-hero-top-cards">
-        <button class="stats-top-card streak${streak >= 7 ? ' is-good' : ''}" onmouseenter="showStreakTip(this, ${streak})" onmouseleave="hideTip('tip-streak')" onclick="showStreakTip(this, ${streak})">
-          <div class="stats-top-card-head">
-            <span class="stats-top-card-kicker">Streak</span>
-            <span class="stats-top-card-icon">${streakBadge.emoji}</span>
-          </div>
-          <div class="stats-top-card-main">${streak}</div>
-          <div class="stats-top-card-sub">${streak === 1 ? 'giorno di fila' : 'giorni di fila'}</div>
-        </button>
-        <button class="stats-top-card score${data.kpis.scoreValue >= 70 ? ' is-good' : data.kpis.scoreValue >= 55 ? ' is-warn' : ''}" onmouseenter="showStatsScoreTip(this, ${data.kpis.scoreValue})" onmouseleave="hideTip('tip-score')" onclick="showStatsScoreTip(this, ${data.kpis.scoreValue})">
-          <div class="stats-top-card-head">
-            <span class="stats-top-card-kicker">Score</span>
-            <span class="stats-top-card-icon">🎯</span>
-          </div>
-          <div class="stats-top-card-main">${data.kpis.scoreValue}</div>
-          <div class="stats-top-card-bar"><span class="stats-top-card-bar-fill" style="width:${data.kpis.scoreValue}%"></span></div>
-          <div class="stats-top-card-sub">${data.kpis.scoreLabel}</div>
-        </button>
-      </div>
+    <div class="stats-hero stats-decision-hero${toneClass}">
       <div class="stats-hero-copy">
         <div class="support-mini-kicker">Stats</div>
         <div class="stats-hero-title-row">
           <div class="stats-hero-title">${data.hero.title}</div>
         </div>
         <div class="stats-hero-body support-mini-sub">${data.hero.body}</div>
+        <div class="stats-hero-meta">
+          <div class="stats-hero-meta-chip">Periodo · ${data.bounds.label}</div>
+          <div class="stats-hero-meta-chip">Segnale · ${signalLabel}</div>
+          <div class="stats-hero-meta-chip">Qualita dati · ${data.coverage.quality}</div>
+        </div>
+        <div class="stats-decision-strip">
+          <div class="stats-decision-strip-copy">
+            <div class="stats-decision-kicker">${data.heroAction.label}</div>
+            <div class="stats-decision-body">${data.heroAction.body}</div>
+          </div>
+          <button class="stats-head-action-btn stats-hero-action-btn" onclick="${data.nextAction.onClick}">${data.nextAction.ctaLabel}</button>
+        </div>
       </div>
-      <div class="stats-hero-meta">
-        <div class="stats-hero-meta-chip">Periodo · ${data.bounds.label}</div>
-        <div class="stats-hero-meta-chip">Score · ${data.kpis.scoreValue}/100</div>
-        <div class="stats-hero-meta-chip">Aderenza · ${data.kpis.adherenceValue}</div>
-      </div>
-      <div class="stats-kpis">
+      <div class="stats-kpis stats-kpis-decision">
         <div class="sc-card">
-          <div class="sc-kicker">Trend</div>
-          <div class="sc-val${data.weight.delta != null && Math.abs(data.weight.delta) >= 0.3 ? ' ok' : ''}">${data.kpis.weightValue}</div>
-          <div class="sc-lbl">Trend peso</div>
-          <div class="sc-sub">letto su ${data.bounds.label.toLowerCase()}</div>
+          <div class="sc-kicker">Priorita</div>
+          <div class="sc-val">${data.nextAction.icon}</div>
+          <div class="sc-lbl">${data.nextAction.title}</div>
+          <div class="sc-sub">${data.nextAction.body}</div>
         </div>
         <div class="sc-card">
           <div class="sc-kicker">Aderenza</div>
           <div class="sc-val${data.adherence.adherenceRate >= 70 ? ' ok' : data.adherence.adherenceRate >= 45 ? ' warn' : ' err'}">${data.kpis.adherenceValue}</div>
-          <div class="sc-lbl">Aderenza reale</div>
-          <div class="sc-sub">${data.adherence.activeDays} giorni attivi su ${data.adherence.totalDays}</div>
+          <div class="sc-lbl">${data.adherence.activeDays}/${data.adherence.totalDays} giorni attivi</div>
+          <div class="sc-sub">quanto il periodo e leggibile nella pratica</div>
         </div>
         <div class="sc-card">
-          <div class="sc-kicker">Costanza</div>
-          <div class="sc-val${streak >= 7 ? ' ok' : ''}">${data.kpis.consistencyValue}</div>
-          <div class="sc-lbl">Costanza</div>
-          <div class="sc-sub">media settimanale · serie attuale ${streak}</div>
+          <div class="sc-kicker">Ritmo</div>
+          <div class="sc-val${data.kpis.scoreValue >= 70 ? ' ok' : data.kpis.scoreValue >= 55 ? ' warn' : ' err'}">${data.kpis.scoreValue}</div>
+          <div class="sc-lbl">${data.kpis.scoreLabel}</div>
+          <div class="sc-sub">sintesi di costanza, acqua, pasti e routine</div>
         </div>
       </div>
     </div>`;
 }
 
 function toggleWeightLog() {
-  document.getElementById('w-log')?.classList.toggle('open');
+  toggleStatsSection('stats-actions-weight-log-shell', true);
+  document.getElementById('stats-actions')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function toggleStatsSection(id, forceOpen = false) {
@@ -3506,78 +3817,49 @@ function toggleStatsSection(id, forceOpen = false) {
 }
 
 function openMeasurementEntry() {
-  toggleStatsSection('measurements-form-shell', true);
-  document.getElementById('stats-measurements')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toggleStatsSection('stats-actions-measurements-form-shell', true);
+  document.getElementById('stats-actions')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   setTimeout(() => document.getElementById('m-vita')?.focus(), 180);
 }
 
-function renderStatsWeight(data) {
+function openStatsQuickAction(panelId, focusId = '') {
+  toggleStatsSection(panelId, true);
+  document.getElementById('stats-actions')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (focusId) setTimeout(() => document.getElementById(focusId)?.focus(), 180);
+}
+
+function renderStatsPhysicalModule(data) {
   const el = document.getElementById('stats-weight');
   if (!el) return;
   const weight = data.weight;
+  const vitaDelta = data.measurements.deltas.vita?.delta;
   const targetText = weight.target == null
     ? 'Aggiungi un target nel profilo per leggere meglio il trend.'
     : weight.targetDiff == null
       ? `Target impostato a ${weight.target} kg.`
       : `Distanza dal target: ${weight.targetDiff > 0 ? '+' : ''}${weight.targetDiff.toFixed(1)} kg.`;
-
-  if (!weight.count) {
-    el.innerHTML = `
-      <div class="stats-panel stats-panel-weight">
-        <div class="stats-panel-head support-mini-head">
-          <div class="support-mini-head-copy">
-            <div class="support-mini-kicker">Stats</div>
-            <div class="support-mini-title-row">
-              <div class="support-mini-title">Andamento peso</div>
-              <span class="support-mini-state idle">${data.bounds.label}</span>
-            </div>
-            <div class="support-mini-sub">Aggiungi il primo peso e iniziamo subito a leggere il trend.</div>
-          </div>
-          <button class="stats-head-action-btn" onclick="document.getElementById('w-in')?.focus()">+ Peso</button>
-        </div>
-        <div class="stats-weight-empty">
-          <div class="stats-weight-empty-title">Ancora nessun peso nel periodo scelto</div>
-          <div class="stats-weight-empty-body">Basta una rilevazione per partire. Con le prossime vedrai il movimento con piu chiarezza.</div>
-          <div class="stats-weight-entry">
-            <div class="weight-entry">
-              <input class="w-input" type="number" id="w-in" step="0.1" placeholder="64.0">
-              <span class="stats-inline-unit">kg</span>
-              <button class="w-btn" onclick="addWeight()">Salva peso</button>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    return;
-  }
-
   el.innerHTML = `
-    <div class="stats-panel stats-panel-weight">
+    <div class="stats-panel stats-panel-weight stats-module-shell">
       <div class="stats-panel-head support-mini-head">
         <div class="support-mini-head-copy">
           <div class="support-mini-kicker">Stats</div>
-            <div class="support-mini-title-row">
-              <div class="support-mini-title">Andamento peso</div>
-              <span class="support-mini-state progress">${weight.count} ${weight.count === 1 ? 'pesata' : 'pesate'}</span>
-            </div>
-            <div class="support-mini-sub">Registra al volo, poi rileggi il trend quando ti serve.</div>
+          <div class="support-mini-title-row">
+            <div class="support-mini-title">Peso + misure</div>
+            <span class="support-mini-state done">segnale principale</span>
           </div>
+          <div class="support-mini-sub">Qui il fisico e abbastanza popolato da dirti se il periodo sta andando nella direzione giusta.</div>
+        </div>
         <div class="stats-inline-actions">
-          <button class="stats-head-action-btn" onclick="document.getElementById('w-in')?.focus()">+ Peso</button>
-          <button class="stats-inline-btn" onclick="toggleWeightLog()">Cronologia</button>
+          <button class="stats-head-action-btn" onclick="openStatsQuickAction('stats-actions-weight-form-shell','w-in')">Aggiungi peso</button>
+          <button class="stats-inline-btn" onclick="openStatsQuickAction('stats-actions-weight-log-shell')">Cronologia peso</button>
+          <button class="stats-inline-btn" onclick="openStatsQuickAction('stats-actions-measurements-log-shell')">Cronologia misure</button>
         </div>
       </div>
       <div class="stats-glance-row stats-glance-row-weight">
-        <div class="stats-glance-chip"><span>Attuale</span><strong>${weight.current.toFixed(1)} kg</strong></div>
+        <div class="stats-glance-chip"><span>Attuale</span><strong>${weight.current != null ? `${weight.current.toFixed(1)} kg` : '—'}</strong></div>
         <div class="stats-glance-chip${weight.delta != null && Math.abs(weight.delta) >= 0.3 ? ' is-accent' : ''}"><span>Trend</span><strong>${weight.delta == null ? 'n/d' : `${weight.delta > 0 ? '+' : ''}${weight.delta.toFixed(1)} kg`}</strong></div>
-        <div class="stats-glance-chip"><span>Media</span><strong>${weight.average != null ? `${weight.average.toFixed(1)} kg` : 'n/d'}</strong></div>
-        <div class="stats-glance-chip"><span>Target</span><strong>${weight.target == null ? '—' : `${weight.target.toFixed(1)} kg`}</strong></div>
-      </div>
-      <div class="stats-weight-entry">
-        <div class="weight-entry">
-          <input class="w-input" type="number" id="w-in" step="0.1" placeholder="64.0">
-          <span class="stats-inline-unit">kg</span>
-          <button class="w-btn" onclick="addWeight()">Salva peso</button>
-        </div>
+        <div class="stats-glance-chip${vitaDelta != null && vitaDelta <= 0 ? ' is-accent' : ''}"><span>Vita</span><strong>${vitaDelta == null ? 'n/d' : `${vitaDelta > 0 ? '+' : ''}${vitaDelta.toFixed(1)} cm`}</strong></div>
+        <div class="stats-glance-chip"><span>Rilevazioni</span><strong>${data.measurements.count}</strong></div>
       </div>
       <div class="chart-box stats-chart-box">
         <div class="stats-weight-main">
@@ -3590,126 +3872,83 @@ function renderStatsWeight(data) {
             <div class="stats-weight-reading-note">${targetText}</div>
           </div>
         </div>
-        <div class="w-log" id="w-log">
-          <div class="w-log-title">Cronologia peso · puoi modificare o eliminare ogni riga</div>
-          ${[...weight.entries].reverse().map((entry, ri, arr) => {
-            const prev = arr[ri + 1];
-            const delta = prev ? +(entry.val - prev.val).toFixed(1) : null;
-            const deltaHtml = delta == null
-              ? ''
-              : `<span class="w-delta ${delta > 0 ? 'd-pos' : delta < 0 ? 'd-neg' : 'd-neu'}">${delta > 0 ? '+' : ''}${delta.toFixed(1)} kg</span>`;
-            return `<div class="w-log-item">
-              <span class="w-log-date">${entry.date}</span>
-              <span class="w-log-val">${entry.val.toFixed(1)} kg</span>
-              ${deltaHtml}
-              <div class="stats-row-actions">
-                <button class="stats-row-btn" onclick="editWeight(${entry.srcIndex})">Modifica</button>
-                <button class="stats-row-btn danger" onclick="delWeight(${entry.srcIndex})">Elimina</button>
-              </div>
-            </div>`;
-          }).join('')}
+        <div class="stats-measure-strip">
+          <div class="stats-measure-strip-head">
+            <div class="stats-weight-reading-title">Composizione nel periodo</div>
+            <button class="stats-inline-btn stats-inline-btn-soft" onclick="openMeasurementEntry()">Nuova rilevazione</button>
+          </div>
+          <div class="measure-cards">
+            ${Object.entries({ vita:'Vita', fianchi:'Fianchi', petto:'Petto', braccio:'Braccio dx', coscia:'Coscia' }).map(([key, label]) => {
+              const snapshot = data.measurements.deltas[key];
+              const last = snapshot?.last?.[key];
+              const delta = snapshot?.delta;
+              const tone = delta == null || Math.abs(delta) < 0.2 ? '' : delta < 0 ? ' neg' : ' pos';
+              return `<div class="measure-card">
+                <div class="measure-card-label">${label}</div>
+                <div class="measure-card-value">${last != null ? `${last.toFixed(1)} cm` : '—'}</div>
+                <div class="measure-card-delta${tone}">${delta == null ? 'n/d' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)} cm`}</div>
+                <div class="measure-card-note">${getMeasurementReading(key, delta, S.goal?.phase || 'mantieni')}</div>
+              </div>`;
+            }).join('')}
+          </div>
         </div>
       </div>
     </div>`;
   drawChart(weight.entries, { targetWeight: weight.target, rolling: weight.rolling });
 }
 
-function renderStatsMeasurements(data) {
-  const el = document.getElementById('stats-measurements');
+function renderStatsBehaviorModule(data, targetId = 'stats-weight') {
+  const el = document.getElementById(targetId);
   if (!el) return;
-  const LABELS = { vita:'Vita', fianchi:'Fianchi', petto:'Petto', braccio:'Braccio dx', coscia:'Coscia' };
-  const UNITS = { vita:'cm', fianchi:'cm', petto:'cm', braccio:'cm', coscia:'cm' };
-  const phase = S.goal?.phase || 'mantieni';
-
+  const behavior = data.behaviorSummary;
+  const alignmentRate = data.macro.loggedDays
+    ? Math.round(data.macro.kcalAlignedDays / Math.max(1, data.macro.loggedDays) * 100)
+    : 0;
   el.innerHTML = `
-    <div class="stats-panel stats-panel-measurements">
-      <div class="stats-panel-head support-mini-head">
-        <div class="support-mini-head-copy">
-          <div class="support-mini-kicker">Stats</div>
-            <div class="support-mini-title-row">
-              <div class="support-mini-title">Misure e composizione</div>
-              <span class="support-mini-state ${data.measurements.count ? 'progress' : 'idle'}">${data.measurements.count} ${data.measurements.count === 1 ? 'rilevazione' : 'rilevazioni'}</span>
-            </div>
-            <div class="support-mini-sub">Le misure ti aiutano a leggere i cambiamenti con piu calma.</div>
-          </div>
-        <div class="stats-inline-actions">
-          <button class="stats-inline-btn" onclick="toggleStatsSection('measurements-form-shell')">Nuova rilevazione</button>
-          <button class="stats-inline-btn" onclick="toggleStatsSection('measurements-log-shell')">Cronologia</button>
-        </div>
-      </div>
-      <div class="stats-insight-strip">
-        <div class="stats-insight-title">Come leggerle</div>
-        <div class="stats-insight-body">${data.measurements.insight}</div>
-      </div>
-      <div class="measure-cards measure-cards-inline">
-        ${Object.keys(LABELS).map(key => {
-          const snap = data.measurements.deltas[key];
-          const last = snap.last?.[key];
-          const delta = snap.delta;
-          const tone = delta == null || Math.abs(delta) < 0.2 ? '' : delta < 0 ? ' neg' : ' pos';
-          return `<div class="measure-card">
-            <div class="measure-card-label">${LABELS[key]}</div>
-            <div class="measure-card-value">${last != null ? `${last.toFixed(1)} ${UNITS[key]}` : '—'}</div>
-            <div class="measure-card-delta${tone}">${delta == null ? 'n/d' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)} ${UNITS[key]}`}</div>
-            <div class="measure-card-note">${getMeasurementReading(key, delta, phase)}</div>
-          </div>`;
-        }).join('')}
-      </div>
-      <div class="stats-collapsible" id="measurements-form-shell">
-        <div id="measurements-entry"></div>
-      </div>
-      <div class="stats-collapsible" id="measurements-log-shell">
-        <div id="measurements-log"></div>
-      </div>
-    </div>`;
-  renderMeasurementsForm(data.bounds);
-}
-
-function renderStatsAdherence(data) {
-  const el = document.getElementById('stats-adherence');
-  if (!el) return;
-  const adherence = data.adherence;
-  el.innerHTML = `
-    <div class="stats-panel stats-panel-adherence">
+    <div class="stats-panel stats-panel-adherence stats-module-shell">
       <div class="stats-panel-head support-mini-head">
         <div class="support-mini-head-copy">
           <div class="support-mini-kicker">Stats</div>
           <div class="support-mini-title-row">
-            <div class="support-mini-title">Aderenza e costanza</div>
-            <span class="support-mini-state ${adherence.adherenceRate >= 70 ? 'done' : adherence.adherenceRate >= 45 ? 'pending' : 'danger'}">${adherence.adherenceRate}%</span>
+            <div class="support-mini-title">Aderenza + routine</div>
+            <span class="support-mini-state ${targetId === 'stats-weight' ? 'done' : 'pending'}">${targetId === 'stats-weight' ? 'segnale principale' : 'supporto'}</span>
           </div>
-          <div class="support-mini-sub">Conta la continuita, non la perfezione.</div>
+          <div class="support-mini-sub">Quando il fisico non basta ancora, qui capisci dove il piano regge e dove no.</div>
         </div>
+        <div class="stats-inline-actions">
+          <button class="stats-head-action-btn" onclick="goView('today')">Torna a oggi</button>
+        </div>
+      </div>
+      <div class="stats-insight-strip">
+        <div class="stats-insight-title">${behavior.title}</div>
+        <div class="stats-insight-body">${behavior.body}</div>
+        <div class="stats-weight-reading-note">${behavior.coach}</div>
       </div>
       <div class="stats-kpis stats-kpis-adh">
         <div class="sc-card">
-          <div class="sc-kicker">Pieno</div>
-          <div class="sc-val ok">${adherence.fullDays}</div>
-          <div class="sc-lbl">Giorni completi</div>
-          <div class="sc-sub">tutto il piano giornaliero</div>
+          <div class="sc-kicker">Completi</div>
+          <div class="sc-val ok">${data.adherence.fullDays}</div>
+          <div class="sc-lbl">giorni pieni</div>
+          <div class="sc-sub">quelli in cui il piano ha tenuto davvero</div>
         </div>
         <div class="sc-card">
-          <div class="sc-kicker">Parziale</div>
-          <div class="sc-val warn">${adherence.partialDays}</div>
-          <div class="sc-lbl">Giorni parziali</div>
-          <div class="sc-sub">qualcosa c e, non tutto</div>
+          <div class="sc-kicker">Kcal in linea</div>
+          <div class="sc-val${alignmentRate >= 60 ? ' ok' : alignmentRate >= 40 ? ' warn' : ' err'}">${alignmentRate || 'n/d'}${alignmentRate ? '%' : ''}</div>
+          <div class="sc-lbl">giorni loggati</div>
+          <div class="sc-sub">quanto spesso le kcal seguono il riferimento</div>
         </div>
         <div class="sc-card">
-          <div class="sc-kicker">Vuoto</div>
-          <div class="sc-val${adherence.emptyDays > 0 ? ' err' : ''}">${adherence.emptyDays}</div>
-          <div class="sc-lbl">Giorni vuoti</div>
-          <div class="sc-sub">nessuna attivita registrata</div>
+          <div class="sc-kicker">${behavior.weakestLabel}</div>
+          <div class="sc-val${data.adherence.hydrationRate <= 45 ? ' warn' : ''}">${behavior.weakestValue}</div>
+          <div class="sc-lbl">collo di bottiglia</div>
+          <div class="sc-sub">il punto da consolidare prima degli altri</div>
         </div>
-      </div>
-      <div class="stats-insight-strip stats-insight-strip-tight">
-        <div class="stats-insight-title">Lettura veloce</div>
-        <div class="stats-insight-body">Qui capisci dove il ritmo tiene e dove conviene intervenire per primo.</div>
       </div>
       <div class="adherence-breakdown adherence-breakdown-rail">
-        <div class="adh-chip"><span>Pasti</span><strong>${adherence.mealRate}%</strong></div>
-        <div class="adh-chip"><span>Acqua</span><strong>${adherence.hydrationRate}%</strong></div>
-        <div class="adh-chip"><span>Integratori</span><strong>${adherence.supplementRate}%</strong></div>
-        <div class="adh-chip"><span>Weekend</span><strong>${adherence.weekendAdherenceRate}%</strong></div>
+        <div class="adh-chip"><span>Pasti</span><strong>${data.adherence.mealRate}%</strong></div>
+        <div class="adh-chip"><span>Acqua</span><strong>${data.adherence.hydrationRate}%</strong></div>
+        <div class="adh-chip"><span>Integratori</span><strong>${data.adherence.supplementRate}%</strong></div>
+        <div class="adh-chip"><span>Weekend</span><strong>${data.adherence.weekendAdherenceRate}%</strong></div>
       </div>
       <div class="stats-adherence-lower">
         <div class="stats-heatmap-wrap" id="stats-heatmap"></div>
@@ -3720,12 +3959,111 @@ function renderStatsAdherence(data) {
   renderRatio(data);
 }
 
+function renderStatsRecoveryModule(data, targetId = 'stats-weight') {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  const recovery = data.recoverySummary;
+  const onOffDiff = recovery.onOffDiff != null ? `${recovery.onOffDiff > 0 ? '+' : ''}${recovery.onOffDiff} kcal` : 'n/d';
+  el.innerHTML = `
+    <div class="stats-panel stats-panel-patterns stats-module-shell">
+      <div class="stats-panel-head support-mini-head">
+        <div class="support-mini-head-copy">
+          <div class="support-mini-kicker">Stats</div>
+          <div class="support-mini-title-row">
+            <div class="support-mini-title">Allenamento + recovery</div>
+            <span class="support-mini-state ${targetId === 'stats-weight' ? 'done' : 'pending'}">${targetId === 'stats-weight' ? 'segnale principale' : 'supporto'}</span>
+          </div>
+          <div class="support-mini-sub">Qui leggi se i giorni ON e OFF stanno davvero lavorando in squadra.</div>
+        </div>
+        <div class="stats-inline-actions">
+          <button class="stats-head-action-btn" onclick="goView('today')">Torna a oggi</button>
+        </div>
+      </div>
+      <div class="stats-insight-strip">
+        <div class="stats-insight-title">${recovery.title}</div>
+        <div class="stats-insight-body">${recovery.body}</div>
+        <div class="stats-weight-reading-note">${recovery.coach}</div>
+      </div>
+      <div class="stats-kpis stats-kpis-adh">
+        <div class="sc-card">
+          <div class="sc-kicker">Distribuzione</div>
+          <div class="sc-val">${recovery.actualOnPct}%</div>
+          <div class="sc-lbl">giorni ON reali</div>
+          <div class="sc-sub">teorico ${recovery.theoreticalOnPct}% dal calendario</div>
+        </div>
+        <div class="sc-card">
+          <div class="sc-kicker">Differenza kcal</div>
+          <div class="sc-val${recovery.onOffDiff != null && recovery.onOffDiff >= 120 ? ' ok' : recovery.onOffDiff != null && recovery.onOffDiff < 80 ? ' warn' : ''}">${onOffDiff}</div>
+          <div class="sc-lbl">ON vs OFF</div>
+          <div class="sc-sub">quanto il ritmo energetico cambia davvero</div>
+        </div>
+        <div class="sc-card">
+          <div class="sc-kicker">Completi</div>
+          <div class="sc-val">${data.adherence.fullDays}</div>
+          <div class="sc-lbl">giorni pieni</div>
+          <div class="sc-sub">quanti giorni hanno davvero chiuso il cerchio</div>
+        </div>
+      </div>
+      <div class="stats-adherence-lower">
+        <div class="stats-heatmap-wrap" id="stats-heatmap"></div>
+        <div class="stats-ratio-wrap" id="stats-ratio"></div>
+      </div>
+    </div>`;
+  renderHeatmap(data);
+  renderRatio(data);
+}
+
+function renderStatsSupportModule(data) {
+  const el = document.getElementById('stats-measurements');
+  if (!el) return;
+  const supportModule = data.primaryModule === 'physical'
+    ? (data.coverage.behaviorReadable ? 'behavior' : data.coverage.recoveryReadable ? 'recovery' : 'none')
+    : data.primaryModule === 'recovery'
+      ? (data.coverage.behaviorReadable ? 'behavior' : data.coverage.weightReliable ? 'teaser' : 'none')
+      : (data.coverage.recoveryReadable ? 'recovery' : data.coverage.weightReliable ? 'teaser' : 'none');
+  if (supportModule === 'behavior') {
+    renderStatsBehaviorModule(data, 'stats-measurements');
+    return;
+  }
+  if (supportModule === 'recovery') {
+    renderStatsRecoveryModule(data, 'stats-measurements');
+    return;
+  }
+  if (supportModule === 'teaser') {
+    el.innerHTML = `
+      <div class="stats-panel stats-panel-measurements stats-module-shell">
+        <div class="stats-panel-head support-mini-head">
+          <div class="support-mini-head-copy">
+            <div class="support-mini-kicker">Stats</div>
+            <div class="support-mini-title-row">
+              <div class="support-mini-title">Fisico ancora leggero, ma gia vicino</div>
+              <span class="support-mini-state idle">supporto</span>
+            </div>
+            <div class="support-mini-sub">Il peso sta iniziando a parlare, ma manca ancora abbastanza contesto per usarlo come segnale principale.</div>
+          </div>
+          <div class="stats-inline-actions">
+            <button class="stats-head-action-btn" onclick="openStatsQuickAction('stats-actions-weight-form-shell','w-in')">Aggiungi peso</button>
+            <button class="stats-inline-btn" onclick="openMeasurementEntry()">Nuova rilevazione</button>
+          </div>
+        </div>
+        <div class="stats-glance-row">
+          <div class="stats-glance-chip"><span>Pesate</span><strong>${data.weight.count}</strong></div>
+          <div class="stats-glance-chip"><span>Trend</span><strong>${data.kpis.weightValue}</strong></div>
+          <div class="stats-glance-chip"><span>Rilevazioni</span><strong>${data.measurements.count}</strong></div>
+        </div>
+        <div class="stats-weight-reading">
+          <div class="stats-weight-reading-title">Lettura</div>
+          <div class="stats-weight-reading-body">Un altro piccolo blocco di dati fisici basta per far salire peso e misure a segnale principale.</div>
+        </div>
+      </div>`;
+    return;
+  }
+  el.innerHTML = '';
+}
+
 function renderStatsPatterns(data) {
   const el = document.getElementById('stats-patterns');
   if (!el) return;
-  const patterns = data.patterns?.length
-    ? data.patterns
-    : ['Nessun pattern rilevante nel periodo selezionato.'];
   el.innerHTML = `
     <div class="stats-panel stats-panel-patterns">
       <div class="stats-patterns-layout">
@@ -3735,14 +4073,14 @@ function renderStatsPatterns(data) {
             <div class="support-mini-title">Pattern utili</div>
             <span class="support-mini-state idle">${data.bounds.label}</span>
           </div>
-          <div class="support-mini-sub">I segnali piu chiari emersi nel periodo.</div>
-          <div class="stats-patterns-note">Leggili come priorita pratiche per il prossimo passo.</div>
+          <div class="support-mini-sub">Tre segnali al massimo, tutti pensati per decidere cosa fare adesso.</div>
+          <div class="stats-patterns-note">Se questa sezione diventa lunga, sta fallendo: qui devono restare solo le priorita pratiche.</div>
         </div>
         <div class="stats-patterns-main">
           <div class="pattern-card pattern-card-featured">
             <div class="pattern-card-kicker">Insight del periodo</div>
             <div class="pattern-card-stack">
-              ${patterns.map(text => `<div class="pattern-card-line">${text}</div>`).join('')}
+              ${(data.patterns || []).map(text => `<div class="pattern-card-line">${text}</div>`).join('')}
             </div>
           </div>
         </div>
@@ -3750,47 +4088,131 @@ function renderStatsPatterns(data) {
     </div>`;
 }
 
-function renderStatsActions() {
+function renderStatsWeightLog(bounds) {
+  const weightEntries = [...getWeightEntriesForBounds(bounds)].reverse();
+  if (!weightEntries.length) {
+    return `<div class="stats-form-note">Ancora nessuna pesata nel periodo.</div>`;
+  }
+  return `
+    <div class="w-log open">
+      <div class="w-log-title">Cronologia peso · puoi correggere o eliminare ogni riga</div>
+      ${weightEntries.map((entry, ri, arr) => {
+        const prev = arr[ri + 1];
+        const delta = prev ? +(entry.val - prev.val).toFixed(1) : null;
+        const deltaHtml = delta == null
+          ? ''
+          : `<span class="w-delta ${delta > 0 ? 'd-pos' : delta < 0 ? 'd-neg' : 'd-neu'}">${delta > 0 ? '+' : ''}${delta.toFixed(1)} kg</span>`;
+        return `<div class="w-log-item">
+          <span class="w-log-date">${entry.date}</span>
+          <span class="w-log-val">${entry.val.toFixed(1)} kg</span>
+          ${deltaHtml}
+          <div class="stats-row-actions">
+            <button class="stats-row-btn" onclick="editWeight(${entry.srcIndex})">Modifica</button>
+            <button class="stats-row-btn danger" onclick="delWeight(${entry.srcIndex})">Elimina</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderStatsActions(data) {
   const el = document.getElementById('stats-actions');
   if (!el) return;
   el.innerHTML = `
     <div class="stats-actions-card">
-      <div class="stats-actions-grid">
-        <div class="stats-actions-stack">
-          <div class="stats-action-row stats-action-row-primary">
+      <div class="stats-actions-stack">
+        <div class="stats-action-row stats-action-row-primary">
+          <div class="stats-action-copy">
+            <div class="stats-actions-title">Prossimo passo</div>
+            <div class="stats-actions-note">${data.nextAction.title}. ${data.nextAction.body}</div>
+          </div>
+          <div class="stats-action-control">
+            <button class="w-btn" onclick="${data.nextAction.onClick}">${data.nextAction.ctaLabel}</button>
+          </div>
+        </div>
+        <div class="stats-actions-grid">
+          <div class="stats-action-row">
             <div class="stats-action-copy">
-            <div class="stats-actions-title">Peso</div>
-            <div class="stats-actions-note">Salva il peso inserito sopra in un attimo.</div>
+              <div class="stats-actions-title">Peso</div>
+              <div class="stats-actions-note">Aggiungi una pesata o riapri la cronologia solo quando ti serve.</div>
             </div>
             <div class="stats-action-control">
-              <button class="w-btn" onclick="addWeight()">Salva peso</button>
+              <button class="stats-secondary-btn" onclick="toggleStatsSection('stats-actions-weight-form-shell')">Nuovo peso</button>
+              <button class="stats-inline-btn" onclick="toggleStatsSection('stats-actions-weight-log-shell')">Cronologia</button>
             </div>
           </div>
           <div class="stats-action-row">
             <div class="stats-action-copy">
-            <div class="stats-actions-title">Misure</div>
-            <div class="stats-actions-note">Apri una nuova rilevazione e completa tutto in un solo passaggio.</div>
+              <div class="stats-actions-title">Misure</div>
+              <div class="stats-actions-note">Le rilevazioni restano qui sotto, fuori dalla lettura principale della tab.</div>
             </div>
             <div class="stats-action-control">
-              <button class="stats-secondary-btn" onclick="openMeasurementEntry()">Nuova rilevazione</button>
+              <button class="stats-secondary-btn" onclick="toggleStatsSection('stats-actions-measurements-form-shell')">Nuova rilevazione</button>
+              <button class="stats-inline-btn" onclick="toggleStatsSection('stats-actions-measurements-log-shell')">Cronologia</button>
             </div>
+          </div>
+          <div class="stats-action-row">
+            <div class="stats-action-copy">
+              <div class="stats-actions-title">Obiettivo</div>
+              <div class="stats-actions-note">Se il quadro ti sembra fuori fase, rivedi prima obiettivo e setup di base.</div>
+            </div>
+            <div class="stats-action-control">
+              <button class="stats-secondary-btn" onclick="goView('profilo')">Apri profilo</button>
+            </div>
+          </div>
+          <div class="stats-action-row">
+            <div class="stats-action-copy">
+              <div class="stats-actions-title">Giornata attiva</div>
+              <div class="stats-actions-note">Quando hai capito il quadro, torna subito su oggi e chiudi il prossimo passo utile.</div>
+            </div>
+            <div class="stats-action-control">
+              <button class="stats-secondary-btn" onclick="goView('today')">Torna a oggi</button>
+            </div>
+          </div>
+        </div>
+        <div class="stats-collapsible stats-actions-collapsible" id="stats-actions-weight-form-shell">
+          <div class="stats-action-block">
+            <div class="stats-actions-title">Nuovo peso</div>
+            <div class="stats-actions-note">Una pesata semplice vale piu di una stima mentale.</div>
+            <div class="stats-weight-entry">
+              <div class="weight-entry">
+                <input class="w-input" type="number" id="w-in" step="0.1" placeholder="64.0">
+                <span class="stats-inline-unit">kg</span>
+                <button class="w-btn" onclick="addWeight()">Salva peso</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stats-collapsible stats-actions-collapsible" id="stats-actions-weight-log-shell">
+          <div class="stats-action-block">${renderStatsWeightLog(data.bounds)}</div>
+        </div>
+        <div class="stats-collapsible stats-actions-collapsible" id="stats-actions-measurements-form-shell">
+          <div class="stats-action-block">
+            <div id="stats-actions-measurements-entry"></div>
+          </div>
+        </div>
+        <div class="stats-collapsible stats-actions-collapsible" id="stats-actions-measurements-log-shell">
+          <div class="stats-action-block">
+            <div id="stats-actions-measurements-log"></div>
           </div>
         </div>
       </div>
     </div>`;
+  renderMeasurementsForm(data.bounds, 'stats-actions-measurements-entry', 'stats-actions-measurements-log');
 }
 
 function renderStats() {
   const data = getStatsRangeData(S.statsRange || '30d');
-  const streak = calcStreak();
-  document.getElementById('stats-sub').textContent = `${data.bounds.label} · il tuo andamento in un colpo d occhio`;
+  document.getElementById('stats-sub').textContent = `${data.bounds.label} · prima leggi il segnale giusto, poi decidi il prossimo passo`;
+  document.getElementById('stats-adherence').innerHTML = '';
   renderStatsToolbar(data);
   renderStatsHero(data);
-  renderStatsWeight(data);
-  renderStatsMeasurements(data);
-  renderStatsAdherence(data);
+  if (data.primaryModule === 'physical') renderStatsPhysicalModule(data);
+  else if (data.primaryModule === 'recovery') renderStatsRecoveryModule(data);
+  else renderStatsBehaviorModule(data);
+  renderStatsSupportModule(data);
   renderStatsPatterns(data);
-  renderStatsActions();
+  renderStatsActions(data);
 }
 function renderProfile() {
   renderAnagrafica();
@@ -3989,8 +4411,8 @@ function renderRatio(data) {
       <div class="rs"><div class="rs-v" style="color:var(--off)">${entries.filter(e=>e.type==='off'&&e.done>0&&e.done>=e.total).length}</div><div class="rs-l">OFF comp.</div></div>
     </div>`;
 }
-function renderMeasurementsForm(bounds) {
-  const el = document.getElementById('measurements-entry');
+function renderMeasurementsForm(bounds, entryTargetId = 'measurements-entry', logTargetId = 'measurements-log') {
+  const el = document.getElementById(entryTargetId);
   if (!el) return;
   el.innerHTML = `
     <div class="meas-form">
@@ -4005,10 +4427,10 @@ function renderMeasurementsForm(bounds) {
       </div>
       <button class="meas-btn" onclick="addMeasurement()">+ Salva rilevazione</button>
     </div>`;
-  renderMeasurementsLog(bounds);
+  renderMeasurementsLog(bounds, logTargetId);
 }
-function renderMeasurementsLog(bounds) {
-  const el = document.getElementById('measurements-log');
+function renderMeasurementsLog(bounds, targetId = 'measurements-log') {
+  const el = document.getElementById(targetId);
   if (!el) return;
   const log = [...(bounds ? getMeasurementsForBounds(bounds) : (S.measurements || []).map(m => ({ ...m })))].reverse().slice(0,10);
   if (!log.length) { el.innerHTML=''; return; }
@@ -4534,8 +4956,15 @@ function renderTmplFormItems() {
       <div class="fir-kcal">${k} kcal</div>
       <button class="fir-del">\xd7</button>`;
     row.querySelector('.fir-grams').addEventListener('input', function() {
-      _tmplFormItems[ii].grams = Math.round(+this.value||0);
-      renderTmplFormItems();
+      const nextGrams = Math.max(0, Math.round(+this.value || 0));
+      _tmplFormItems[ii].grams = nextGrams;
+      const kcalEl = row.querySelector('.fir-kcal');
+      if (kcalEl) kcalEl.textContent = `${Math.round(it.kcal100 * nextGrams / 100)} kcal`;
+    });
+    row.querySelector('.fir-grams').addEventListener('blur', function() {
+      const nextGrams = Math.max(0, Math.round(+this.value || 0));
+      _tmplFormItems[ii].grams = nextGrams;
+      this.value = nextGrams;
     });
     row.querySelector('.fir-del').addEventListener('click', () => {
       _tmplFormItems.splice(ii, 1);

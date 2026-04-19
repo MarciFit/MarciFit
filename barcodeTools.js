@@ -10,6 +10,11 @@ let _bcResolvedCode = null;
 let _bcLastDetectedCode = null;
 let _bcScanLoopToken = 0;
 let _bcOpenToken = 0;
+let _bcCameraPermission = 'unknown';
+let _bcScannerSessionActive = false;
+let _bcManualDraft = null;
+let _bcLookupSource = '';
+let _bcPermissionStatus = null;
 const _bcProductCache = {};
 const _BC_FRAME_ASPECT = 220 / 84;
 const _BC_SCAN_MODES = {
@@ -31,6 +36,86 @@ const _BC_LOOKUP_ATTEMPTS = [
   { timeoutMs: 4000, slowNoticeMs: 2200 },
   { timeoutMs: 6000, slowNoticeMs: 3200 },
 ];
+
+async function getBarcodeCameraPermissionState(forceRefresh = false) {
+  if (!forceRefresh && _bcCameraPermission !== 'unknown') return _bcCameraPermission;
+  if (!navigator.permissions?.query) return _bcCameraPermission;
+  try {
+    if (!_bcPermissionStatus) {
+      _bcPermissionStatus = await navigator.permissions.query({ name: 'camera' });
+      if (_bcPermissionStatus?.onchange == null) {
+        _bcPermissionStatus.onchange = () => {
+          _bcCameraPermission = _bcPermissionStatus?.state || 'unknown';
+        };
+      }
+    }
+    _bcCameraPermission = _bcPermissionStatus?.state || 'unknown';
+    return _bcCameraPermission;
+  } catch (_) {
+    return _bcCameraPermission;
+  }
+}
+
+function _getBarcodeCompleteness(item) {
+  if (!item) return 0;
+  const hasName = !!String(item.name || '').trim();
+  const kcal100 = Math.round(Number(item.kcal100 || 0));
+  const p100 = Number(item.p100 || 0);
+  const c100 = Number(item.c100 || 0);
+  const f100 = Number(item.f100 || 0);
+  const hasFullMacros = [p100, c100, f100].every(val => Number.isFinite(val) && val >= 0)
+    && (p100 > 0 || c100 > 0 || f100 > 0);
+  return (hasName ? 1 : 0) + (kcal100 > 0 ? 2 : 0) + (hasFullMacros ? 2 : 0) + ((item.brand || item.quantity) ? 1 : 0);
+}
+
+function _normalizeBarcodeItem(item, barcode) {
+  if (!item) return null;
+  const normalized = {
+    barcode: _sanitizeBarcode(barcode || item.barcode || ''),
+    name: String(item.name || '').trim().slice(0, 60),
+    brand: String(item.brand || '').trim().slice(0, 30),
+    quantity: String(item.quantity || '').trim().slice(0, 24),
+    kcal100: Math.round(Number(item.kcal100 || 0)),
+    p100: Math.round(Number(item.p100 || 0) * 10) / 10,
+    c100: Math.round(Number(item.c100 || 0) * 10) / 10,
+    f100: Math.round(Number(item.f100 || 0) * 10) / 10,
+    source: String(item.source || 'cache').trim() || 'cache',
+    updatedAt: item.updatedAt || item.updated_at || item.cachedAt || new Date().toISOString(),
+    cachedAt: item.cachedAt || new Date().toISOString(),
+  };
+  normalized.completeness = Number(item.completeness || item.completeness_score || _getBarcodeCompleteness(normalized)) || _getBarcodeCompleteness(normalized);
+  if (!normalized.barcode || !normalized.name || !normalized.kcal100) return null;
+  return normalized;
+}
+
+function _choosePreferredBarcodeItem(candidateA, candidateB) {
+  const a = _normalizeBarcodeItem(candidateA);
+  const b = _normalizeBarcodeItem(candidateB);
+  if (!a) return b;
+  if (!b) return a;
+  const scoreA = Number(a.completeness || 0);
+  const scoreB = Number(b.completeness || 0);
+  if (scoreA !== scoreB) return scoreA > scoreB ? a : b;
+  const atA = Date.parse(a.updatedAt || a.cachedAt || 0) || 0;
+  const atB = Date.parse(b.updatedAt || b.cachedAt || 0) || 0;
+  return atA >= atB ? a : b;
+}
+
+function _hideBarcodeResult() {
+  const result = document.getElementById('bc-result');
+  if (!result) return;
+  result.classList.remove('is-overlay');
+  result.style.display = 'none';
+  result.innerHTML = '';
+}
+
+function _showBarcodeOverlay(html) {
+  const result = document.getElementById('bc-result');
+  if (!result) return;
+  result.innerHTML = html;
+  result.classList.add('is-overlay');
+  result.style.display = 'block';
+}
 
 function _setBarcodeStatus(message, tone = 'neutral') {
   const status = document.getElementById('bc-status');
@@ -445,6 +530,8 @@ async function _fetchBarcodeProductOnce(barcode, hardTimeoutMs, slowNoticeMs = 7
           product.generic_name ||
           'Prodotto'
         ).trim(),
+        brand: ((product.brands || '').split(',')[0] || '').trim().slice(0, 30),
+        quantity: (product.quantity || '').trim().slice(0, 24),
       };
     }
     return { status: 'found', item };
@@ -509,12 +596,87 @@ function _showBarcodeLookupFallback(barcode, outcome) {
 
   if (outcome.status === 'insufficient_data') {
     _setBarcodeStatus(`⚠️ Barcode letto: ${barcode}. Prodotto trovato, ma i valori nutrizionali non sono sufficienti.`, 'warn');
-    _renderBarcodeActions(actions);
+    renderBarcodeManualCompletion(barcode, outcome);
     return;
   }
 
   _setBarcodeStatus(`⚠️ Barcode letto: ${barcode}. Prodotto non trovato su Open Food Facts.`, 'warn');
-  _renderBarcodeActions(actions);
+  _renderBarcodeActions([
+    { id: 'complete-manually', label: 'Compila a mano', tone: 'warn' },
+    ...actions,
+  ]);
+}
+
+function _buildBarcodeManualDraft(barcode, outcome = {}) {
+  const normalizedBarcode = _sanitizeBarcode(barcode);
+  const fallbackName = String(outcome?.productName || '').trim();
+  const fallbackBrand = String(outcome?.brand || '').trim();
+  const fallbackQuantity = String(outcome?.quantity || '').trim();
+  const draft = {
+    barcode: normalizedBarcode,
+    name: fallbackName,
+    brand: fallbackBrand,
+    quantity: fallbackQuantity,
+    kcal100: Number(outcome?.kcal100 || 0) || '',
+    p100: Number.isFinite(Number(outcome?.p100)) ? Number(outcome.p100) : '',
+    c100: Number.isFinite(Number(outcome?.c100)) ? Number(outcome.c100) : '',
+    f100: Number.isFinite(Number(outcome?.f100)) ? Number(outcome.f100) : '',
+  };
+  _bcManualDraft = { ...draft };
+  return draft;
+}
+
+function renderBarcodeManualCompletion(barcode = _bcLastDetectedCode, outcome = {}) {
+  const draft = _buildBarcodeManualDraft(barcode, outcome);
+  _renderBarcodeActions([]);
+  _showBarcodeOverlay(`
+    <div class="bc-result-shell bc-manual-shell">
+      <div class="bc-manual-card">
+        <div class="bc-manual-kicker">Completa il barcode</div>
+        <div class="bc-manual-title">${draft.name || 'Aggiungi i dati mancanti'}</div>
+        <div class="bc-manual-sub">Compila i valori una volta sola: dalle prossime scansioni questo prodotto verra ritrovato subito anche dalla community.</div>
+        <div class="bc-manual-grid">
+          <label class="bc-manual-field">
+            <span>Nome</span>
+            <input id="bc-manual-name" type="text" value="${esc(draft.name || '')}" placeholder="Nome prodotto">
+          </label>
+          <label class="bc-manual-field">
+            <span>Brand</span>
+            <input id="bc-manual-brand" type="text" value="${esc(draft.brand || '')}" placeholder="Brand">
+          </label>
+          <label class="bc-manual-field">
+            <span>Quantita</span>
+            <input id="bc-manual-quantity" type="text" value="${esc(draft.quantity || '')}" placeholder="500 g">
+          </label>
+          <label class="bc-manual-field">
+            <span>Kcal / 100g</span>
+            <input id="bc-manual-kcal" type="number" min="1" step="1" value="${draft.kcal100 || ''}" placeholder="250">
+          </label>
+          <label class="bc-manual-field">
+            <span>Proteine</span>
+            <input id="bc-manual-p" type="number" min="0" step="0.1" value="${draft.p100 || ''}" placeholder="0">
+          </label>
+          <label class="bc-manual-field">
+            <span>Carboidrati</span>
+            <input id="bc-manual-c" type="number" min="0" step="0.1" value="${draft.c100 || ''}" placeholder="0">
+          </label>
+          <label class="bc-manual-field">
+            <span>Grassi</span>
+            <input id="bc-manual-f" type="number" min="0" step="0.1" value="${draft.f100 || ''}" placeholder="0">
+          </label>
+          <label class="bc-manual-field bc-manual-field-barcode">
+            <span>Barcode</span>
+            <input type="text" value="${draft.barcode}" readonly>
+          </label>
+        </div>
+        <div class="bc-manual-actions">
+          <button class="bc-action-btn" onclick="openBarcodeNextScan()">Scansiona un altro</button>
+          <button class="bc-action-btn primary" onclick="saveBarcodeManualCompletion()">Salva e usa questo prodotto</button>
+        </div>
+      </div>
+    </div>
+  `);
+  setTimeout(() => document.getElementById('bc-manual-name')?.focus(), 60);
 }
 
 function _focusBarcodeTextFallback() {
@@ -562,9 +724,10 @@ function _focusBarcodeTextFallback() {
 function restartBarcodeScan() {
   _bcItem = null;
   _bcResolvedCode = null;
+  _bcManualDraft = null;
+  _bcLookupSource = '';
   _resetBarcodeFeedback();
-  const result = document.getElementById('bc-result');
-  if (result) result.style.display = 'none';
+  _hideBarcodeResult();
   if (_bcStream) {
     _bcScanning = true;
     scanBarcode();
@@ -580,6 +743,9 @@ async function retryBarcodeLookup() {
   }
   _bcResolvedCode = null;
   _bcItem = null;
+  _bcManualDraft = null;
+  _bcLookupSource = '';
+  _hideBarcodeResult();
   _renderBarcodeActions([]);
   _setBarcodeStatus(`🔄 Barcode letto: ${_bcLastDetectedCode}. Riprovo il lookup prodotto...`);
   await onBarcodeDetected(_bcLastDetectedCode, { skipCache: true });
@@ -592,6 +758,10 @@ function handleBarcodeAction(actionId) {
   }
   if (actionId === 'restart-scan') {
     restartBarcodeScan();
+    return;
+  }
+  if (actionId === 'complete-manually') {
+    renderBarcodeManualCompletion(_bcLastDetectedCode, {});
     return;
   }
   if (actionId === 'open-text-search') {
@@ -650,11 +820,16 @@ function _buildFoodItemFromBarcodeProduct(product, barcode) {
 }
 
 function _cacheBarcodeItem(item) {
-  if (!item?.barcode) return;
-  const cachedItem = { ...item, cachedAt: new Date().toISOString() };
-  _bcProductCache[item.barcode] = { ...cachedItem };
+  const normalized = _normalizeBarcodeItem(item);
+  if (!normalized?.barcode) return;
+  const existing = _readBarcodeCacheItem(normalized.barcode);
+  const cachedItem = _choosePreferredBarcodeItem(
+    existing,
+    { ...normalized, cachedAt: new Date().toISOString(), updatedAt: normalized.updatedAt || new Date().toISOString() }
+  );
+  _bcProductCache[cachedItem.barcode] = { ...cachedItem };
   if (!S.barcodeCache) S.barcodeCache = {};
-  S.barcodeCache[item.barcode] = { ...cachedItem };
+  S.barcodeCache[cachedItem.barcode] = { ...cachedItem };
   const barcodeKeys = Object.keys(S.barcodeCache);
   if (barcodeKeys.length > 250) {
     barcodeKeys
@@ -662,35 +837,24 @@ function _cacheBarcodeItem(item) {
       .slice(0, 60)
       .forEach(key => delete S.barcodeCache[key]);
   }
-  const ck = item.name.toLowerCase().slice(0, 20);
+  const ck = cachedItem.name.toLowerCase().slice(0, 20);
   if (!S.foodCache[ck]) S.foodCache[ck] = [];
-  if (!S.foodCache[ck].find(x => x.name === item.name && x.brand === item.brand)) {
+  if (!S.foodCache[ck].find(x => x.name === cachedItem.name && x.brand === cachedItem.brand)) {
     S.foodCache[ck].push({
-      name: item.name,
-      brand: item.brand,
-      kcal100: item.kcal100,
-      p100: item.p100,
-      c100: item.c100,
-      f100: item.f100,
+      name: cachedItem.name,
+      brand: cachedItem.brand,
+      kcal100: cachedItem.kcal100,
+      p100: cachedItem.p100,
+      c100: cachedItem.c100,
+      f100: cachedItem.f100,
+      barcode: cachedItem.barcode,
       src: 'cache',
     });
   }
 }
 
 function _normalizeCachedBarcodeItem(item, barcode) {
-  if (!item) return null;
-  const normalized = {
-    barcode: barcode || item.barcode || '',
-    name: String(item.name || '').trim().slice(0, 60),
-    brand: String(item.brand || '').trim().slice(0, 30),
-    quantity: String(item.quantity || '').trim().slice(0, 24),
-    kcal100: Math.round(Number(item.kcal100 || 0)),
-    p100: Math.round(Number(item.p100 || 0) * 10) / 10,
-    c100: Math.round(Number(item.c100 || 0) * 10) / 10,
-    f100: Math.round(Number(item.f100 || 0) * 10) / 10,
-  };
-  if (!normalized.barcode || !normalized.name || !normalized.kcal100) return null;
-  return normalized;
+  return _normalizeBarcodeItem(item, barcode);
 }
 
 function _findBarcodeItemFromHistory(barcode) {
@@ -735,11 +899,13 @@ function _findBarcodeItemFromHistory(barcode) {
 
 function _readBarcodeCacheItem(barcode) {
   if (!barcode) return null;
-  if (_bcProductCache[barcode]) return { ..._bcProductCache[barcode] };
+  if (_bcProductCache[barcode]) return _normalizeCachedBarcodeItem({ ..._bcProductCache[barcode] }, barcode);
   const persistent = S.barcodeCache?.[barcode];
   if (persistent) {
-    _bcProductCache[barcode] = { ...persistent };
-    return { ...persistent };
+    const normalized = _normalizeCachedBarcodeItem({ ...persistent }, barcode);
+    if (!normalized) return null;
+    _bcProductCache[barcode] = { ...normalized };
+    return { ...normalized };
   }
   return null;
 }
@@ -769,14 +935,42 @@ function fillFfFromProduct(item) {
   toast('✅ Dati compilati — verifica e salva');
 }
 
-function showBcResult() {
-  if (_bcMode === 'ff') {
-    fillFfFromProduct(_bcItem);
-    closeBarcode();
+function _upsertManualBarcodeIntoProfile(item) {
+  const normalized = _normalizeBarcodeItem(item);
+  if (!normalized) return;
+  if (!S.customFoods) S.customFoods = [];
+  const existing = S.customFoods.find(food =>
+    _sanitizeBarcode(food?.barcode) === normalized.barcode ||
+    String(food?.name || '').trim().toLowerCase() === normalized.name.toLowerCase()
+  );
+  if (existing) {
+    existing.name = normalized.name;
+    existing.brand = normalized.brand || existing.brand || '📝 Personale';
+    existing.kcal100 = normalized.kcal100;
+    existing.p100 = normalized.p100;
+    existing.c100 = normalized.c100;
+    existing.f100 = normalized.f100;
+    existing.barcode = normalized.barcode;
+    existing.quantity = normalized.quantity || existing.quantity || '';
+    existing.updatedAt = normalized.updatedAt;
     return;
   }
+  S.customFoods.push({
+    name: normalized.name,
+    brand: normalized.brand || '📝 Personale',
+    kcal100: normalized.kcal100,
+    p100: normalized.p100,
+    c100: normalized.c100,
+    f100: normalized.f100,
+    barcode: normalized.barcode,
+    quantity: normalized.quantity || '',
+    updatedAt: normalized.updatedAt,
+  });
+}
+
+function showBcResult() {
   const resultEl = document.getElementById('bc-result');
-  if (!resultEl) return;
+  if (!resultEl || !_bcItem) return;
   const portions = (typeof FOOD_PORTIONS !== 'undefined' ? FOOD_PORTIONS : [
     { label: 'Cucchiaino', g: 5 },
     { label: 'Cucchiaio',  g: 15 },
@@ -787,12 +981,20 @@ function showBcResult() {
   const portionChips = portions.map(p =>
     `<button class="fsr-portion${p.g === 100 ? ' sel' : ''}" data-g="${p.g}">${p.label}<span class="fsr-portion-g">${p.g}g</span></button>`
   ).join('');
+  const confirmLabel = _bcMode === 'ff' ? 'Usa nel form' : 'Aggiungi';
   const p100 = Math.round((_bcItem.p100 || 0) * 10) / 10;
   const c100 = Math.round((_bcItem.c100 || 0) * 10) / 10;
   const f100 = Math.round((_bcItem.f100 || 0) * 10) / 10;
   const metaBadges = [
     `<span class="fsr-gp-badge">Barcode</span>`,
     _bcItem.barcode ? `<span class="fsr-gp-badge">${_bcItem.barcode}</span>` : '',
+    _bcLookupSource === 'shared'
+      ? `<span class="fsr-gp-verified">Community</span>`
+      : _bcLookupSource === 'off'
+        ? `<span class="fsr-gp-verified">Open Food Facts</span>`
+        : _bcLookupSource === 'manual'
+          ? `<span class="fsr-gp-verified">Compilato a mano</span>`
+          : '',
   ].filter(Boolean).join('');
 
   let remRowHTML = '';
@@ -827,7 +1029,7 @@ function showBcResult() {
     `</div>`;
   }
 
-  resultEl.innerHTML = `
+  _showBarcodeOverlay(`
     <div class="bc-result-shell">
       <div class="fsr-gp-info">
         <div class="fsr-gp-head">
@@ -854,7 +1056,7 @@ function showBcResult() {
             <span class="fsr-gram-unit">g</span>
           </div>
           <span class="fsr-gram-calc" id="bc-gram-calc">= 100 kcal</span>
-          <button class="fsr-gram-add" onclick="confirmBarcodeItem()">Aggiungi</button>
+          <button class="fsr-gram-add" onclick="confirmBarcodeItem()">${confirmLabel}</button>
         </div>
         <div class="fsr-gp-live">
           <span class="fsr-gp-live-lbl">Con questa quantita</span>
@@ -869,8 +1071,12 @@ function showBcResult() {
           </span>
         </div>
         ${remRowHTML}
+        <div class="bc-result-actions">
+          <button class="bc-action-btn" onclick="openBarcodeNextScan()">Scansiona un altro</button>
+          <button class="bc-action-btn" onclick="closeBarcode()">Chiudi</button>
+        </div>
       </div>
-    </div>`;
+    </div>`);
   _setBarcodeStatus(`✅ ${_getBarcodeItemStatusLabel(_bcItem)}`, 'success');
   _renderBarcodeActions([]);
   const gi = document.getElementById('bc-gram-input');
@@ -913,12 +1119,6 @@ function showBcResult() {
       gi.focus();
     };
   });
-  resultEl.style.display = 'block';
-  resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  if (_bcStream) {
-    _bcStream.getTracks().forEach(t => t.stop());
-    _bcStream = null;
-  }
   gi.focus();
 }
 
@@ -928,17 +1128,24 @@ function openBarcode(dateKey, mealIdx) {
   _bcItem = null;
   _bcResolvedCode = null;
   _bcLastDetectedCode = null;
+  _bcManualDraft = null;
+  _bcLookupSource = '';
   _bcScanning = false;
   if (_bcLookupController) {
     try { _bcLookupController.abort(); } catch(e) {}
     _bcLookupController = null;
   }
   const modal = document.getElementById('barcode-modal');
-  const result = document.getElementById('bc-result');
-  result.style.display = 'none';
+  _hideBarcodeResult();
   _resetBarcodeFeedback();
   modal.style.display = 'flex';
   if (typeof lockUiScroll === 'function') lockUiScroll();
+  getBarcodeCameraPermissionState(true).catch(() => {});
+  if (_bcStream && _bcScannerSessionActive) {
+    _bcScanning = true;
+    scanBarcode();
+    return;
+  }
   startBcCamera(_bcOpenToken);
 }
 
@@ -947,9 +1154,14 @@ async function startBcCamera(openToken = _bcOpenToken) {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error('API fotocamera non supportata da questo browser');
     }
+    const permissionState = await getBarcodeCameraPermissionState(true);
+    if (permissionState === 'denied') {
+      throw new DOMException('Permesso fotocamera negato', 'NotAllowedError');
+    }
     _bcStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
     });
+    _bcCameraPermission = 'granted';
     if (openToken !== _bcOpenToken) {
       _bcStream.getTracks().forEach(t => t.stop());
       _bcStream = null;
@@ -961,6 +1173,7 @@ async function startBcCamera(openToken = _bcOpenToken) {
       _bcStream = null;
       return;
     }
+    _bcScannerSessionActive = true;
     v.srcObject = _bcStream;
     await v.play();
     if (openToken !== _bcOpenToken) {
@@ -968,10 +1181,17 @@ async function startBcCamera(openToken = _bcOpenToken) {
       _bcStream = null;
       return;
     }
+    _setBarcodeStatus(
+      permissionState === 'prompt'
+        ? '📷 Fotocamera pronta. Se il browser ripropone il permesso, dipende dalle sue impostazioni: la sessione scanner restera comunque aperta finche non la chiudi.'
+        : '📷 Fotocamera pronta. Inquadra il codice a barre del prodotto.',
+      'neutral'
+    );
     _bcScanning = true;
     scanBarcode();
   } catch(e) {
     if (openToken !== _bcOpenToken) return;
+    _bcScannerSessionActive = false;
     _setBarcodeStatus(
       e.name === 'NotAllowedError'
         ? '❌  Permesso fotocamera negato. Abilitalo nelle impostazioni browser.'
@@ -982,6 +1202,18 @@ async function startBcCamera(openToken = _bcOpenToken) {
       { id: 'open-text-search', label: 'Usa ricerca testuale', tone: 'primary' },
     ]);
   }
+}
+
+async function _readSharedBarcodeItem(barcode) {
+  if (typeof authFetchSharedBarcode !== 'function') return null;
+  const response = await authFetchSharedBarcode(barcode);
+  if (!response?.ok || !response.row) return null;
+  return _normalizeCachedBarcodeItem({ ...response.row, source: response.row.source || 'shared' }, barcode);
+}
+
+function _syncBarcodeItemToSharedCatalog(item) {
+  if (typeof authUpsertSharedBarcode !== 'function') return Promise.resolve({ ok: false, skipped: true });
+  return authUpsertSharedBarcode(item).catch(err => ({ ok: false, message: err?.message || 'Sync barcode fallita' }));
 }
 
 async function onBarcodeDetected(barcode, opts = {}) {
@@ -1006,19 +1238,52 @@ async function onBarcodeDetected(barcode, opts = {}) {
   if (cached && !opts.skipCache) {
     _bcResolvedCode = cleanBarcode;
     _bcItem = { ...cached };
+    _bcLookupSource = cached.source || 'cache';
     _setBarcodeStatus(`⚡ ${_getBarcodeItemStatusLabel(_bcItem)}`, 'success');
     showBcResult();
     return;
   }
 
   _renderBarcodeActions([]);
-  _setBarcodeStatus('🔍 Codice: ' + cleanBarcode + ' · Cerco su Open Food Facts...');
-  const outcome = await _lookupBarcodeProduct(cleanBarcode);
-  if (outcome.status === 'found') {
+  _setBarcodeStatus('🔍 Codice: ' + cleanBarcode + ' · Controllo community e Open Food Facts...');
+  const sharedItem = !opts.skipCache ? await _readSharedBarcodeItem(cleanBarcode) : null;
+  const sharedIsStrong = sharedItem && Number(sharedItem.completeness || 0) >= 5;
+  if (sharedItem && sharedIsStrong) {
     _bcResolvedCode = cleanBarcode;
-    _bcItem = outcome.item;
+    _bcItem = { ...sharedItem };
+    _bcLookupSource = 'shared';
     _cacheBarcodeItem(_bcItem);
     save();
+    _setBarcodeStatus(`⚡ Community: ${_getBarcodeItemStatusLabel(_bcItem)}`, 'success');
+    showBcResult();
+    return;
+  }
+
+  const outcome = await _lookupBarcodeProduct(cleanBarcode);
+  if (outcome.status === 'found') {
+    const resolved = sharedItem
+      ? _choosePreferredBarcodeItem(
+          { ...sharedItem, source: 'shared' },
+          { ...outcome.item, source: 'off', updatedAt: new Date().toISOString() }
+        )
+      : _normalizeCachedBarcodeItem({ ...outcome.item, source: 'off', updatedAt: new Date().toISOString() }, cleanBarcode);
+    _bcResolvedCode = cleanBarcode;
+    _bcItem = resolved;
+    _bcLookupSource = resolved?.source === 'shared' ? 'shared' : 'off';
+    _cacheBarcodeItem(_bcItem);
+    save();
+    _syncBarcodeItemToSharedCatalog({ ...outcome.item, barcode: cleanBarcode, source: 'off' });
+    showBcResult();
+    return;
+  }
+
+  if (sharedItem) {
+    _bcResolvedCode = cleanBarcode;
+    _bcItem = { ...sharedItem };
+    _bcLookupSource = 'shared';
+    _cacheBarcodeItem(_bcItem);
+    save();
+    _setBarcodeStatus(`⚠️ Community: ${_getBarcodeItemStatusLabel(_bcItem)}`, 'warn');
     showBcResult();
     return;
   }
@@ -1027,6 +1292,7 @@ async function onBarcodeDetected(barcode, opts = {}) {
   if (historyItem) {
     _bcResolvedCode = cleanBarcode;
     _bcItem = { ...historyItem };
+    _bcLookupSource = 'history';
     _setBarcodeStatus(`⚠️ Prodotto non verificato online: ${_getBarcodeItemStatusLabel(_bcItem)}`, 'warn');
     showBcResult();
     return;
@@ -1052,7 +1318,6 @@ function confirmBarcodeItem() {
     S.foodLog[dateKey][mealIdx].push(item);
     syncLoggedMealState(dateKey, mealIdx, dayType);
     save();
-    closeBarcode();
     toast('✅  ' + item.name + ' aggiunto');
     refreshMealCard(dayType, mealIdx);
     requestAnimationFrame(() => {
@@ -1060,19 +1325,101 @@ function confirmBarcodeItem() {
         scrollMealCardIntoView(dayType, mealIdx, { behavior: 'smooth', focusAdd: true });
       }
     });
+    openBarcodeNextScan(220, `✅ ${item.name} aggiunto. Inquadra il prossimo barcode.`);
   } else {
+    if (_bcMode === 'ff') {
+      _upsertManualBarcodeIntoProfile(item);
+      save();
+      fillFfFromProduct(item);
+      closeBarcode();
+      return;
+    }
     _tmplFormItems.push(item);
-    closeBarcode();
     renderTmplFormItems();
     toast('✅  ' + item.name + ' aggiunto al template');
+    openBarcodeNextScan(220, `✅ ${item.name} aggiunto al template. Inquadra il prossimo barcode.`);
   }
+}
+
+function openBarcodeNextScan(delay = 80, message = 'Inquadra il codice a barre del prodotto') {
+  _bcItem = null;
+  _bcResolvedCode = null;
+  _bcManualDraft = null;
+  _bcLookupSource = '';
+  _hideBarcodeResult();
+  _resetBarcodeFeedback(message);
+  if (_bcStream) {
+    setTimeout(() => {
+      if (!_bcStream) return;
+      _bcScanning = true;
+      scanBarcode();
+    }, delay);
+    return;
+  }
+  startBcCamera(_bcOpenToken);
+}
+
+async function saveBarcodeManualCompletion() {
+  const barcode = _sanitizeBarcode(_bcLastDetectedCode || _bcManualDraft?.barcode);
+  const name = (document.getElementById('bc-manual-name')?.value || '').trim();
+  const brand = (document.getElementById('bc-manual-brand')?.value || '').trim();
+  const quantity = (document.getElementById('bc-manual-quantity')?.value || '').trim();
+  const kcal100 = Math.round(Number(document.getElementById('bc-manual-kcal')?.value || 0));
+  const p100 = Math.round(Number(document.getElementById('bc-manual-p')?.value || 0) * 10) / 10;
+  const c100 = Math.round(Number(document.getElementById('bc-manual-c')?.value || 0) * 10) / 10;
+  const f100 = Math.round(Number(document.getElementById('bc-manual-f')?.value || 0) * 10) / 10;
+  if (!barcode) {
+    toast('⚠️ Barcode non disponibile');
+    return;
+  }
+  if (!name) {
+    toast('⚠️ Inserisci il nome del prodotto');
+    document.getElementById('bc-manual-name')?.focus();
+    return;
+  }
+  if (!kcal100 || kcal100 <= 0) {
+    toast('⚠️ Inserisci le kcal per 100g');
+    document.getElementById('bc-manual-kcal')?.focus();
+    return;
+  }
+  const manualItem = _normalizeCachedBarcodeItem({
+    barcode,
+    name,
+    brand,
+    quantity,
+    kcal100,
+    p100,
+    c100,
+    f100,
+    source: 'manual',
+    updatedAt: new Date().toISOString(),
+  }, barcode);
+  if (!manualItem) {
+    toast('⚠️ Dati manuali non validi');
+    return;
+  }
+  _bcResolvedCode = barcode;
+  _bcItem = { ...manualItem };
+  _bcLookupSource = 'manual';
+  _cacheBarcodeItem(_bcItem);
+  if (_bcMode === 'ff') _upsertManualBarcodeIntoProfile(_bcItem);
+  save();
+  const syncResult = await _syncBarcodeItemToSharedCatalog({ ..._bcItem, source: 'user_manual' });
+  if (!syncResult?.ok && !syncResult?.skipped) {
+    toast('⚠️ Salvato localmente. Il catalogo condiviso verra aggiornato alla prossima occasione.');
+  }
+  _setBarcodeStatus(`✅ Prodotto completato: ${_getBarcodeItemStatusLabel(_bcItem)}`, 'success');
+  showBcResult();
 }
 
 function closeBarcode() {
   _bcScanning = false;
+  _bcScannerSessionActive = false;
   _bcMode = 'log';
   _bcResolvedCode = null;
   _bcLastDetectedCode = null;
+  _bcManualDraft = null;
+  _bcLookupSource = '';
   _bcScanLoopToken += 1;
   _bcOpenToken += 1;
   if (_bcLookupController) {
@@ -1084,7 +1431,7 @@ function closeBarcode() {
     _bcStream = null;
   }
   document.getElementById('barcode-modal').style.display = 'none';
-  document.getElementById('bc-result').style.display = 'none';
+  _hideBarcodeResult();
   _bcItem = null;
   _bcCtx = null;
   _renderBarcodeActions([]);
