@@ -796,7 +796,7 @@ function selAlt(altKey, idx) {
 let _tmplFilter = 'tutti';
 let _tmplFormItems = [];
 let _editingTmplId = null;
-let _tmplMealType = '';
+let _tmplMealTypes = [];
 let _templatePortionResolver = null;
 let _templateTargetResolver = null;
 
@@ -1111,11 +1111,13 @@ function plannerSuggestionToTemplate(type, resultIdx) {
   const meal = S.meals[type]?.[state.mealIdx];
   if (!result || !meal?.name) return;
   const mealType = getMealTypeFromName(meal.name) || 'altro';
+  const mealTypes = [mealType].filter(Boolean);
   S.templates.push({
     id: 't' + Date.now(),
     name: `${meal.name} smart`,
     tag: mealType,
     mealType,
+    mealTypes,
     items: result.items.map(it => ({ ...it })),
     usageCount: 0,
     pinned: false,
@@ -1126,28 +1128,91 @@ function plannerSuggestionToTemplate(type, resultIdx) {
   toast('✅ Suggerimento salvato come template');
 }
 
-function setTmplMealType(type) {
-  _tmplMealType = type;
-  document.querySelectorAll('.tmpl-type-pill').forEach(b => {
-    b.classList.toggle('active', b.textContent.toLowerCase().includes(type));
+function getTemplateMealOptionsFromTodayConfig() {
+  const selectedDate = S.selDate || localDate();
+  const primaryType = typeof resolveDayTypeForDate === 'function'
+    ? resolveDayTypeForDate(selectedDate)
+    : (S.day || 'on');
+  const fallbackType = primaryType === 'on' ? 'off' : 'on';
+  const buckets = new Map();
+
+  [primaryType, fallbackType].forEach(type => {
+    (S.meals?.[type] || []).forEach((meal, idx) => {
+      const visibleName = String(meal?.name || '').trim();
+      const normalized = getMealTypeFromName(visibleName)
+        || (typeof inferMealTypeFromLabel === 'function' ? inferMealTypeFromLabel(visibleName) : '');
+      if (!normalized || normalized === 'altro' || buckets.has(normalized)) return;
+      buckets.set(normalized, {
+        key: normalized,
+        id: `tmpl-meal-${normalized}-${idx}`,
+        icon: String(meal?.icon || '').trim(),
+        name: visibleName || normalized,
+        label: `${String(meal?.icon || '').trim()} ${visibleName || normalized}`.trim(),
+      });
+    });
   });
-  const hidden = document.getElementById('tf-tag');
-  if (hidden) hidden.value = type;
+
+  const fallbackOptions = [
+    { key: 'colazione', icon: '🥣', name: 'Colazione' },
+    { key: 'pranzo', icon: '🍽️', name: 'Pranzo' },
+    { key: 'cena', icon: '🍳', name: 'Cena' },
+    { key: 'spuntino', icon: '⚡', name: 'Spuntino' },
+  ];
+  fallbackOptions.forEach(option => {
+    if (buckets.has(option.key)) return;
+    buckets.set(option.key, {
+      ...option,
+      id: `tmpl-meal-${option.key}`,
+      label: `${option.icon} ${option.name}`.trim(),
+    });
+  });
+  return Array.from(buckets.values());
 }
 
-function _resetTmplMealTypePills(type) {
-  _tmplMealType = type || '';
-  document.querySelectorAll('.tmpl-type-pill').forEach(b => {
-    b.classList.toggle('active', !!type && b.textContent.toLowerCase().includes(type));
-  });
+function renderTmplMealTypePills(selectedTypes = _tmplMealTypes) {
+  const pillsEl = document.getElementById('tmpl-type-pills');
+  if (!pillsEl) return;
+  const activeSet = new Set(
+    (Array.isArray(selectedTypes) ? selectedTypes : [selectedTypes])
+      .map(type => String(type || '').trim())
+      .filter(Boolean)
+  );
+  const options = getTemplateMealOptionsFromTodayConfig();
+  pillsEl.innerHTML = options.map(option => `
+    <button
+      type="button"
+      class="tmpl-type-pill${activeSet.has(option.key) ? ' active' : ''}"
+      data-meal-type="${option.key}"
+      onclick="setTmplMealType('${option.key}')"
+      aria-pressed="${activeSet.has(option.key) ? 'true' : 'false'}">
+      ${htmlEsc(option.label)}
+    </button>
+  `).join('');
   const hidden = document.getElementById('tf-tag');
-  if (hidden) hidden.value = type || '';
+  if (hidden) hidden.value = [...activeSet].join(',');
+}
+
+function setTmplMealType(type) {
+  const normalized = String(type || '').trim();
+  if (!normalized) return;
+  const activeSet = new Set(_tmplMealTypes || []);
+  if (activeSet.has(normalized)) activeSet.delete(normalized);
+  else activeSet.add(normalized);
+  _tmplMealTypes = [...activeSet];
+  renderTmplMealTypePills(_tmplMealTypes);
+}
+
+function _resetTmplMealTypePills(types) {
+  _tmplMealTypes = Array.isArray(types)
+    ? [...new Set(types.map(type => String(type || '').trim()).filter(Boolean))]
+    : (types ? [String(types).trim()] : []);
+  renderTmplMealTypePills(_tmplMealTypes);
 }
 
 function openNewTemplate() {
   _editingTmplId = null; _tmplFormItems = [];
   document.getElementById('tf-name').value = '';
-  _resetTmplMealTypePills('');
+  _resetTmplMealTypePills([]);
   document.getElementById('tmpl-form-title').textContent = 'Nuovo template';
   renderTmplFormItems();
   document.getElementById('tmpl-form').style.display = 'block';
@@ -1159,7 +1224,11 @@ function editTemplate(id) {
   _editingTmplId = id;
   _tmplFormItems = t.items.map(it=>({...it}));
   document.getElementById('tf-name').value = t.name;
-  _resetTmplMealTypePills(t.mealType || t.tag || '');
+  _resetTmplMealTypePills(
+    typeof normalizeTemplateMealTypes === 'function'
+      ? normalizeTemplateMealTypes(t)
+      : [t.mealType || t.tag || ''].filter(Boolean)
+  );
   document.getElementById('tmpl-form-title').textContent = 'Modifica template';
   renderTmplFormItems();
   document.getElementById('tmpl-form').style.display = 'block';
@@ -1170,7 +1239,8 @@ function closeTemplateForm() {
   document.getElementById('tmpl-form').style.display = 'none';
   document.getElementById('tf-search-results').innerHTML = '';
   document.getElementById('tf-search').value = '';
-  _editingTmplId = null; _tmplFormItems = []; _tmplMealType = '';
+  _editingTmplId = null; _tmplFormItems = []; _tmplMealTypes = [];
+  renderTmplMealTypePills([]);
 }
 
 function renderTmplFormItems() {
@@ -1216,19 +1286,20 @@ function saveTemplate() {
   const name = document.getElementById('tf-name').value.trim();
   if (!name) { toast('⚠️ Inserisci un nome'); return; }
   if (!_tmplFormItems.length) { toast('⚠️ Aggiungi almeno un alimento'); return; }
-  if (!_tmplMealType) { toast('⚠️ Seleziona il tipo di pasto'); return; }
-  const tag = _tmplMealType;
-  const mealType = _tmplMealType;
+  if (!_tmplMealTypes.length) { toast('⚠️ Seleziona almeno un tipo di pasto'); return; }
+  const mealTypes = [..._tmplMealTypes];
+  const tag = mealTypes[0];
+  const mealType = mealTypes[0];
   if (_editingTmplId) {
     const idx = S.templates.findIndex(t=>t.id===_editingTmplId);
     if (idx>=0) S.templates[idx] = {
-      id:_editingTmplId, name, tag, mealType, items:[..._tmplFormItems],
+      id:_editingTmplId, name, tag, mealType, mealTypes, items:[..._tmplFormItems],
       usageCount: Number(S.templates[idx].usageCount || 0) || 0,
       pinned: !!S.templates[idx].pinned,
       source: S.templates[idx].source || 'manual'
     };
   } else {
-    S.templates.push({id:'t'+Date.now(), name, tag, mealType, items:[..._tmplFormItems], usageCount: 0, pinned: false, source: 'manual'});
+    S.templates.push({id:'t'+Date.now(), name, tag, mealType, mealTypes, items:[..._tmplFormItems], usageCount: 0, pinned: false, source: 'manual'});
   }
   save(); closeTemplateForm(); renderPiano(); toast('✅ Template salvato');
 }
@@ -1237,10 +1308,14 @@ function deleteTemplate(id) {
   const template = S.templates.find(t => t.id === id);
   if (!template) return;
   const itemCount = Array.isArray(template.items) ? template.items.length : 0;
-  const mealType = typeof getTemplateMealType === 'function'
-    ? getTemplateMealType(template)
-    : (template.mealType || template.tag || 'altro');
-  const mealLabel = mealType ? `${mealType.charAt(0).toUpperCase()}${mealType.slice(1)}` : 'Template';
+  const mealTypeMap = new Map((getTemplateMealOptionsFromTodayConfig() || []).map(option => [option.key, option]));
+  const mealTypes = typeof normalizeTemplateMealTypes === 'function'
+    ? normalizeTemplateMealTypes(template)
+    : [template.mealType || template.tag || ''].filter(Boolean);
+  const mealBadges = mealTypes.map(type => {
+    const meta = mealTypeMap.get(type);
+    return `<span class="template-delete-pill">${htmlEsc(meta?.label || type)}</span>`;
+  }).join('');
   showDayModal({
     icon: '🗑️',
     eyebrow: 'Template',
@@ -1253,7 +1328,7 @@ function deleteTemplate(id) {
       <div class="template-delete-summary">
         <div class="template-delete-name">${htmlEsc(template.name || 'Template')}</div>
         <div class="template-delete-pill-row">
-          <span class="template-delete-pill">${htmlEsc(mealLabel)}</span>
+          ${mealBadges}
           <span class="template-delete-pill">${itemCount} ${itemCount === 1 ? 'alimento' : 'alimenti'}</span>
         </div>
       </div>
@@ -1270,6 +1345,8 @@ function deleteTemplate(id) {
     },
   });
 }
+
+window.getTemplateMealOptionsFromTodayConfig = getTemplateMealOptionsFromTodayConfig;
 
 async function loadTemplateToLog(tmplId) {
   const t = S.templates.find(t=>t.id===tmplId); if (!t) return;

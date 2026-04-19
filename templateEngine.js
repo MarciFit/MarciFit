@@ -11,32 +11,51 @@
     return 'altro';
   }
 
+  function normalizeTemplateMealTypes(template) {
+    const rawValues = [];
+    if (Array.isArray(template?.mealTypes)) rawValues.push(...template.mealTypes);
+    if (template?.mealType) rawValues.push(template.mealType);
+    if (template?.tag) rawValues.push(template.tag);
+    if (!rawValues.length && template?.name) rawValues.push(template.name);
+    const normalized = rawValues
+      .map(normalizeMealType)
+      .filter(Boolean);
+    return [...new Set(normalized)];
+  }
+
   function getTemplateMealType(template) {
-    return normalizeMealType(template?.mealType || template?.tag || template?.name || '');
+    return normalizeTemplateMealTypes(template)[0] || 'altro';
   }
 
   function getTemplateCountsByMealType(templates = []) {
     return templates.reduce((acc, template) => {
-      const mealType = getTemplateMealType(template);
-      acc[mealType] = (acc[mealType] || 0) + 1;
+      const mealTypes = normalizeTemplateMealTypes(template);
+      if (!mealTypes.length) {
+        acc.altro = (acc.altro || 0) + 1;
+        return acc;
+      }
+      mealTypes.forEach(mealType => {
+        acc[mealType] = (acc[mealType] || 0) + 1;
+      });
       return acc;
     }, {});
   }
 
   function filterTemplatesByMealType(templates = [], mealType = 'all') {
     if (!mealType || mealType === 'all') return [...templates];
-    return templates.filter(template => getTemplateMealType(template) === normalizeMealType(mealType));
+    const normalizedFilter = normalizeMealType(mealType);
+    return templates.filter(template => normalizeTemplateMealTypes(template).includes(normalizedFilter));
   }
 
   function templateMatchesMealType(template, mealType) {
     if (!mealType || mealType === 'all') return true;
-    return getTemplateMealType(template) === normalizeMealType(mealType);
+    return normalizeTemplateMealTypes(template).includes(normalizeMealType(mealType));
   }
 
   function scoreTemplateForMeal(template, context = {}) {
     let score = 0;
-    const templateMealType = getTemplateMealType(template);
-    if (templateMealType === context.mealType) score += 30;
+    const templateMealTypes = normalizeTemplateMealTypes(template);
+    if (templateMealTypes.includes(normalizeMealType(context.mealType || ''))) score += 30;
     if (context.favoriteFoodNames?.length) {
       const itemNames = (template.items || []).map(item => String(item.name || '').toLowerCase());
       score += context.favoriteFoodNames.filter(name => itemNames.includes(name)).length * 10;
@@ -90,6 +109,7 @@
     ];
   }
 
+  window.normalizeTemplateMealTypes = normalizeTemplateMealTypes;
   window.getTemplateMealType = getTemplateMealType;
   window.getTemplateCountsByMealType = getTemplateCountsByMealType;
   window.filterTemplatesByMealType = filterTemplatesByMealType;

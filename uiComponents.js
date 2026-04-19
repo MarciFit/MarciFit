@@ -2694,6 +2694,25 @@ function pianoComingSoonCardHTML(kind) {
   </div>`;
 }
 
+function getTemplateMealMetaMap() {
+  const options = typeof getTemplateMealOptionsFromTodayConfig === 'function'
+    ? getTemplateMealOptionsFromTodayConfig()
+    : [];
+  const map = new Map();
+  options.forEach(option => {
+    map.set(option.key, option);
+  });
+  if (!map.size) {
+    [
+      { key: 'colazione', icon: '🥣', name: 'Colazione', label: '🥣 Colazione' },
+      { key: 'pranzo', icon: '🍽️', name: 'Pranzo', label: '🍽️ Pranzo' },
+      { key: 'cena', icon: '🍳', name: 'Cena', label: '🍳 Cena' },
+      { key: 'spuntino', icon: '⚡', name: 'Spuntino', label: '⚡ Spuntino' },
+    ].forEach(option => map.set(option.key, option));
+  }
+  return map;
+}
+
 function renderPiano() {
   if (!S.templates) S.templates = [];
   const pianoUi = typeof ensurePianoUiState === 'function'
@@ -2714,15 +2733,16 @@ function renderPiano() {
   if (favoriteFoodsEl) {
     favoriteFoodsEl.innerHTML = pianoComingSoonCardHTML('foods');
   }
+  if (document.getElementById('tmpl-form')?.style.display === 'block' && typeof renderTmplMealTypePills === 'function') {
+    renderTmplMealTypePills();
+  }
 
   const filtersEl = document.getElementById('tmpl-filters');
   filtersEl.innerHTML = '';
+  const mealMetaMap = getTemplateMealMetaMap();
   const FILTERS = [
     { key: 'all', label: 'Tutti' },
-    { key: 'colazione', label: 'Colazione' },
-    { key: 'pranzo', label: 'Pranzo' },
-    { key: 'cena', label: 'Cena' },
-    { key: 'spuntino', label: 'Snack' },
+    ...Array.from(mealMetaMap.values()).map(option => ({ key: option.key, label: option.label })),
   ];
   FILTERS.forEach(filter => {
     const btn = document.createElement('button');
@@ -2745,14 +2765,18 @@ function renderPiano() {
     return;
   }
 
-  const TMPL_TYPE_EMOJI = {colazione:'🥣', pranzo:'🍽️', cena:'🍳', spuntino:'⚡', altro:'📦'};
   const renderTemplateCard = t => {
     const macros = typeof computeTemplateMacros === 'function'
       ? computeTemplateMacros(t.items || [])
       : { k: 0, p: 0, c: 0, f: 0 };
-    const mealType = typeof getTemplateMealType === 'function' ? getTemplateMealType(t) : (t.mealType || 'altro');
-    const typeEmoji = TMPL_TYPE_EMOJI[mealType] || '';
-    const typeLbl = mealType ? (mealType.charAt(0).toUpperCase() + mealType.slice(1)) : '';
+    const templateMealTypes = typeof normalizeTemplateMealTypes === 'function'
+      ? normalizeTemplateMealTypes(t)
+      : [t.mealType || t.tag || ''].filter(Boolean);
+    const typeBadges = templateMealTypes.map(mealType => {
+      const meta = mealMetaMap.get(mealType);
+      const label = meta?.label || mealType;
+      return `<span class="tmpl-type-badge">${htmlEsc(label)}</span>`;
+    }).join('');
     const itemCount = (t.items || []).length;
     const itemNames = (t.items || [])
       .map(item => String(item.name || '').trim())
@@ -2764,10 +2788,10 @@ function renderPiano() {
       const grams = Number(item.grams || 0) || 0;
       return `<div class="tmpl-detail-line"><span class="tmpl-detail-name">${htmlEsc(item.name || 'Ingrediente')}</span><span class="tmpl-detail-grams">${grams} g</span></div>`;
     }).join('');
-    return `<div class="tmpl-card tmpl-card-compact">
+      return `<div class="tmpl-card tmpl-card-compact">
       <div class="tmpl-card-compact-main">
         <div class="tmpl-card-topline">
-          ${typeLbl ? `<span class="tmpl-type-badge">${typeEmoji ? `${typeEmoji} ` : ''}${typeLbl}</span>` : ''}
+          ${typeBadges}
           <span class="tmpl-card-count">${itemCount} alimenti</span>
         </div>
         <span class="tmpl-card-name">${htmlEsc(t.name)}</span>
@@ -2795,7 +2819,9 @@ function renderPiano() {
       </div>
     </div>`;
   };
-  const activeFilterLabel = activeMealFilter === 'all' ? 'tutti i pasti' : activeMealFilter;
+  const activeFilterLabel = activeMealFilter === 'all'
+    ? 'tutti i pasti'
+    : (mealMetaMap.get(activeMealFilter)?.label || activeMealFilter);
   const visibleCountLabel = filteredTemplates.length === 1 ? '1 template visibile' : `${filteredTemplates.length} template visibili`;
 
   listEl.innerHTML = `
@@ -4221,7 +4247,75 @@ function renderStatsActions(data) {
   renderMeasurementsForm(data.bounds, 'stats-actions-measurements-entry', 'stats-actions-measurements-log');
 }
 
-function renderStats() {
+function renderStatsComingSoon() {
+  const sub = document.getElementById('stats-sub');
+  if (sub) sub.textContent = 'Stiamo finalizzando trend, recovery e letture davvero utili prima dell’apertura pubblica.';
+  const toolbar = document.getElementById('stats-toolbar');
+  const summary = document.getElementById('stats-summary');
+  const weight = document.getElementById('stats-weight');
+  const measurements = document.getElementById('stats-measurements');
+  const adherence = document.getElementById('stats-adherence');
+  const patterns = document.getElementById('stats-patterns');
+  const actions = document.getElementById('stats-actions');
+  if (toolbar) toolbar.innerHTML = '';
+  if (weight) weight.innerHTML = '';
+  if (measurements) measurements.innerHTML = '';
+  if (adherence) adherence.innerHTML = '';
+  if (patterns) patterns.innerHTML = '';
+  if (actions) actions.innerHTML = '';
+  if (summary) {
+    summary.innerHTML = `<div class="stats-coming-shell">
+      <div class="stats-coming-card">
+        <div class="stats-coming-top">
+          <span class="stats-coming-pill"><span class="stats-coming-pill-dot"></span>In arrivo</span>
+          <span class="stats-coming-label">Premium preview</span>
+        </div>
+        <div class="stats-coming-body">
+          <div class="stats-coming-copy">
+            <div class="stats-coming-title">Una nuova dashboard coach-like e piu leggibile.</div>
+            <div class="stats-coming-text">Peso, macro, recovery e andamento dei giorni ON/OFF stanno passando in una vista piu chiara, meno rumorosa e molto piu orientata al prossimo passo.</div>
+            <div class="stats-coming-bullets">
+              <span class="stats-coming-bullet">trend peso</span>
+              <span class="stats-coming-bullet">macro leggibili</span>
+              <span class="stats-coming-bullet">recovery e routine</span>
+            </div>
+            <div class="stats-coming-actions">
+              <button class="stats-coming-btn primary" onclick="goView('today')">Torna a oggi</button>
+              <button class="stats-coming-btn" onclick="goView('profilo')">Apri profilo</button>
+            </div>
+          </div>
+          <div class="stats-coming-visual" aria-hidden="true">
+            <div class="stats-coming-masthead">
+              <span class="stats-coming-chip wide"></span>
+              <span class="stats-coming-chip"></span>
+            </div>
+            <div class="stats-coming-panel">
+              <div class="stats-coming-line long"></div>
+              <div class="stats-coming-line mid"></div>
+              <div class="stats-coming-line short"></div>
+              <div class="stats-coming-grid">
+                <span class="stats-coming-metric"></span>
+                <span class="stats-coming-metric"></span>
+                <span class="stats-coming-metric"></span>
+              </div>
+            </div>
+            <div class="stats-coming-panel muted">
+              <div class="stats-coming-line mid"></div>
+              <div class="stats-coming-line long"></div>
+              <div class="stats-coming-chip-row">
+                <span class="stats-coming-chip"></span>
+                <span class="stats-coming-chip narrow"></span>
+                <span class="stats-coming-chip"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+}
+
+function renderStatsDashboard() {
   const data = getStatsRangeData(S.statsRange || '30d');
   document.getElementById('stats-sub').textContent = `${data.bounds.label} · prima leggi il segnale giusto, poi decidi il prossimo passo`;
   document.getElementById('stats-adherence').innerHTML = '';
@@ -4233,6 +4327,9 @@ function renderStats() {
   renderStatsSupportModule(data);
   renderStatsPatterns(data);
   renderStatsActions(data);
+}
+function renderStats() {
+  renderStatsComingSoon();
 }
 function renderProfile() {
   renderAnagrafica();

@@ -15,6 +15,7 @@ let _bcScannerSessionActive = false;
 let _bcManualDraft = null;
 let _bcLookupSource = '';
 let _bcPermissionStatus = null;
+let _bcModalStep = 'scan';
 const _bcProductCache = {};
 const _BC_FRAME_ASPECT = 220 / 84;
 const _BC_SCAN_MODES = {
@@ -109,20 +110,29 @@ function _hideBarcodeResult() {
   result.innerHTML = '';
 }
 
-function _showBarcodeOverlay(html) {
-  const result = document.getElementById('bc-result');
-  if (!result) return;
-  result.innerHTML = html;
-  result.classList.add('is-overlay');
-  result.style.display = 'block';
-}
-
 function _showBarcodeInline(html) {
   const result = document.getElementById('bc-result');
   if (!result) return;
   result.innerHTML = html;
   result.classList.remove('is-overlay');
   result.style.display = 'block';
+}
+
+function setBarcodeModalStep(step = 'scan') {
+  _bcModalStep = step;
+  const modal = document.getElementById('barcode-modal');
+  const shell = modal?.querySelector('.bc-shell');
+  if (modal) modal.setAttribute('data-step', step);
+  if (shell) shell.setAttribute('data-step', step);
+}
+
+function _stopBarcodeStream() {
+  _bcScanning = false;
+  _bcScannerSessionActive = false;
+  if (_bcStream) {
+    _bcStream.getTracks().forEach(track => track.stop());
+    _bcStream = null;
+  }
 }
 
 function _setBarcodeStatus(message, tone = 'neutral') {
@@ -637,6 +647,7 @@ function _buildBarcodeManualDraft(barcode, outcome = {}) {
 function renderBarcodeManualCompletion(barcode = _bcLastDetectedCode, outcome = {}) {
   const draft = _buildBarcodeManualDraft(barcode, outcome);
   _renderBarcodeActions([]);
+  setBarcodeModalStep('manual');
   _showBarcodeInline(`
     <div class="bc-result-shell bc-manual-shell">
       <div class="bc-manual-card">
@@ -979,6 +990,7 @@ function _upsertManualBarcodeIntoProfile(item) {
 function showBcResult() {
   const resultEl = document.getElementById('bc-result');
   if (!resultEl || !_bcItem) return;
+  setBarcodeModalStep('resolved');
   const portions = (typeof FOOD_PORTIONS !== 'undefined' ? FOOD_PORTIONS : [
     { label: 'Cucchiaino', g: 5 },
     { label: 'Cucchiaio',  g: 15 },
@@ -1144,6 +1156,7 @@ function openBarcode(dateKey, mealIdx) {
     _bcLookupController = null;
   }
   const modal = document.getElementById('barcode-modal');
+  setBarcodeModalStep('scan');
   _hideBarcodeResult();
   _resetBarcodeFeedback();
   modal.style.display = 'flex';
@@ -1182,6 +1195,7 @@ async function startBcCamera(openToken = _bcOpenToken) {
       return;
     }
     _bcScannerSessionActive = true;
+    setBarcodeModalStep('scan');
     v.srcObject = _bcStream;
     await v.play();
     if (openToken !== _bcOpenToken) {
@@ -1238,6 +1252,8 @@ async function onBarcodeDetected(barcode, opts = {}) {
   }
 
   _bcScanning = false;
+  _stopBarcodeStream();
+  setBarcodeModalStep('resolved');
   if (_bcLookupController) {
     try { _bcLookupController.abort(); } catch(e) {}
   }
@@ -1354,17 +1370,14 @@ function openBarcodeNextScan(delay = 80, message = 'Inquadra il codice a barre d
   _bcResolvedCode = null;
   _bcManualDraft = null;
   _bcLookupSource = '';
+  setBarcodeModalStep('scan');
   _hideBarcodeResult();
   _resetBarcodeFeedback(message);
-  if (_bcStream) {
-    setTimeout(() => {
-      if (!_bcStream) return;
-      _bcScanning = true;
-      scanBarcode();
-    }, delay);
-    return;
-  }
-  startBcCamera(_bcOpenToken);
+  const nextToken = _bcOpenToken;
+  setTimeout(() => {
+    if (nextToken !== _bcOpenToken) return;
+    startBcCamera(nextToken);
+  }, delay);
 }
 
 async function saveBarcodeManualCompletion() {
@@ -1434,11 +1447,9 @@ function closeBarcode() {
     try { _bcLookupController.abort(); } catch(e) {}
     _bcLookupController = null;
   }
-  if (_bcStream) {
-    _bcStream.getTracks().forEach(t => t.stop());
-    _bcStream = null;
-  }
+  _stopBarcodeStream();
   document.getElementById('barcode-modal').style.display = 'none';
+  setBarcodeModalStep('scan');
   _hideBarcodeResult();
   _bcItem = null;
   _bcCtx = null;

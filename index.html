@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=142">
+<link rel="stylesheet" href="style.css?v=143">
 </head>
 <body>
 <div class="app">
@@ -195,14 +195,7 @@
         <div class="ed-field"><label>Nome</label><input id="tf-name" type="text" placeholder="es. Colazione standard"></div>
         <div class="ed-field" style="grid-column:1/-1">
           <label>Tipo pasto</label>
-          <div class="tmpl-type-pills" id="tmpl-type-pills">
-            <button class="tmpl-type-pill" onclick="setTmplMealType('colazione')">🥣 Colazione</button>
-            <button class="tmpl-type-pill" onclick="setTmplMealType('pranzo')">🍽️ Pranzo</button>
-            <button class="tmpl-type-pill" onclick="setTmplMealType('cena')">🍳 Cena</button>
-            <button class="tmpl-type-pill" onclick="setTmplMealType('merenda')">🍎 Merenda</button>
-            <button class="tmpl-type-pill" onclick="setTmplMealType('spuntino')">⚡ Spuntino</button>
-            <button class="tmpl-type-pill" onclick="setTmplMealType('altro')">📦 Altro</button>
-          </div>
+          <div class="tmpl-type-pills" id="tmpl-type-pills"></div>
           <input type="hidden" id="tf-tag" value="">
         </div>
       </div>
@@ -486,12 +479,12 @@ window.MARCI_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 <script src="storage.js?v=42"></script>
 <script src="nutritionLogic.js?v=55"></script>
 <script src="mealTaxonomy.js?v=1"></script>
-<script src="templateEngine.js?v=1"></script>
+<script src="templateEngine.js?v=2"></script>
 <script src="mealHelperEngine.js?v=1"></script>
-<script src="uiComponents.js?v=114"></script>
+<script src="uiComponents.js?v=115"></script>
 <script src="bootstrapTools.js?v=7"></script>
-<script src="app.js?v=95"></script>
-<script src="barcodeTools.js?v=17"></script>
+<script src="app.js?v=96"></script>
+<script src="barcodeTools.js?v=18"></script>
 <script>lucide.createIcons();</script>
 </body>
 </html>
