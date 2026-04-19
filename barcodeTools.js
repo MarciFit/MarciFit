@@ -1037,7 +1037,7 @@ function showBcResult() {
     `</div>`;
   }
 
-  _showBarcodeOverlay(`
+  _showBarcodeInline(`
     <div class="bc-result-shell">
       <div class="fsr-gp-info">
         <div class="fsr-gp-head">
