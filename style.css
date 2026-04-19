@@ -813,6 +813,41 @@ select:focus-visible{
   color:#476454;
   border-color:#d6e6da;
 }
+.tmpl-rail-shell{
+  display:flex;flex-direction:column;gap:10px;
+  padding:6px 0 0;
+}
+.tmpl-rail-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+.tmpl-rail-title{font-size:15px;font-weight:800;color:var(--ink)}
+.tmpl-rail-copy{font-size:11px;color:#6b635b;line-height:1.45}
+.tmpl-vertical-rail{
+  display:flex;flex-direction:column;gap:10px;
+  max-height:354px;overflow-y:auto;padding-right:4px;
+  scrollbar-width:thin;
+}
+.tmpl-card-compact{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;
+  align-items:center;
+  padding:11px 12px;
+  border-radius:18px;
+  border:1px solid #e7dfd4;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(255,248,237,.58) 0%, rgba(255,248,237,0) 34%),
+    linear-gradient(180deg,rgba(255,255,255,.92) 0%, rgba(255,255,255,.86) 100%);
+  box-shadow:0 8px 18px rgba(23,20,14,.03);
+}
+.tmpl-card-compact-main{display:flex;flex-direction:column;gap:5px;min-width:0}
+.tmpl-card-macros-compact{font-size:9.5px}
+.tmpl-card-summary{
+  font-size:10px;line-height:1.45;color:#6c6357;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.tmpl-card-actions-compact{
+  display:flex;align-items:center;gap:6px;
+  padding:0;border-top:none;background:transparent;
+}
 .piano-template-inline-head{display:flex;flex-direction:column;gap:3px;margin-top:2px}
 .piano-template-inline-title{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8f8679}
 .piano-template-inline-sub{font-size:11px;color:#6b635b;line-height:1.45}
@@ -6671,6 +6706,25 @@ select:focus-visible{
 .profile-view .support-mini-state{
   background:rgba(255,255,255,.82);border-color:#e3d8cb;
 }
+.profile-collapse-head{
+  width:100%;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:2px 0;background:none;border:none;cursor:pointer;text-align:left;color:inherit;
+}
+.profile-collapse-title{font-size:15px;font-weight:800;color:#1f1a14}
+.profile-collapse-meta{display:inline-flex;align-items:center;gap:10px;flex-shrink:0}
+.profile-collapse-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:26px;padding:0 11px;border-radius:999px;
+  font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  border:1px solid #e3d8cb;background:rgba(255,255,255,.82);color:#6f665d;
+}
+.profile-collapse-badge.done{color:#155e3b;border-color:#b9dcc4;background:#eef8f2}
+.profile-collapse-badge.progress{color:#8a5a18;border-color:#e7cfac;background:#f6efe6}
+.profile-collapse-badge.idle{color:#5a46a8;border-color:#d8d0f3;background:#f4f1ff}
+.profile-collapse-chevron{color:#7a7268;transition:transform .16s ease}
+.profile-collapse-head.expanded .profile-collapse-chevron{transform:rotate(180deg)}
+.profile-collapse-body{margin-top:14px}
 .profile-view .anag-section-title{
   font-size:10px;letter-spacing:.15em;color:#8f8679;margin-bottom:12px;
 }
@@ -6955,7 +7009,13 @@ select:focus-visible{
   .piano-template-overview{flex-direction:column}
   .tmpl-library-meta{grid-template-columns:1fr}
   .piano-meal-filter{padding:7px 10px;font-size:11px}
-  .tmpl-card-horizontal{flex:0 0 272px;min-width:272px}
+  .tmpl-vertical-rail{max-height:332px;padding-right:2px}
+  .tmpl-card-compact{
+    grid-template-columns:1fr;
+    align-items:flex-start;
+    gap:8px;
+  }
+  .tmpl-card-actions-compact{justify-content:flex-start}
   .macro-visual-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .macro-visual-grid.compact{display:flex;flex-wrap:nowrap;gap:4px}
   .macro-visual-grid.compact .macro-visual-card{
@@ -7106,6 +7166,9 @@ select:focus-visible{
   .auth-nav-state{padding:0 7px;font-size:8px}
   .profile-view .support-mini-title{font-size:14px}
   .profile-view .support-mini-sub{font-size:12px;line-height:1.48}
+  .profile-collapse-title{font-size:14px}
+  .profile-collapse-meta{gap:8px}
+  .profile-collapse-badge{min-height:24px;padding:0 9px;font-size:9px}
   .profile-account-card{padding:14px}
   .profile-account-status-row{padding:11px 12px;gap:8px}
   .profile-account-pill{min-height:22px;padding:0 8px;font-size:10px}

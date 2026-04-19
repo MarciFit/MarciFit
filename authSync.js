@@ -3,6 +3,7 @@
 const AUTH_USERS_KEY = 'marcifit_auth_users_v1';
 const AUTH_SESSION_KEY = 'marcifit_auth_session_v1';
 const AUTH_SUPABASE_CONFIG_KEY = 'marcifit_supabase_config_v1';
+const AUTH_PROXY_SESSION_KEY = 'marcifit_auth_proxy_session_v1';
 const AUTH_STATE_META_KEY = 'marcifit_state_meta_v1';
 const AUTH_STATE_BACKUP_KEY = 'marcifit_state_backup_v1';
 const AUTH_SYNC_DELAY_MS = 900;
@@ -125,6 +126,24 @@ function authSaveSession(session) {
     return;
   }
   localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+}
+
+function authLoadProxySession() {
+  try {
+    const raw = localStorage.getItem(AUTH_PROXY_SESSION_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function authSaveProxySession(session) {
+  if (!session) {
+    localStorage.removeItem(AUTH_PROXY_SESSION_KEY);
+    return;
+  }
+  localStorage.setItem(AUTH_PROXY_SESSION_KEY, JSON.stringify(session));
 }
 
 function authReadLastActiveAccount() {
@@ -607,6 +626,39 @@ function authCanUseSupabase() {
   return !!(cfg?.url && cfg?.anonKey && window.supabase?.createClient);
 }
 
+function authCanUseLocalProxy() {
+  try {
+    const { protocol, hostname } = window.location || {};
+    if (!protocol || !hostname) return false;
+    if (!protocol.startsWith('http')) return false;
+    return ['localhost', '127.0.0.1'].includes(hostname);
+  } catch (_) {
+    return false;
+  }
+}
+
+function authHasProxySession() {
+  const session = authLoadProxySession();
+  return !!(session?.access_token && session?.user?.id);
+}
+
+function authGetProxyAccessToken() {
+  return authLoadProxySession()?.access_token || '';
+}
+
+async function authProxyJson(path, { method = 'GET', body = null, token = '' } = {}) {
+  const headers = {};
+  if (body != null) headers['Content-Type'] = 'application/json';
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(path, {
+    method,
+    headers,
+    body: body != null ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json().catch(() => ({}));
+  return { ok: response.ok, status: response.status, payload };
+}
+
 function authGetSupabaseClient() {
   if (_supabaseClient) return _supabaseClient;
   if (!authCanUseSupabase()) return null;
@@ -619,30 +671,54 @@ async function authSignInViaDirectHttp(email, password) {
   if (!authCanUseSupabase()) {
     return { ok: false, message: 'Auth cloud non configurato' };
   }
-  const cfg = authResolveSupabaseConfig();
-  const endpoint = `${String(cfg.url || '').replace(/\/+$/, '')}/auth/v1/token?grant_type=password`;
   try {
-    const response = await authWithTimeout(
-      fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          apikey: cfg.anonKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
+    let payload = null;
+    if (authCanUseLocalProxy()) {
+      const proxyResult = await authWithTimeout(
+        authProxyJson('/__auth_proxy/token?grant_type=password', {
+          method: 'POST',
+          body: { email, password },
         }),
-      }),
-      'Il login diretto sta impiegando troppo tempo',
-      AUTH_LOGIN_TIMEOUT_MS
-    );
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
+        'Il login diretto sta impiegando troppo tempo',
+        AUTH_LOGIN_TIMEOUT_MS
+      );
+      if (!proxyResult.ok) {
+        const proxyPayload = proxyResult.payload || {};
+        return {
+          ok: false,
+          message: proxyPayload?.msg || proxyPayload?.error_description || proxyPayload?.error || `Auth proxy ${proxyResult.status}`,
+          payload: proxyPayload,
+        };
+      }
+      payload = proxyResult.payload || {};
+    } else {
+      const cfg = authResolveSupabaseConfig();
+      const endpoint = `${String(cfg.url || '').replace(/\/+$/, '')}/auth/v1/token?grant_type=password`;
+      const response = await authWithTimeout(
+        fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            apikey: cfg.anonKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        }),
+        'Il login diretto sta impiegando troppo tempo',
+        AUTH_LOGIN_TIMEOUT_MS
+      );
+      payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {
+          ok: false,
+          message: payload?.msg || payload?.error_description || payload?.error || `Auth HTTP ${response.status}`,
+          payload,
+        };
+      }
+    }
+    if (!payload) {
       return {
         ok: false,
-        message: payload?.msg || payload?.error_description || payload?.error || `Auth HTTP ${response.status}`,
-        payload,
+        message: 'Il login diretto non ha restituito una risposta valida',
       };
     }
     const user = payload?.user || null;
@@ -650,6 +726,18 @@ async function authSignInViaDirectHttp(email, password) {
     const refreshToken = payload?.refresh_token || '';
     if (!user?.id || !accessToken || !refreshToken) {
       return { ok: false, message: 'La risposta auth non contiene una sessione valida', payload };
+    }
+
+    authSaveProxySession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      user,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (authCanUseLocalProxy()) {
+      authApplySupabaseUser(user);
+      return { ok: true, user, session: { access_token: accessToken, refresh_token: refreshToken } };
     }
 
     const client = authGetSupabaseClient();
@@ -686,9 +774,16 @@ async function authProbeAuthGateway() {
   if (typeof window !== 'undefined' && window.__mfFakeSupabaseState && !window.__mfForceGatewayProbe) {
     return { ok: true, message: 'Gateway auth fake disponibile' };
   }
-  const cfg = authResolveSupabaseConfig();
-  const endpoint = `${String(cfg.url || '').replace(/\/+$/, '')}/auth/v1/settings`;
   try {
+    if (authCanUseLocalProxy()) {
+      return {
+        ok: true,
+        skipped: true,
+        message: 'Gateway auth delegato al proxy locale',
+      };
+    }
+    const cfg = authResolveSupabaseConfig();
+    const endpoint = `${String(cfg.url || '').replace(/\/+$/, '')}/auth/v1/settings`;
     const response = await authWithTimeout(
       fetch(endpoint, {
         method: 'GET',
@@ -852,6 +947,14 @@ function authSubscribeSupabaseSession() {
 }
 
 async function authInit() {
+  if (authCanUseLocalProxy()) {
+    const proxySession = authLoadProxySession();
+    if (proxySession?.user?.id) {
+      authApplySupabaseUser(proxySession.user);
+      authSetBootstrapHint('account_connected', 'Sessione locale ripresa via proxy.');
+      return AUTH;
+    }
+  }
   const recoverableLocalCache = authResolveRecoverableLocalCache();
   if (authCanUseSupabase() && recoverableLocalCache) {
     try {
@@ -955,6 +1058,29 @@ async function authEnsureRemoteProfile() {
   if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !authCanUseSupabase()) return { ok: false, skipped: true };
   try {
     authRecordAttemptStage('profile_sync', 'pending', 'Controllo profilo base account...');
+    if (authCanUseLocalProxy() && authHasProxySession()) {
+      const proxyResult = await authWithTimeout(
+        authProxyJson('/__supabase_proxy/profiles', {
+          method: 'POST',
+          token: authGetProxyAccessToken(),
+          body: {
+            user_id: AUTH.user.id,
+            email: AUTH.user.email || '',
+            name: AUTH.user.name || '',
+            onboarding_completed: !!window.S?.onboardingCompleted,
+            updated_at: new Date().toISOString(),
+          },
+        }),
+        'Il cloud sta impiegando troppo tempo a preparare il profilo',
+        AUTH_ASYNC_TIMEOUT_MS
+      );
+      if (!proxyResult.ok) {
+        authRecordAttemptStage('profile_sync', 'error', proxyResult.payload?.message || proxyResult.payload?.error || 'Profilo base non disponibile');
+        return { ok: false, message: proxyResult.payload?.message || proxyResult.payload?.error || 'Non siamo riusciti a preparare il profilo' };
+      }
+      authRecordAttemptStage('profile_sync', 'success', 'Profilo base pronto');
+      return { ok: true };
+    }
     const client = authGetSupabaseClient();
     const payload = {
       user_id: AUTH.user.id,
@@ -987,6 +1113,17 @@ async function authEnsureRemoteProfile() {
 async function authFetchRemoteStateRow() {
   if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !authCanUseSupabase()) return { ok: false, skipped: true };
   try {
+    if (authCanUseLocalProxy() && authHasProxySession()) {
+      const proxyResult = await authWithTimeout(
+        authProxyJson(`/__supabase_proxy/app_state?user_id=${encodeURIComponent(AUTH.user.id)}`, {
+          token: authGetProxyAccessToken(),
+        }),
+        'Il cloud sta impiegando troppo tempo a recuperare il profilo',
+        AUTH_ASYNC_TIMEOUT_MS
+      );
+      if (!proxyResult.ok) return { ok: false, message: proxyResult.payload?.message || proxyResult.payload?.error || 'Non siamo riusciti a recuperare il profilo' };
+      return { ok: true, row: proxyResult.payload || null };
+    }
     const client = authGetSupabaseClient();
     const { data, error } = await authRunWithRetry(
       () => client
@@ -1477,15 +1614,18 @@ async function signOutUser() {
   }
   if (AUTH.provider === 'supabase' && authCanUseSupabase()) {
     try {
-      const client = authGetSupabaseClient();
-      await authWithTimeout(
-        client.auth.signOut(),
-        'L uscita sta impiegando troppo tempo'
-      );
+      if (!authCanUseLocalProxy() || !authHasProxySession()) {
+        const client = authGetSupabaseClient();
+        await authWithTimeout(
+          client.auth.signOut(),
+          'L uscita sta impiegando troppo tempo'
+        );
+      }
     } catch (_) {}
   } else {
     authSaveSession(null);
   }
+  authSaveProxySession(null);
   authSetGuestState();
   authRefreshUi();
   const canInlineLogoutTransition =
@@ -1568,7 +1708,6 @@ async function authSyncStateToCloud(force = false) {
   }
   try {
     AUTH.isSyncing = true;
-    const client = authGetSupabaseClient();
     const raw = localStorage.getItem(authGetAppStorageKey(authCurrentBaseStorageKey())) || JSON.stringify(window.S || {});
     const parsed = JSON.parse(raw);
     authCreateStateBackup('pre_cloud_sync', parsed, { updatedAt: meta.updatedAt || null });
@@ -1602,6 +1741,41 @@ async function authSyncStateToCloud(force = false) {
 
     await authEnsureRemoteProfile();
     const updatedAt = meta.updatedAt || new Date().toISOString();
+    if (authCanUseLocalProxy() && authHasProxySession()) {
+      const proxyResult = await authWithTimeout(
+        authProxyJson('/__supabase_proxy/app_state', {
+          method: 'POST',
+          token: authGetProxyAccessToken(),
+          body: {
+            user_id: AUTH.user.id,
+            state_json: parsed,
+            state_version: 1,
+            updated_at: updatedAt,
+          },
+        }),
+        'Il cloud sta impiegando troppo tempo ad aggiornare il profilo',
+        AUTH_ASYNC_TIMEOUT_MS
+      );
+      if (!proxyResult.ok) {
+        AUTH.isSyncing = false;
+        authRefreshUi();
+        return { ok: false, message: proxyResult.payload?.message || proxyResult.payload?.error || 'Non siamo riusciti ad aggiornare il profilo' };
+      }
+      AUTH.isSyncing = false;
+      AUTH.lastSyncedAt = updatedAt;
+      authSetBootstrapHint('cloud_push', 'Abbiamo aggiornato il tuo profilo.');
+      authWriteStateMeta({
+        ...meta,
+        updatedAt,
+        lastSyncedAt: updatedAt,
+        remoteUpdatedAt: updatedAt,
+        resetPending: false,
+        dirty: false,
+      });
+      authRefreshUi();
+      return { ok: true, syncedAt: updatedAt };
+    }
+    const client = authGetSupabaseClient();
     const payload = {
       user_id: AUTH.user.id,
       state_json: parsed,
@@ -1831,11 +2005,11 @@ function renderProfileAccountCard() {
     </div>` : '';
   if (authIsAuthenticated()) {
     const summary = AUTH.provider === 'supabase'
-      ? (accountDiag.storageLabel === 'Cloud + cache account'
-        ? 'Il profilo del tuo account e gia qui e questa schermata e partita dal cloud.'
-        : 'Il profilo del tuo account e gia qui e continua dalla cache salvata su questo dispositivo.')
-      : 'Questo profilo resta disponibile solo su questo dispositivo.';
-    const statusCopy = accountDiag.statusDetail;
+      ? 'Hai effettuato l accesso correttamente e il tuo profilo e sincronizzato.'
+      : 'Hai effettuato l accesso correttamente su questo dispositivo.';
+    const statusCopy = AUTH.provider === 'supabase'
+      ? 'Account attivo e dati pronti all uso.'
+      : 'Account attivo su questo dispositivo.';
     const secondaryAction = AUTH.provider === 'supabase'
       ? `<button class="auth-account-btn" onclick="authSyncNow()">Aggiorna ora</button>`
       : authCanUseSupabase()
@@ -1847,8 +2021,8 @@ function renderProfileAccountCard() {
           <div class="support-mini-head-copy">
             <div class="support-mini-kicker">Account</div>
             <div class="support-mini-title-row">
-              <div class="support-mini-title">${AUTH.provider === 'supabase' ? 'Profilo collegato' : 'Profilo locale attivo'}</div>
-              <span class="support-mini-state done">${AUTH.provider === 'supabase' ? 'Collegato' : 'Locale'}</span>
+              <div class="support-mini-title">${AUTH.provider === 'supabase' ? 'Account collegato' : 'Account attivo'}</div>
+              <span class="support-mini-state done">${AUTH.provider === 'supabase' ? 'Sincronizzato' : 'Attivo'}</span>
             </div>
             <div class="support-mini-sub">${summary}</div>
           </div>
@@ -1857,9 +2031,6 @@ function renderProfileAccountCard() {
           <span class="profile-account-pill ${status.cls}">${htmlEsc(status.label)}</span>
           <span class="profile-account-status-copy">${statusCopy}</span>
         </div>
-        ${factGrid}
-        ${notesHtml}
-        ${attemptDiagHtml}
         <div class="profile-account-body">
           <div class="profile-account-email">${htmlEsc(AUTH.user.email)}</div>
           <div class="profile-account-actions">
@@ -1867,7 +2038,6 @@ function renderProfileAccountCard() {
             <button class="auth-account-btn auth-account-btn-danger" onclick="confirmSignOutUser()">Esci</button>
           </div>
         </div>
-        ${devPanel}
       </div>`;
   } else {
     const hasRecoveredLocalProfile = !!AUTH.localRecoveryKey;

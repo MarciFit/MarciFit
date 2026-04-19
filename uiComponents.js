@@ -135,7 +135,7 @@ function getMealTypeFromName(name) {
   if (n.includes('colazione')) return 'colazione';
   if (n.includes('pranzo'))    return 'pranzo';
   if (n.includes('cena'))      return 'cena';
-  if (n.includes('merenda'))   return 'merenda';
+  if (n.includes('merenda'))   return 'spuntino';
   if (n.includes('spuntino'))  return 'spuntino';
   return null;
 }
@@ -2733,21 +2733,18 @@ function renderPiano() {
     const itemNames = (t.items || [])
       .map(item => String(item.name || '').trim())
       .filter(Boolean);
-    const visibleNames = itemNames.slice(0, 3);
+    const visibleNames = itemNames.slice(0, 2);
     const extraCount = Math.max(0, itemNames.length - visibleNames.length);
-    return `<div class="tmpl-card tmpl-card-horizontal support-mini-card">
-      <div class="tmpl-card-body">
-        <div class="tmpl-card-header">
-          <div class="tmpl-card-copy">
-            <div class="tmpl-card-topline">
-              ${typeLbl ? `<span class="tmpl-type-badge">${typeEmoji ? `${typeEmoji} ` : ''}${typeLbl}</span>` : ''}
-              <span class="tmpl-card-count">${itemCount} alimenti</span>
-            </div>
-            <span class="tmpl-card-name">${htmlEsc(t.name)}</span>
-          </div>
+    const summary = visibleNames.join(' · ');
+    return `<div class="tmpl-card tmpl-card-compact">
+      <div class="tmpl-card-compact-main">
+        <div class="tmpl-card-topline">
+          ${typeLbl ? `<span class="tmpl-type-badge">${typeEmoji ? `${typeEmoji} ` : ''}${typeLbl}</span>` : ''}
+          <span class="tmpl-card-count">${itemCount} alimenti</span>
         </div>
-        <div class="tmpl-card-macros">
-          <span class="tmpl-macro-kcal">🔥 ${macros.k} kcal</span>
+        <span class="tmpl-card-name">${htmlEsc(t.name)}</span>
+        <div class="tmpl-card-macros tmpl-card-macros-compact">
+          <span class="tmpl-macro-kcal">${macros.k} kcal</span>
           <span class="tmpl-macro-dot">·</span>
           <span>P ${macros.p.toFixed(0)}g</span>
           <span class="tmpl-macro-dot">·</span>
@@ -2755,12 +2752,9 @@ function renderPiano() {
           <span class="tmpl-macro-dot">·</span>
           <span>G ${macros.f.toFixed(0)}g</span>
         </div>
-        ${visibleNames.length ? `<div class="tmpl-card-foods">
-          ${visibleNames.map(name => `<span class="tmpl-food-chip">${htmlEsc(name)}</span>`).join('')}
-          ${extraCount ? `<span class="tmpl-food-chip tmpl-food-chip-more">+${extraCount}</span>` : ''}
-        </div>` : ''}
+        ${summary ? `<div class="tmpl-card-summary">${htmlEsc(summary)}${extraCount ? ` · +${extraCount}` : ''}</div>` : ''}
       </div>
-      <div class="tmpl-card-actions">
+      <div class="tmpl-card-actions tmpl-card-actions-compact">
         <button class="tmpl-btn-load" onclick="loadTemplateToLog('${t.id}')">Usa</button>
         <button class="tmpl-btn-sec tmpl-btn-icon" onclick="editTemplate('${t.id}')" title="Modifica template" aria-label="Modifica template">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -2775,17 +2769,13 @@ function renderPiano() {
   const visibleCountLabel = filteredTemplates.length === 1 ? '1 template visibile' : `${filteredTemplates.length} template visibili`;
 
   listEl.innerHTML = `
-    <div class="piano-template-section piano-template-section-compact">
-      <div class="piano-template-overview">
-        <div class="piano-template-overview-copy">
-          <div class="piano-template-overview-title">Template per ${activeFilterLabel}</div>
-          <div class="piano-template-overview-sub">Qui trovi i template pronti da usare ogni volta che vuoi andare veloce.</div>
-        </div>
-        <div class="piano-template-pill-stack">
-          <span class="piano-template-pill">${visibleCountLabel}</span>
-        </div>
+    <div class="tmpl-rail-shell">
+      <div class="tmpl-rail-head">
+        <div class="tmpl-rail-title">Template per ${activeFilterLabel}</div>
+        <span class="piano-template-pill">${visibleCountLabel}</span>
       </div>
-      <div class="tmpl-carousel">${filteredTemplates.map(renderTemplateCard).join('')}</div>
+      <div class="tmpl-rail-copy">Scorri solo se ce ne sono piu di tre.</div>
+      <div class="tmpl-vertical-rail">${filteredTemplates.map(renderTemplateCard).join('')}</div>
     </div>`;
 }
 
@@ -4557,6 +4547,8 @@ function renderTmplFormItems() {
 function renderAnagrafica() {
   const a = S.anagrafica || {};
   const g = S.goal || {};
+  if (!S.profileUi || typeof S.profileUi !== 'object') S.profileUi = {};
+  if (typeof S.profileUi.primaryExpanded !== 'boolean') S.profileUi.primaryExpanded = false;
   const coreProfileFields = [a.nome, a.sesso, a.eta, a.altezza, a.peso];
   const coreProfileCount = coreProfileFields.filter(v => v !== null && v !== undefined && String(v).trim() !== '').length;
   const hasStepsContext = a.passiGiornalieri !== null && a.passiGiornalieri !== undefined && String(a.passiGiornalieri).trim() !== '';
@@ -4613,18 +4605,17 @@ function renderAnagrafica() {
     `<button class="goal-phase-btn${g.phase===id?' active-'+id:''}" data-phase="${id}" onclick="setGoalPhase('${id}', false);_updateFabbisognoPreview()">${info.lbl}</button>`
   ).join('');
   const activePhaseDesc = PHASE_INFO[g.phase]?.desc || '';
+  const isPrimaryExpanded = !!S.profileUi.primaryExpanded;
 
   document.getElementById('prof-card').innerHTML = `
-    <div class="profile-card-head support-mini-head">
-      <div class="support-mini-head-copy">
-        <div class="support-mini-kicker">Profilo</div>
-        <div class="support-mini-title-row">
-          <div class="support-mini-title">Dati base e target</div>
-          <span class="support-mini-state ${profileStateCls}">${profileStateText}</span>
-        </div>
-        <div class="support-mini-sub">Dati essenziali, obiettivo e riferimenti della tua giornata.</div>
-      </div>
-    </div>
+    <button class="profile-collapse-head${isPrimaryExpanded ? ' expanded' : ''}" onclick="toggleProfilePrimaryCard()">
+      <span class="profile-collapse-title">Dati base e target</span>
+      <span class="profile-collapse-meta">
+        <span class="profile-collapse-badge ${profileStateCls}">${profileStateText}</span>
+        <svg class="profile-collapse-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </span>
+    </button>
+    ${isPrimaryExpanded ? `<div class="profile-collapse-body">
     <div class="anag-section-title">Anagrafica</div>
     <div class="anag-grid">
       <div class="anag-field anag-field-name">
@@ -4720,7 +4711,8 @@ function renderAnagrafica() {
       <div class="fab-empty">Caricamento…</div>
     </div>
 
-    <button class="btn btn-primary anag-save-btn" onclick="saveAnagrafica()">Salva profilo</button>`;
+    <button class="btn btn-primary anag-save-btn" onclick="saveAnagrafica()">Salva profilo</button>
+    </div>` : ''}`;
 
   // ── Card 2: Orari pasti ──
   const timesEl = document.getElementById('prof-times-card');
@@ -4741,4 +4733,10 @@ function renderAnagrafica() {
   if (foodsEl) foodsEl.innerHTML = favoriteFoodsProfileRedirectHTML();
 
   setTimeout(_updateFabbisognoPreview, 0);
+}
+
+function toggleProfilePrimaryCard() {
+  if (!S.profileUi || typeof S.profileUi !== 'object') S.profileUi = {};
+  S.profileUi.primaryExpanded = !S.profileUi.primaryExpanded;
+  renderAnagrafica();
 }
