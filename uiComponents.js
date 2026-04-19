@@ -2264,6 +2264,7 @@ function renderToday() {
   const tgt   = S.macro[type];
   const now   = new Date();
 
+  updateTodayDashboardHeading(now);
   renderGreeting(type, now);
   renderWeekCal(now);
   renderTodayLog(); // cards + macro + alerts + progress
@@ -2279,6 +2280,25 @@ function renderToday() {
   renderCheatWidget();
   renderSuppToday();
   checkWeeklyCheckin();
+}
+
+function updateTodayDashboardHeading(now = new Date()) {
+  const titleEl = document.getElementById('today-recap-title');
+  const subEl = document.getElementById('today-dashboard-sub');
+  if (!titleEl && !subEl) return;
+  const dateKey = S.selDate || localDate(now);
+  const isTodayView = dateKey === localDate(now);
+  const viewDate = new Date(`${dateKey}T12:00:00`);
+  const label = viewDate.toLocaleDateString('it-IT', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+  const niceLabel = label.charAt(0).toUpperCase() + label.slice(1);
+  if (titleEl) titleEl.textContent = isTodayView ? 'Oggi in breve' : `${niceLabel} in breve`;
+  if (subEl) subEl.textContent = isTodayView
+    ? 'Il quadro giusto per capire subito il prossimo passo.'
+    : 'Il quadro giusto per leggere questa giornata e capire il prossimo passo.';
 }
 
 function getCurrentMealState(type, dateKey) {

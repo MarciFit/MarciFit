@@ -117,6 +117,14 @@ function _showBarcodeOverlay(html) {
   result.style.display = 'block';
 }
 
+function _showBarcodeInline(html) {
+  const result = document.getElementById('bc-result');
+  if (!result) return;
+  result.innerHTML = html;
+  result.classList.remove('is-overlay');
+  result.style.display = 'block';
+}
+
 function _setBarcodeStatus(message, tone = 'neutral') {
   const status = document.getElementById('bc-status');
   if (!status) return;
@@ -629,7 +637,7 @@ function _buildBarcodeManualDraft(barcode, outcome = {}) {
 function renderBarcodeManualCompletion(barcode = _bcLastDetectedCode, outcome = {}) {
   const draft = _buildBarcodeManualDraft(barcode, outcome);
   _renderBarcodeActions([]);
-  _showBarcodeOverlay(`
+  _showBarcodeInline(`
     <div class="bc-result-shell bc-manual-shell">
       <div class="bc-manual-card">
         <div class="bc-manual-kicker">Completa il barcode</div>
