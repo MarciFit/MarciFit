@@ -1388,6 +1388,89 @@ select:focus-visible{
 .hi{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--b1)}
 .hi:last-child{border-bottom:none}
 .hi-date{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);width:90px;flex-shrink:0}
+
+/* Food search bottom sheet */
+.food-search-sheet-ov{
+  position:fixed;inset:0;z-index:550;
+  display:none;align-items:flex-end;justify-content:center;
+  padding:0 14px;
+  background:rgba(18,16,12,.34);
+  backdrop-filter:blur(5px);
+}
+.food-search-sheet-ov.open{display:flex;animation:fadeIn .16s ease}
+.food-search-sheet{
+  width:min(560px,100%);
+  height:min(62vh,620px);
+  display:flex;flex-direction:column;
+  border-radius:24px 24px 0 0;
+  border:1px solid rgba(226,216,202,.96);
+  border-bottom:none;
+  background:linear-gradient(180deg,rgba(255,253,249,.99) 0%,rgba(255,255,255,.99) 100%);
+  box-shadow:0 -22px 54px rgba(18,16,12,.24), inset 0 1px 0 rgba(255,255,255,.9);
+  transform:translateY(0);
+  animation:foodSheetUp .2s cubic-bezier(.22,1,.36,1);
+  overflow:hidden;
+}
+.food-search-sheet.is-expanded{height:min(92vh,820px)}
+@keyframes foodSheetUp{from{transform:translateY(18px);opacity:.72}to{transform:translateY(0);opacity:1}}
+.food-search-sheet-handle{
+  width:100%;height:28px;display:flex;align-items:center;justify-content:center;
+  border:none;background:transparent;cursor:pointer;flex-shrink:0;
+}
+.food-search-sheet-handle span{
+  width:42px;height:4px;border-radius:999px;background:#d7cec1;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+}
+.food-search-sheet-body{
+  padding:2px 16px calc(16px + env(safe-area-inset-bottom));
+  overflow:auto;flex:1;
+}
+.food-search-sheet-head{
+  position:sticky;top:0;z-index:20;
+  margin:0 -16px 12px;
+  padding:6px 16px 13px;
+  background:#fffdf9;
+  box-shadow:0 12px 18px rgba(255,253,249,.98),0 1px 0 rgba(226,216,202,.64);
+}
+.food-search-sheet-head::after{
+  content:"";position:absolute;left:0;right:0;bottom:-14px;height:14px;
+  background:linear-gradient(180deg,#fffdf9 0%,rgba(255,253,249,0) 100%);
+  pointer-events:none;
+}
+.food-search-sheet-picker-head{
+  position:sticky;top:0;z-index:20;
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;
+  margin:0 -16px 14px;
+  padding:6px 16px 13px;
+  background:#fffdf9;
+  box-shadow:0 12px 18px rgba(255,253,249,.98),0 1px 0 rgba(226,216,202,.64);
+}
+.food-search-sheet-picker-head::after{
+  content:"";position:absolute;left:0;right:0;bottom:-14px;height:14px;
+  background:linear-gradient(180deg,#fffdf9 0%,rgba(255,253,249,0) 100%);
+  pointer-events:none;
+}
+.food-search-sheet-back{
+  width:42px;height:42px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1.5px solid #ded3c4;background:#fffdf9;color:#8a6a2c;
+  font-size:30px;line-height:1;font-weight:500;
+  box-shadow:0 8px 18px rgba(18,16,12,.06);
+}
+.food-search-sheet-back:active{transform:scale(.97)}
+.food-search-sheet-picker-copy{min-width:0}
+.food-search-sheet-picker-copy .mc-log-search-title{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.food-search-gram-host{padding-top:2px}
+.food-search-gram-host .fsr-gram-row{
+  margin:0;
+}
+.food-search-sheet .food-search-results{
+  max-height:none;
+  overflow:visible;
+  padding-bottom:8px;
+}
 .hi-val{flex:1;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500}
 .hi-restore{font-size:10px;font-weight:700;color:var(--muted);border:1px solid var(--b2);border-radius:4px;padding:2px 7px;transition:all .12s}
 .hi-restore:hover{color:var(--on);border-color:var(--on-b)}
@@ -4401,6 +4484,11 @@ select:focus-visible{
 .stats-coming-shell{
   display:flex;
 }
+.stats-coming-minimal{
+  display:flex;
+  align-items:center;
+  padding:4px 0 2px;
+}
 .stats-coming-card{
   width:100%;
   border-radius:28px;
@@ -5337,28 +5425,11 @@ select:focus-visible{
   .food-search-input-row{padding:5px 6px 5px 5px;border-radius:14px}
   .food-search-icon{width:30px;height:30px}
   .food-search-input{height:30px}
-  .mc-log-search{
-    position:fixed;
-    left:0;right:0;bottom:0;z-index:1100;
-    max-height:min(74vh,640px);
-    overflow:auto;
-    margin:0;
-    padding:14px 16px calc(16px + env(safe-area-inset-bottom));
-    border-radius:22px 22px 0 0;
-    border:1px solid rgba(222,211,197,.95);
-    border-bottom:none;
-    background:linear-gradient(180deg,rgba(255,253,249,.98) 0%,rgba(255,255,255,.98) 100%);
-    box-shadow:0 -18px 42px rgba(28,24,17,.18), inset 0 1px 0 rgba(255,255,255,.86);
-  }
-  .mc-log-search::before{
-    content:"";display:block;width:38px;height:4px;border-radius:999px;
-    margin:0 auto 12px;background:#d8cec1;
-  }
-  .mc-log-panel-empty.is-open{padding:0;border-top:none}
-  .mc-log-panel.is-open{padding-bottom:0}
   .mc-log-search-title{font-size:14px}
   .mc-template-open-btn{padding:10px 12px}
-  .food-search-results{max-height:46vh;overflow:auto;padding-bottom:3px}
+  .food-search-sheet-ov{padding:0}
+  .food-search-sheet{width:100%;height:62vh;border-radius:22px 22px 0 0}
+  .food-search-sheet.is-expanded{height:92vh}
 
   .today-dashboard-head{margin-bottom:10px;padding-bottom:0;border-bottom:none}
   .today-dashboard-sub{display:none}
@@ -7465,6 +7536,58 @@ select:focus-visible{
   background:linear-gradient(90deg, rgba(221,211,199,.88) 0%, rgba(221,211,199,0) 100%);
 }
 .profile-section-primary{margin-bottom:28px}
+.profile-menu{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  margin:4px 0 22px;
+}
+.profile-menu-card{
+  width:100%;
+  min-height:88px;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px;
+  padding:16px;
+  border-radius:22px;
+  border:1px solid var(--surface-border);
+  background:linear-gradient(180deg,#fffdfa 0%,#fff 100%);
+  box-shadow:var(--elev-2);
+  text-align:left;
+  cursor:pointer;
+  transition:transform .14s,border-color .14s,box-shadow .14s;
+}
+.profile-menu-card:hover{
+  transform:translateY(-1px);
+  border-color:#cfe1d3;
+  box-shadow:0 18px 36px rgba(23,20,14,.08);
+}
+.profile-menu-card.active{border-color:#b9dcc4;background:linear-gradient(180deg,#f4fbf6 0%,#fff 100%)}
+.profile-menu-icon{
+  width:38px;height:38px;border-radius:15px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:#f6f0e8;border:1px solid #e5dacb;
+  font-size:18px;line-height:1;
+}
+.profile-menu-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.profile-menu-title{font-size:14px;font-weight:900;color:#1f1a14;line-height:1.2}
+.profile-menu-desc{font-size:11px;font-weight:650;line-height:1.35;color:#746b60}
+.profile-menu-arrow{font-size:20px;font-weight:800;color:#8f8679;line-height:1}
+.profile-section-head{
+  align-items:center;
+  gap:12px;
+  margin:0 0 14px;
+}
+.profile-back-btn{
+  width:38px;height:38px;border-radius:14px;border:1px solid #e2d8cb;
+  background:linear-gradient(180deg,#fffdfa 0%,#fff 100%);
+  color:#746b60;font-size:24px;line-height:1;cursor:pointer;
+  box-shadow:0 8px 18px rgba(23,20,14,.04);
+}
+.profile-section-head-copy{display:flex;flex-direction:column;gap:2px}
+.profile-section-kicker{font-size:9px;font-weight:850;letter-spacing:.14em;text-transform:uppercase;color:#8f8679}
+.profile-section-title{font-size:20px;font-weight:950;color:#1f1a14;line-height:1.1}
 .profile-inline-card,
 .profile-view .prof-card-box,
 .profile-view .goal-card{
@@ -7509,6 +7632,19 @@ select:focus-visible{
 .profile-collapse-chevron{color:#7a7268;transition:transform .16s ease}
 .profile-collapse-head.expanded .profile-collapse-chevron{transform:rotate(180deg)}
 .profile-collapse-body{margin-top:14px}
+.profile-autosave-note{
+  margin-top:16px;
+  display:flex;align-items:center;justify-content:center;
+  min-height:40px;
+  border-radius:14px;
+  border:1px solid #cfe5d7;
+  background:#f3fbf5;
+  color:#1a6b3f;
+  font-size:11px;
+  font-weight:850;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
 .profile-view .anag-section-title{
   font-size:10px;letter-spacing:.15em;color:#8f8679;margin-bottom:12px;
 }
@@ -7962,6 +8098,13 @@ select:focus-visible{
   .profile-collapse-title{font-size:14px}
   .profile-collapse-meta{gap:8px}
   .profile-collapse-badge{min-height:24px;padding:0 9px;font-size:9px}
+  .profile-menu{grid-template-columns:1fr;gap:10px;margin-top:0}
+  .profile-menu-card{min-height:74px;padding:13px 14px;border-radius:20px}
+  .profile-menu-icon{width:34px;height:34px;border-radius:13px;font-size:16px}
+  .profile-menu-title{font-size:13.5px}
+  .profile-menu-desc{font-size:10.5px}
+  .profile-section-title{font-size:18px}
+  .profile-back-btn{width:36px;height:36px;border-radius:13px}
   .profile-account-card{padding:14px}
   .profile-account-status-row{padding:11px 12px;gap:8px}
   .profile-account-pill{min-height:22px;padding:0 8px;font-size:10px}

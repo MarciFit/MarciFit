@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=144">
+<link rel="stylesheet" href="style.css?v=148">
 </head>
 <body>
 <div class="app">
@@ -219,34 +219,6 @@
     </div>
   </div>
 
-  <!-- SEZIONE: Piano Pasti -->
-  <div class="piano-section piano-section-hero piano-section-coming-soon">
-    <div class="piano-section-head">
-      <div class="piano-section-copy">
-        <span class="support-mini-kicker">Piano</span>
-        <div class="support-mini-title-row">
-          <span class="support-mini-title">Genera il prossimo pasto</span>
-          <span class="piano-section-status">In arrivo</span>
-        </div>
-        <span class="support-mini-sub">Uno spazio dedicato a idee pasto rapide, pulite e facili da usare.</span>
-      </div>
-    </div>
-    <div id="meal-planner-helper"></div>
-  </div>
-
-  <div class="piano-section piano-section-dataset piano-section-coming-soon">
-    <div class="piano-section-head">
-      <div class="piano-section-copy">
-        <span class="support-mini-kicker">Piano</span>
-        <div class="support-mini-title-row">
-          <span class="support-mini-title">Cibi abituali</span>
-          <span class="piano-section-status">In arrivo</span>
-        </div>
-        <span class="support-mini-sub">Una libreria personale per richiamare piu in fretta cio che usi spesso.</span>
-      </div>
-    </div>
-    <div id="piano-favorite-foods"></div>
-  </div>
 </div>
 
 <!-- VIEW: STATISTICHE -->
@@ -293,27 +265,30 @@
     <div class="prog-sub profile-sub">Dati base, obiettivo e routine in uno spazio semplice da aggiornare.</div>
   </div>
 
-  <div class="stat-section profile-section">
+  <div id="profile-menu" class="profile-menu"></div>
+  <div id="profile-section-head" class="profile-section-head" style="display:none"></div>
+
+  <div class="stat-section profile-section" data-profile-section="account">
     <div id="profile-account-slot"></div>
   </div>
 
   <!-- Card: Anagrafica + Obiettivo + Fabbisogno -->
-  <div class="stat-section profile-section profile-section-primary">
+  <div class="stat-section profile-section profile-section-primary" data-profile-section="anagrafica">
     <div class="prof-card-box" id="prof-card"></div>
   </div>
 
-  <!-- Card: Orari pasti -->
-  <div class="stat-section profile-section">
-    <div class="prof-card-box" id="prof-times-card"></div>
-  </div>
-
   <!-- Goal extra fields (data inizio, peso target, note) -->
-  <div class="stat-section profile-section" id="goal-extra-section">
+  <div class="stat-section profile-section" id="goal-extra-section" data-profile-section="anagrafica">
     <div id="goal-card"></div>
   </div>
 
+  <!-- Card: Orari pasti -->
+  <div class="stat-section profile-section" data-profile-section="orari">
+    <div class="prof-card-box" id="prof-times-card"></div>
+  </div>
+
   <!-- Giorni allenamento -->
-  <div class="stat-section profile-section">
+  <div class="stat-section profile-section" data-profile-section="allenamento">
     <div class="profile-inline-card profile-inline-card-days">
       <div class="profile-card-head support-mini-head">
         <div class="support-mini-head-copy">
@@ -330,7 +305,7 @@
   </div>
 
   <!-- Dati & backup -->
-  <div class="stat-section profile-section">
+  <div class="stat-section profile-section" data-profile-section="dati">
     <div class="profile-inline-card profile-inline-card-backup">
       <div class="profile-card-head support-mini-head">
         <div class="support-mini-head-copy">
@@ -379,6 +354,16 @@
       <button class="drawer-x" onclick="closeDrBtn()">&#x2715;&#xFE0F; </button>
     </div>
     <div class="drawer-body" id="dr-body"></div>
+  </div>
+</div>
+
+<!-- Food search bottom sheet -->
+<div id="food-search-sheet-ov" class="food-search-sheet-ov" onclick="if(event.target===this)closeLogSearch()">
+  <div id="food-search-sheet" class="food-search-sheet" data-state="compact">
+    <button class="food-search-sheet-handle" onclick="toggleFoodSearchSheetSize();event.stopPropagation()" onpointerdown="startFoodSearchSheetDrag(event)" aria-label="Espandi ricerca cibo">
+      <span></span>
+    </button>
+    <div id="food-search-sheet-body" class="food-search-sheet-body"></div>
   </div>
 </div>
 
@@ -477,13 +462,13 @@ window.MARCI_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 <script src="debugTools.js?v=5"></script>
 <script src="authSync.js?v=17"></script>
 <script src="storage.js?v=42"></script>
-<script src="nutritionLogic.js?v=55"></script>
+<script src="nutritionLogic.js?v=57"></script>
 <script src="mealTaxonomy.js?v=1"></script>
 <script src="templateEngine.js?v=2"></script>
 <script src="mealHelperEngine.js?v=1"></script>
-<script src="uiComponents.js?v=116"></script>
+<script src="uiComponents.js?v=119"></script>
 <script src="bootstrapTools.js?v=7"></script>
-<script src="app.js?v=96"></script>
+<script src="app.js?v=99"></script>
 <script src="barcodeTools.js?v=18"></script>
 <script>lucide.createIcons();</script>
 </body>

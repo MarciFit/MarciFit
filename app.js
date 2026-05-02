@@ -565,8 +565,7 @@ function addQuickCondiment(dateKey, mealIdx, grams = 10) {
 function searchCondimentForMeal(dateKey, mealIdx) {
   const dayType = resolveDayTypeForDate(dateKey);
   const domKey = `${dayType}-${mealIdx}`;
-  const panel = document.getElementById(`mls-${domKey}`);
-  if (panel && panel.style.display === 'none') toggleLogSearch(domKey);
+  toggleLogSearch(domKey, { forceOpen: true });
   requestAnimationFrame(() => {
     const input = document.getElementById(`mlsi-${domKey}`);
     if (!input) return;
@@ -1509,6 +1508,7 @@ async function loadTemplateToMeal(tmplId, dateKey, mealIdx) {
   if (typeof mealIdx === 'number') refreshMealCard(dayType, mealIdx);
   else renderTodayLog();
   renderMacroStrip(dayType, S.meals[dayType], S.macro[dayType]);
+  closeLogSearch();
   toast(`✅ ${t.name} caricato`);
 }
 
@@ -1705,7 +1705,10 @@ function setGoalPhase(phase, persist = true) {
   }
 }
 
-function saveGoalDetails() {
+let _goalAutosaveTimer = null;
+
+function saveGoalDetails(options = {}) {
+  const { silent = false, rerenderAfter = true } = options;
   const startDate = document.getElementById('goal-start-date')?.value || null;
   const rawTargetWeight = document.getElementById('goal-target-weight')?.value;
   const targetWeight = rawTargetWeight === '' ? null : _parseNullableAnagNumber(rawTargetWeight);
@@ -1713,9 +1716,18 @@ function saveGoalDetails() {
   S.goal.startDate = startDate;
   S.goal.targetWeight = targetWeight;
   S.goal.notes = notes;
-  save();
-  renderGoalCard();
-  toast('✅ Obiettivo salvato');
+  saveSoon();
+  if (rerenderAfter) renderGoalCard();
+  if (!silent) toast('✅ Obiettivo salvato');
+}
+
+function scheduleGoalDetailsAutosave(options = {}) {
+  const delay = options.immediate ? 0 : 450;
+  if (_goalAutosaveTimer) clearTimeout(_goalAutosaveTimer);
+  _goalAutosaveTimer = setTimeout(() => {
+    _goalAutosaveTimer = null;
+    saveGoalDetails({ silent: true, rerenderAfter: false });
+  }, delay);
 }
 function toggleSupp(id) {
   const key = S.selDate || localDate();
@@ -1863,41 +1875,164 @@ function removeItem(type, mealIdx, itemIdx) {
   S.meals[type]?.[mealIdx]?.items?.splice(itemIdx,1);
   save(); renderPiano();
 }
-function toggleLogSearch(domKey) {
-  const el = document.getElementById('mls-'+domKey);
-  const panel = document.getElementById('mlp-'+domKey);
-  if (!el) return;
-  const isOpen = el.style.display !== 'none';
-  if (isOpen) {
-    closeLogSearch(domKey);
-    return;
+let _activeFoodSearchSheet = null;
+let _foodSearchSheetDragged = false;
+
+function resolveMealSearchContext(domKey) {
+  const dateKey = S.selDate || localDate();
+  if (String(domKey || '').startsWith('extra-')) {
+    const mealIdx = String(domKey).replace(/^extra-/, '');
+    const def = EXTRA_MEALS?.[mealIdx] || {};
+    const mealName = def.name || mealIdx;
+    const mealType = getMealTypeFromName(mealName) || mealIdx;
+    return { domKey, dateKey, dayType: S.day, mealIdx, mealName, mealType, canBarcode: false };
   }
-  el.style.display = 'block';
-  if (panel) panel.classList.add('is-open');
-  document.body.classList.add('food-search-sheet-open');
-  const inp = document.getElementById('mlsi-'+domKey);
-  if (inp) { inp.value=''; inp.focus(); }
-  const res = document.getElementById('mlsr-'+domKey);
-  if (res) res.innerHTML='';
-  const gram = document.getElementById('mlsg-'+domKey);
-  if (gram) gram.remove();
+  const parts = String(domKey || '').split('-');
+  const dayType = parts[0] || S.day;
+  const idx = Number(parts[1]);
+  if (!Number.isInteger(idx)) return null;
+  const meal = S.meals?.[dayType]?.[idx] || {};
+  const mealName = meal.name || `Pasto ${idx + 1}`;
+  return {
+    domKey,
+    dateKey,
+    dayType,
+    mealIdx: idx,
+    mealName,
+    mealType: getMealTypeFromName(mealName),
+    canBarcode: true,
+  };
 }
 
-function closeLogSearch(domKey) {
-  const el = document.getElementById('mls-'+domKey);
-  const panel = document.getElementById('mlp-'+domKey);
-  if (!el) return;
-  el.style.display = 'none';
-  if (panel) panel.classList.remove('is-open');
-  const inp = document.getElementById('mlsi-'+domKey);
-  if (inp) inp.value = '';
-  const res = document.getElementById('mlsr-'+domKey);
+function foodSearchTemplateButtonHTML(ctx) {
+  if (typeof mealTemplateButtonHTML !== 'function') return '';
+  return mealTemplateButtonHTML(ctx.dateKey, ctx.mealIdx, ctx.mealType, ctx.mealName);
+}
+
+function renderFoodSearchSheet(ctx) {
+  const body = document.getElementById('food-search-sheet-body');
+  if (!body) return;
+  const mealIdxArg = typeof ctx.mealIdx === 'number' ? ctx.mealIdx : `'${ctx.mealIdx}'`;
+  const barcodeHTML = ctx.canBarcode ? `
+    <button class="bc-btn" onclick="openBarcode('${ctx.dateKey}',${ctx.mealIdx});event.stopPropagation()" title="Scansiona barcode" aria-label="Scansiona barcode">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 5v14"></path><path d="M7 5v14"></path><path d="M10 5v14"></path><path d="M14 5v14"></path><path d="M17 5v14"></path><path d="M21 5v14"></path>
+      </svg>
+    </button>` : '';
+  body.innerHTML = `
+    <div class="mc-log-search-head food-search-sheet-head">
+      <div>
+        <div class="mc-log-search-kicker">Aggiungi alimento</div>
+        <div class="mc-log-search-title">Aggiungi a ${htmlEsc(ctx.mealName)}</div>
+      </div>
+      <button class="mc-log-search-close" onclick="closeLogSearch();event.stopPropagation()" title="Chiudi ricerca" aria-label="Chiudi ricerca">×</button>
+    </div>
+    ${foodSearchTemplateButtonHTML(ctx)}
+    <div class="food-search-input-row">
+      <span class="food-search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></span>
+      <input type="text" class="food-search-input" id="mlsi-${ctx.domKey}"
+        placeholder="Cerca alimento..."
+        oninput="onLogFoodSearch(this,'${ctx.dateKey}',${mealIdxArg},'${ctx.domKey}')"
+        autocomplete="off">
+      ${barcodeHTML}
+    </div>
+	    <div class="food-search-results" id="mlsr-${ctx.domKey}"></div>`;
+}
+
+function rememberFoodSearchQuery(domKey, query) {
+  if (!_activeFoodSearchSheet || _activeFoodSearchSheet.domKey !== domKey) return;
+  _activeFoodSearchSheet.lastQuery = query || '';
+}
+
+function returnFoodSearchToResults() {
+  const ctx = _activeFoodSearchSheet;
+  if (!ctx) return;
+  const query = ctx.lastQuery || '';
+  renderFoodSearchSheet(ctx);
+  const input = document.getElementById('mlsi-' + ctx.domKey);
+  if (!input) return;
+  input.value = query;
+  input.focus();
+  if (query.trim().length >= 2 && typeof onLogFoodSearch === 'function') {
+    onLogFoodSearch(input, ctx.dateKey, ctx.mealIdx, ctx.domKey);
+  }
+}
+
+function toggleLogSearch(domKey, options = {}) {
+  const ctx = resolveMealSearchContext(domKey);
+  if (!ctx) return;
+  const ov = document.getElementById('food-search-sheet-ov');
+  const sheet = document.getElementById('food-search-sheet');
+  if (!ov || !sheet) return;
+  const isOpen = ov.classList.contains('open');
+  if (isOpen && _activeFoodSearchSheet?.domKey === domKey && !options.forceOpen) {
+    closeLogSearch();
+    return;
+  }
+  _activeFoodSearchSheet = ctx;
+  renderFoodSearchSheet(ctx);
+  sheet.classList.remove('is-expanded');
+  sheet.dataset.state = 'compact';
+  ov.classList.add('open');
+  document.body.classList.add('food-search-sheet-open');
+  if (!isOpen) lockUiScroll();
+  requestAnimationFrame(() => {
+    const inp = document.getElementById('mlsi-'+domKey);
+    setTimeout(() => inp?.focus(), 90);
+  });
+}
+
+function closeLogSearch(domKey = null) {
+  const ov = document.getElementById('food-search-sheet-ov');
+  const wasOpen = ov?.classList.contains('open');
+  const activeDomKey = domKey || _activeFoodSearchSheet?.domKey;
+  const res = activeDomKey ? document.getElementById('mlsr-'+activeDomKey) : null;
   if (res) res.innerHTML = '';
-  const gram = document.getElementById('mlsg-'+domKey);
+  const gram = activeDomKey ? document.getElementById('mlsg-'+activeDomKey) : null;
   if (gram) gram.remove();
-  const anyOpen = Array.from(document.querySelectorAll('.mc-log-search'))
-    .some(node => node.style.display !== 'none');
-  if (!anyOpen) document.body.classList.remove('food-search-sheet-open');
+  const body = document.getElementById('food-search-sheet-body');
+  if (body) body.innerHTML = '';
+  ov?.classList.remove('open');
+  document.getElementById('food-search-sheet')?.classList.remove('is-expanded');
+  document.body.classList.remove('food-search-sheet-open');
+  _activeFoodSearchSheet = null;
+  _logSearchSel = null;
+  if (wasOpen) unlockUiScroll(true);
+}
+
+function toggleFoodSearchSheetSize() {
+  if (_foodSearchSheetDragged) {
+    _foodSearchSheetDragged = false;
+    return;
+  }
+  const sheet = document.getElementById('food-search-sheet');
+  if (!sheet) return;
+  const expanded = sheet.classList.toggle('is-expanded');
+  sheet.dataset.state = expanded ? 'expanded' : 'compact';
+}
+
+function startFoodSearchSheetDrag(event) {
+  const startY = event.clientY;
+  const sheet = document.getElementById('food-search-sheet');
+  if (!sheet) return;
+  const onUp = upEvent => {
+    const dy = upEvent.clientY - startY;
+    if (dy < -34) {
+      _foodSearchSheetDragged = true;
+      sheet.classList.add('is-expanded');
+      sheet.dataset.state = 'expanded';
+    } else if (dy > 44 && sheet.classList.contains('is-expanded')) {
+      _foodSearchSheetDragged = true;
+      sheet.classList.remove('is-expanded');
+      sheet.dataset.state = 'compact';
+    } else if (dy > 70) {
+      _foodSearchSheetDragged = true;
+      closeLogSearch();
+    }
+    if (_foodSearchSheetDragged) setTimeout(() => { _foodSearchSheetDragged = false; }, 180);
+    window.removeEventListener('pointerup', onUp);
+  };
+  window.addEventListener('pointerup', onUp, { once: true });
 }
 
 function decodeInlineArg(value) {
@@ -2900,6 +3035,7 @@ function setAnagSesso(s) {
     b.classList.toggle('active', b.dataset.s === s);
   });
   _updateFabbisognoPreview();
+  scheduleAnagraficaAutosave({ immediate: true });
 }
 
 function setAnagFreq(k) {
@@ -2908,6 +3044,7 @@ function setAnagFreq(k) {
     b.classList.toggle('active', b.dataset.k === k);
   });
   _updateFabbisognoPreview();
+  scheduleAnagraficaAutosave({ immediate: true });
 }
 
 function setAnagProf(key) {
@@ -2923,6 +3060,7 @@ function setAnagProf(key) {
   // Close dropdown
   document.getElementById('pdrop')?.classList.remove('open');
   _updateFabbisognoPreview();
+  scheduleAnagraficaAutosave({ immediate: true });
 }
 
 function parseWeightLogDateLocal(dateStr) {
@@ -3140,6 +3278,7 @@ function _stepAnagField(id, dir) {
   inp.value  = next;
   _handleAnagInput(id, { forceValidate: true });
   _updateFabbisognoPreview();
+  scheduleAnagraficaAutosave({ immediate: true });
 }
 
 function _normalizeAnagName(value) {
@@ -3337,12 +3476,15 @@ function _updateFabbisognoPreview() {
     </div>`;
 }
 
-function saveAnagrafica() {
+let _anagAutosaveTimer = null;
+
+function persistAnagraficaDraft(options = {}) {
+  const { silent = true, rerenderAfter = false } = options;
   const validation = validateAnagraficaDraft(_readAnagForm());
   _renderAnagFieldErrors(validation.fieldErrors);
   if (!validation.ok) {
-    toast(`⚠️ ${validation.firstError}`);
-    return;
+    if (!silent) toast(`⚠️ ${validation.firstError}`);
+    return false;
   }
   S.anagrafica = validation.normalized;
   S.goal.phase = getPendingGoalPhase();
@@ -3356,11 +3498,26 @@ function saveAnagrafica() {
     }
   }
   syncProfileRowsFromAnagrafica();
-  save();
+  saveSoon();
   if (typeof authEnsureRemoteProfile === 'function') authEnsureRemoteProfile().catch(() => {});
   if (typeof authQueueStateSync === 'function') authQueueStateSync();
-  rerender();
-  toast('✅ Profilo salvato — macro aggiornati');
+  if (rerenderAfter) rerender();
+  return true;
+}
+
+function scheduleAnagraficaAutosave(options = {}) {
+  const delay = options.immediate ? 0 : 450;
+  if (_anagAutosaveTimer) clearTimeout(_anagAutosaveTimer);
+  _anagAutosaveTimer = setTimeout(() => {
+    _anagAutosaveTimer = null;
+    persistAnagraficaDraft({ silent: true, rerenderAfter: false });
+  }, delay);
+}
+
+function saveAnagrafica() {
+  if (persistAnagraficaDraft({ silent: false, rerenderAfter: true })) {
+    toast('✅ Profilo salvato — macro aggiornati');
+  }
 }
 
 let _welcomeState = null;

@@ -77,9 +77,6 @@ function extraMealCardHTML(key, dateKey) {
   </div>` : '';
 
   const addBtn = `<button class="mc-add-btn" onclick="toggleLogSearch('${domKey}');event.stopPropagation()" title="Aggiungi alimento"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
-  const extraMealType = getMealTypeFromName(def.name);
-  const tmplButtonHTML = mealTemplateButtonHTML(dateKey, key, extraMealType || key, def.name);
-
   return `<div class="mc mc-extra" id="mc-${domKey}">
     <div class="mc-row">
       <div class="mc-body" style="cursor:default">
@@ -94,24 +91,6 @@ function extraMealCardHTML(key, dateKey) {
     </div>
     <div class="mc-log-panel" id="mlp-${domKey}">
       ${hasLog ? `<div class="mc-log-items">${logRows}</div>${logSummary}` : ''}
-      <div class="mc-log-search" id="mls-${domKey}" style="display:none">
-        <div class="mc-log-search-head">
-          <div>
-            <div class="mc-log-search-kicker">Aggiungi alimento</div>
-            <div class="mc-log-search-title">Aggiungi a ${htmlEsc(def.name)}</div>
-          </div>
-          <button class="mc-log-search-close" onclick="closeLogSearch('${domKey}');event.stopPropagation()" title="Chiudi ricerca" aria-label="Chiudi ricerca">×</button>
-        </div>
-        ${tmplButtonHTML}
-        <div class="food-search-input-row">
-          <span class="food-search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></span>
-          <input type="text" class="food-search-input" id="mlsi-${domKey}"
-            placeholder="Cerca alimento..."
-            oninput="onLogFoodSearch(this,'${dateKey}','${key}','${domKey}')"
-            autocomplete="off">
-        </div>
-        <div class="food-search-results" id="mlsr-${domKey}"></div>
-      </div>
     </div>
   </div>`;
 }
@@ -380,34 +359,8 @@ function mealCardHTML(type, i, mode, isCurrent=false, currentKind='now') {
             <span>Azzera</span>
           </button>
         </div>` : '';
-    const mealType = getMealTypeFromName(base.name);
-    const tmplButtonHTML = mealTemplateButtonHTML(dateKey, i, mealType, base.name);
-
     return `<div class="mc-log-panel${hasLog ? '' : ' mc-log-panel-empty'}" id="mlp-${domKey}">
       ${hasLog ? `<div class="mc-log-items">${logRows}</div>${logSummary}` : ''}
-      <div class="mc-log-search" id="mls-${domKey}" style="display:none">
-        <div class="mc-log-search-head">
-          <div>
-            <div class="mc-log-search-kicker">Aggiungi alimento</div>
-            <div class="mc-log-search-title">Aggiungi a ${htmlEsc(base.name)}</div>
-          </div>
-          <button class="mc-log-search-close" onclick="closeLogSearch('${domKey}');event.stopPropagation()" title="Chiudi ricerca" aria-label="Chiudi ricerca">×</button>
-        </div>
-        ${tmplButtonHTML}
-        <div class="food-search-input-row">
-          <span class="food-search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></span>
-          <input type="text" class="food-search-input" id="mlsi-${domKey}"
-            placeholder="Cerca alimento..."
-            oninput="onLogFoodSearch(this,'${dateKey}',${i},'${domKey}')"
-            autocomplete="off">
-          <button class="bc-btn" onclick="openBarcode('${dateKey}',${i});event.stopPropagation()" title="Scansiona barcode" aria-label="Scansiona barcode">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 5v14"></path><path d="M7 5v14"></path><path d="M10 5v14"></path><path d="M14 5v14"></path><path d="M17 5v14"></path><path d="M21 5v14"></path>
-            </svg>
-          </button>
-        </div>
-        <div class="food-search-results" id="mlsr-${domKey}"></div>
-      </div>
     </div>`;
   })();
 
@@ -4420,53 +4373,8 @@ function renderStatsComingSoon() {
   if (patterns) patterns.innerHTML = '';
   if (actions) actions.innerHTML = '';
   if (summary) {
-    summary.innerHTML = `<div class="stats-coming-shell">
-      <div class="stats-coming-card">
-        <div class="stats-coming-top">
-          <span class="stats-coming-pill"><span class="stats-coming-pill-dot"></span>In arrivo</span>
-          <span class="stats-coming-label">Premium preview</span>
-        </div>
-        <div class="stats-coming-body">
-          <div class="stats-coming-copy">
-            <div class="stats-coming-title">Una nuova dashboard coach-like e piu leggibile.</div>
-            <div class="stats-coming-text">Peso, macro, recovery e andamento dei giorni ON/OFF stanno passando in una vista piu chiara, meno rumorosa e molto piu orientata al prossimo passo.</div>
-            <div class="stats-coming-bullets">
-              <span class="stats-coming-bullet">trend peso</span>
-              <span class="stats-coming-bullet">macro leggibili</span>
-              <span class="stats-coming-bullet">recovery e routine</span>
-            </div>
-            <div class="stats-coming-actions">
-              <button class="stats-coming-btn primary" onclick="goView('today')">Torna a oggi</button>
-              <button class="stats-coming-btn" onclick="goView('profilo')">Apri profilo</button>
-            </div>
-          </div>
-          <div class="stats-coming-visual" aria-hidden="true">
-            <div class="stats-coming-masthead">
-              <span class="stats-coming-chip wide"></span>
-              <span class="stats-coming-chip"></span>
-            </div>
-            <div class="stats-coming-panel">
-              <div class="stats-coming-line long"></div>
-              <div class="stats-coming-line mid"></div>
-              <div class="stats-coming-line short"></div>
-              <div class="stats-coming-grid">
-                <span class="stats-coming-metric"></span>
-                <span class="stats-coming-metric"></span>
-                <span class="stats-coming-metric"></span>
-              </div>
-            </div>
-            <div class="stats-coming-panel muted">
-              <div class="stats-coming-line mid"></div>
-              <div class="stats-coming-line long"></div>
-              <div class="stats-coming-chip-row">
-                <span class="stats-coming-chip"></span>
-                <span class="stats-coming-chip narrow"></span>
-                <span class="stats-coming-chip"></span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    summary.innerHTML = `<div class="stats-coming-minimal">
+      <span class="stats-coming-pill"><span class="stats-coming-pill-dot"></span>In arrivo</span>
     </div>`;
   }
 }
@@ -4488,9 +4396,68 @@ function renderStats() {
   renderStatsComingSoon();
 }
 function renderProfile() {
+  renderProfileMenu();
   renderAnagrafica();
+  renderGoalCard();
   renderOnDaysPicker();
   if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+  applyProfileSectionState();
+}
+
+const PROFILE_SECTIONS = [
+  { key: 'account', label: 'Account', icon: '👤', desc: 'Accesso, sync e identita del profilo.' },
+  { key: 'anagrafica', label: 'Anagrafica', icon: '📋', desc: 'Dati base, obiettivo e fabbisogno.' },
+  { key: 'orari', label: 'Orari pasti', icon: '🕒', desc: 'Finestre orarie dei pasti principali.' },
+  { key: 'allenamento', label: 'Giorni di allenamento', icon: '🏋️', desc: 'Settimana Workout/Rest abituale.' },
+  { key: 'dati', label: 'Dati/export', icon: '💾', desc: 'Import, export e ripristino dati.' },
+];
+
+function getProfileActiveSection() {
+  const key = S.profileUi?.activeSection || '';
+  return PROFILE_SECTIONS.some(section => section.key === key) ? key : '';
+}
+
+function renderProfileMenu() {
+  const el = document.getElementById('profile-menu');
+  if (!el) return;
+  const active = getProfileActiveSection();
+  el.innerHTML = PROFILE_SECTIONS.map(section => `
+    <button class="profile-menu-card${active === section.key ? ' active' : ''}" onclick="openProfileSection('${section.key}')">
+      <span class="profile-menu-icon">${section.icon}</span>
+      <span class="profile-menu-copy">
+        <span class="profile-menu-title">${section.label}</span>
+        <span class="profile-menu-desc">${section.desc}</span>
+      </span>
+      <span class="profile-menu-arrow">›</span>
+    </button>`).join('');
+}
+
+function applyProfileSectionState() {
+  const active = getProfileActiveSection();
+  const menu = document.getElementById('profile-menu');
+  const head = document.getElementById('profile-section-head');
+  if (menu) menu.style.display = active ? 'none' : 'grid';
+  if (head) {
+    const section = PROFILE_SECTIONS.find(item => item.key === active);
+    head.style.display = active ? 'flex' : 'none';
+    head.innerHTML = section ? `
+      <button class="profile-back-btn" onclick="openProfileSection('')" aria-label="Torna al menu profilo">‹</button>
+      <div class="profile-section-head-copy">
+        <div class="profile-section-kicker">Profilo</div>
+        <div class="profile-section-title">${section.label}</div>
+      </div>` : '';
+  }
+  document.querySelectorAll('[data-profile-section]').forEach(node => {
+    node.style.display = active && node.dataset.profileSection === active ? '' : 'none';
+  });
+}
+
+function openProfileSection(sectionKey = '') {
+  if (!S.profileUi || typeof S.profileUi !== 'object') S.profileUi = {};
+  S.profileUi.activeSection = sectionKey || '';
+  saveSoon();
+  renderProfileMenu();
+  applyProfileSectionState();
 }
 function drawChart(log, opts = {}) {
   const el = document.getElementById('w-canvas');
@@ -4757,18 +4724,18 @@ function renderGoalCard() {
       <div class="goal-fields">
         <div class="goal-field">
           <label>Data inizio fase</label>
-          <input id="goal-start-date" type="date" value="${g.startDate||''}">
+          <input id="goal-start-date" type="date" value="${g.startDate||''}" onchange="scheduleGoalDetailsAutosave({immediate:true})">
         </div>
         <div class="goal-field">
           <label>Peso target (kg)</label>
-          <input id="goal-target-weight" type="number" step="0.5" value="${g.targetWeight||''}" placeholder="–">
+          <input id="goal-target-weight" type="number" step="0.5" value="${g.targetWeight||''}" placeholder="–" oninput="scheduleGoalDetailsAutosave()" onblur="scheduleGoalDetailsAutosave({immediate:true})">
         </div>
         <div class="goal-field goal-full">
           <label>Note obiettivo</label>
-          <textarea id="goal-notes" rows="2">${esc(g.notes||'')}</textarea>
+          <textarea id="goal-notes" rows="2" oninput="scheduleGoalDetailsAutosave()" onblur="scheduleGoalDetailsAutosave({immediate:true})">${esc(g.notes||'')}</textarea>
         </div>
       </div>
-      <button class="btn btn-primary anag-save-btn" onclick="saveGoalDetails()">Salva obiettivo</button>
+      <div class="profile-autosave-note">Salvataggio automatico attivo</div>
     </div>`;
 }
 function supplementFormHTML(scope, opts = {}) {
@@ -5246,7 +5213,7 @@ function renderAnagrafica() {
   const a = S.anagrafica || {};
   const g = S.goal || {};
   if (!S.profileUi || typeof S.profileUi !== 'object') S.profileUi = {};
-  if (typeof S.profileUi.primaryExpanded !== 'boolean') S.profileUi.primaryExpanded = false;
+  if (typeof S.profileUi.primaryExpanded !== 'boolean') S.profileUi.primaryExpanded = true;
   const coreProfileFields = [a.nome, a.sesso, a.eta, a.altezza, a.peso];
   const coreProfileCount = coreProfileFields.filter(v => v !== null && v !== undefined && String(v).trim() !== '').length;
   const hasStepsContext = a.passiGiornalieri !== null && a.passiGiornalieri !== undefined && String(a.passiGiornalieri).trim() !== '';
@@ -5300,10 +5267,10 @@ function renderAnagrafica() {
     mantieni: { lbl:'Mantieni', desc:'Target vicino al mantenimento con proteine a 1.6 g/kg, grassi a 0.9 g/kg e carboidrati in residuo.' },
   };
   const phaseBtns = Object.entries(PHASE_INFO).map(([id, info]) =>
-    `<button class="goal-phase-btn${g.phase===id?' active-'+id:''}" data-phase="${id}" onclick="setGoalPhase('${id}', false);_updateFabbisognoPreview()">${info.lbl}</button>`
+    `<button class="goal-phase-btn${g.phase===id?' active-'+id:''}" data-phase="${id}" onclick="setGoalPhase('${id}', true);_updateFabbisognoPreview();scheduleAnagraficaAutosave({immediate:true})">${info.lbl}</button>`
   ).join('');
   const activePhaseDesc = PHASE_INFO[g.phase]?.desc || '';
-  const isPrimaryExpanded = !!S.profileUi.primaryExpanded;
+  const isPrimaryExpanded = S.profileUi?.activeSection === 'anagrafica' ? true : !!S.profileUi.primaryExpanded;
 
   document.getElementById('prof-card').innerHTML = `
     <button class="profile-collapse-head${isPrimaryExpanded ? ' expanded' : ''}" onclick="toggleProfilePrimaryCard()">
@@ -5321,7 +5288,7 @@ function renderAnagrafica() {
           <label class="anag-label">Nome</label>
           <div class="name-char-count" id="anag-nome-count">${Math.min(String(a.nome || '').length, 40)}/40</div>
         </div>
-        <input id="anag-nome" class="anag-input" maxlength="40" autocomplete="name" value="${htmlEsc(a.nome||'')}" oninput="_handleAnagInput('anag-nome');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-nome',{forceValidate:true})">
+        <input id="anag-nome" class="anag-input" maxlength="40" autocomplete="name" value="${htmlEsc(a.nome||'')}" oninput="_handleAnagInput('anag-nome');_updateFabbisognoPreview();scheduleAnagraficaAutosave()" onblur="_handleAnagInput('anag-nome',{forceValidate:true});scheduleAnagraficaAutosave({immediate:true})">
         <div class="anag-field-error" id="anag-error-nome"></div>
       </div>
       <div class="anag-field anag-field-sex">
@@ -5335,7 +5302,7 @@ function renderAnagrafica() {
         <label class="anag-label">Età</label>
         <div class="anag-input-wrap">
           <div class="anag-spin-wrap">
-            <input id="anag-eta" class="anag-input anag-spin-input" type="number" min="10" max="99" inputmode="numeric" value="${a.eta||''}" oninput="_handleAnagInput('anag-eta');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-eta',{forceValidate:true})">
+            <input id="anag-eta" class="anag-input anag-spin-input" type="number" min="10" max="99" inputmode="numeric" value="${a.eta||''}" oninput="_handleAnagInput('anag-eta');_updateFabbisognoPreview();scheduleAnagraficaAutosave()" onblur="_handleAnagInput('anag-eta',{forceValidate:true});scheduleAnagraficaAutosave({immediate:true})">
             <div class="anag-stepper"><button class="anag-step-btn" onclick="_stepAnagField('anag-eta',1)">▲</button><button class="anag-step-btn" onclick="_stepAnagField('anag-eta',-1)">▼</button></div>
           </div>
           <span class="anag-unit">anni</span>
@@ -5346,7 +5313,7 @@ function renderAnagrafica() {
         <label class="anag-label">Altezza</label>
         <div class="anag-input-wrap">
           <div class="anag-spin-wrap">
-            <input id="anag-altezza" class="anag-input anag-spin-input" type="number" min="120" max="250" inputmode="numeric" value="${a.altezza||''}" oninput="_handleAnagInput('anag-altezza');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-altezza',{forceValidate:true})">
+            <input id="anag-altezza" class="anag-input anag-spin-input" type="number" min="120" max="250" inputmode="numeric" value="${a.altezza||''}" oninput="_handleAnagInput('anag-altezza');_updateFabbisognoPreview();scheduleAnagraficaAutosave()" onblur="_handleAnagInput('anag-altezza',{forceValidate:true});scheduleAnagraficaAutosave({immediate:true})">
             <div class="anag-stepper"><button class="anag-step-btn" onclick="_stepAnagField('anag-altezza',1)">▲</button><button class="anag-step-btn" onclick="_stepAnagField('anag-altezza',-1)">▼</button></div>
           </div>
           <span class="anag-unit">cm</span>
@@ -5357,7 +5324,7 @@ function renderAnagrafica() {
         <label class="anag-label">Peso</label>
         <div class="anag-input-wrap">
           <div class="anag-spin-wrap">
-            <input id="anag-peso" class="anag-input anag-spin-input" type="number" min="30" max="300" step="0.1" inputmode="decimal" value="${a.peso||''}" oninput="_handleAnagInput('anag-peso');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-peso',{forceValidate:true})">
+            <input id="anag-peso" class="anag-input anag-spin-input" type="number" min="30" max="300" step="0.1" inputmode="decimal" value="${a.peso||''}" oninput="_handleAnagInput('anag-peso');_updateFabbisognoPreview();scheduleAnagraficaAutosave()" onblur="_handleAnagInput('anag-peso',{forceValidate:true});scheduleAnagraficaAutosave({immediate:true})">
             <div class="anag-stepper"><button class="anag-step-btn" onclick="_stepAnagField('anag-peso',1)">▲</button><button class="anag-step-btn" onclick="_stepAnagField('anag-peso',-1)">▼</button></div>
           </div>
           <span class="anag-unit">kg</span>
@@ -5367,7 +5334,7 @@ function renderAnagrafica() {
       <div class="anag-field">
         <label class="anag-label">% Grasso <span class="anag-opt">(opz.)</span></label>
         <div class="anag-input-wrap">
-          <input id="anag-grasso" class="anag-input" type="number" min="3" max="60" step="0.1" inputmode="decimal" value="${a.grassoCorporeo||''}" placeholder="—" oninput="_handleAnagInput('anag-grasso');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-grasso',{forceValidate:true})">
+          <input id="anag-grasso" class="anag-input" type="number" min="3" max="60" step="0.1" inputmode="decimal" value="${a.grassoCorporeo||''}" placeholder="—" oninput="_handleAnagInput('anag-grasso');_updateFabbisognoPreview();scheduleAnagraficaAutosave()" onblur="_handleAnagInput('anag-grasso',{forceValidate:true});scheduleAnagraficaAutosave({immediate:true})">
           <span class="anag-unit">%</span>
         </div>
         <div class="anag-field-error" id="anag-error-grasso"></div>
@@ -5375,7 +5342,7 @@ function renderAnagrafica() {
       <div class="anag-field">
         <label class="anag-label">Passi medi <span class="anag-opt">(opz.)</span></label>
         <div class="anag-input-wrap">
-          <input id="anag-passi" class="anag-input" type="number" min="1000" max="40000" step="100" inputmode="numeric" value="${a.passiGiornalieri||''}" placeholder="Es. 8000" oninput="_handleAnagInput('anag-passi');_updateFabbisognoPreview()" onblur="_handleAnagInput('anag-passi',{forceValidate:true})">
+          <input id="anag-passi" class="anag-input" type="number" min="1000" max="40000" step="100" inputmode="numeric" value="${a.passiGiornalieri||''}" placeholder="Es. 8000" oninput="_handleAnagInput('anag-passi');_updateFabbisognoPreview();scheduleAnagraficaAutosave()" onblur="_handleAnagInput('anag-passi',{forceValidate:true});scheduleAnagraficaAutosave({immediate:true})">
           <span class="anag-unit">passi</span>
         </div>
         <div class="anag-field-error" id="anag-error-passi"></div>
@@ -5409,7 +5376,7 @@ function renderAnagrafica() {
       <div class="fab-empty">Caricamento…</div>
     </div>
 
-    <button class="btn btn-primary anag-save-btn" onclick="saveAnagrafica()">Salva profilo</button>
+    <div class="profile-autosave-note">Salvataggio automatico attivo</div>
     </div>` : ''}`;
 
   // ── Card 2: Orari pasti ──

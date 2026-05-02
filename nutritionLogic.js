@@ -2035,6 +2035,8 @@ function showGramPicker(resEl, item, onConfirmFn, mealCtx) {
   if (old && old.classList?.contains('fsr-gram-row')) old.remove();
   const div = document.createElement('div');
   div.className = 'fsr-gram-row';
+  const sheetBody = resEl.closest?.('#food-search-sheet-body');
+  const isSheetPicker = !!sheetBody && String(resEl.id || '').startsWith('mlsr-');
 
   const portionChips = FOOD_PORTIONS.map(p =>
     `<button class="fsr-portion" data-g="${p.g}">${p.label}<span class="fsr-portion-g">${p.g}g</span></button>`
@@ -2131,7 +2133,23 @@ function showGramPicker(resEl, item, onConfirmFn, mealCtx) {
       remRowHTML +
     `</div>`;
 
-  resEl.after(div);
+  if (isSheetPicker) {
+    div.classList.add('fsr-gram-row-sheet');
+    sheetBody.innerHTML = `
+      <div class="food-search-sheet-picker-head">
+        <button class="food-search-sheet-back" onclick="returnFoodSearchToResults();event.stopPropagation()" title="Torna ai risultati" aria-label="Torna ai risultati">‹</button>
+        <div class="food-search-sheet-picker-copy">
+          <div class="mc-log-search-kicker">Quantita alimento</div>
+          <div class="mc-log-search-title">${htmlEsc((item.name || 'Alimento').slice(0, 42))}</div>
+        </div>
+        <button class="mc-log-search-close" onclick="closeLogSearch();event.stopPropagation()" title="Chiudi ricerca" aria-label="Chiudi ricerca">×</button>
+      </div>
+      <div id="food-search-gram-host" class="food-search-gram-host"></div>`;
+    sheetBody.querySelector('#food-search-gram-host')?.appendChild(div);
+    sheetBody.scrollTop = 0;
+  } else {
+    resEl.after(div);
+  }
   const gi = div.querySelector('.fsr-gram-input');
   const gc = div.querySelector('.fsr-gram-calc');
   const gr = div.querySelector('.fsr-rem-val');
@@ -2190,6 +2208,7 @@ let   _tmplTimer = null;
 
 function onLogFoodSearch(input, dateKey, mealIdx, domKey) {
   const q = input.value.trim();
+  if (typeof rememberFoodSearchQuery === 'function') rememberFoodSearchQuery(domKey, q);
   const queryCtx = buildFoodQueryContext(q);
   const resEl = document.getElementById('mlsr-' + domKey);
   if (!resEl) return;
@@ -2219,12 +2238,8 @@ function onLogFoodSearch(input, dateKey, mealIdx, domKey) {
             const gp2 = resEl.nextSibling;
             if (gp2?.classList?.contains('fsr-gram-row')) gp2.remove();
             toast('✅ ' + confirmed.name + ' aggiunto');
+            if (typeof closeLogSearch === 'function') closeLogSearch(domKey);
             refreshMealCard(dayType, mealIdx);
-            requestAnimationFrame(() => {
-              if (typeof scrollMealCardIntoView === 'function') {
-                scrollMealCardIntoView(dayType, mealIdx, { behavior: 'smooth', focusAdd: true });
-              }
-            });
           }, { mealIdx, dateKey });
         },
         null, apiStatus
