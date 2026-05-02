@@ -856,20 +856,6 @@ function _cacheBarcodeItem(item) {
       .slice(0, 60)
       .forEach(key => delete S.barcodeCache[key]);
   }
-  const ck = cachedItem.name.toLowerCase().slice(0, 20);
-  if (!S.foodCache[ck]) S.foodCache[ck] = [];
-  if (!S.foodCache[ck].find(x => x.name === cachedItem.name && x.brand === cachedItem.brand)) {
-    S.foodCache[ck].push({
-      name: cachedItem.name,
-      brand: cachedItem.brand,
-      kcal100: cachedItem.kcal100,
-      p100: cachedItem.p100,
-      c100: cachedItem.c100,
-      f100: cachedItem.f100,
-      barcode: cachedItem.barcode,
-      src: 'cache',
-    });
-  }
 }
 
 function _normalizeCachedBarcodeItem(item, barcode) {

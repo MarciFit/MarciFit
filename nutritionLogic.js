@@ -988,6 +988,15 @@ function buildFoodQueryContext(q) {
   const attributeTokens = effectiveCanonicalTokens.filter(t => FOOD_ATTRIBUTE_TOKENS.has(t));
   const nonBrandTokens = effectiveCanonicalTokens.filter(t => !FOOD_BRAND_HINTS.has(t));
   const coreTokens = nonBrandTokens.filter(t => !FOOD_ATTRIBUTE_TOKENS.has(t));
+  const queryIntent = storeHintTokens.length > 0
+    ? 'store'
+    : brandHintTokens.length > 0
+      ? 'branded'
+      : attributeTokens.length > 0
+        ? 'attribute'
+        : (effectiveTokens.length > 0 && wholeFoodTokens.length === effectiveTokens.length)
+          ? 'whole_food'
+          : (effectiveTokens.length >= 3 ? 'dish_like' : 'generic');
   const requiredNameTokens = coreTokens.length
     ? coreTokens
     : (nonBrandTokens.length ? nonBrandTokens : effectiveCanonicalTokens);
@@ -1015,6 +1024,7 @@ function buildFoodQueryContext(q) {
     coreTokens,
     requiredNameTokens: uniqueFoodTerms(requiredNameTokens),
     expandedTokens: uniqueFoodTerms([...effectiveTokens, ...effectiveCanonicalTokens]),
+    intent: queryIntent,
   };
   queryCtx.variants = buildFoodQueryVariants(queryCtx);
   return queryCtx;
@@ -1142,9 +1152,10 @@ function hasQueryMatch(item, queryCtx) {
 }
 
 function sourceRank(src) {
+  if (src === 'favorite') return 7;
+  if (src === 'recent') return 6;
   if (src === 'local') return 5;
-  if (src === 'recent') return 4;
-  if (src === 'favorite') return 4;
+  if (src === 'template') return 4;
   if (src === 'cache') return 3;
   if (src === 'off') return 1;
   return 0;
@@ -1178,7 +1189,11 @@ function foodQualityPenalty(item) {
   if (kcal <= 0) penalty += 20;
   if (kcal > 950) penalty += 10;
   if (p < 0 || c < 0 || f < 0) penalty += 30;
+  if (p > 100 || c > 100 || f > 100) penalty += 36;
+  if (p + c + f > 115) penalty += 22;
   if (p === 0 && c === 0 && f === 0 && kcal > 0) penalty += 12;
+  if (normalizeFoodText(item.name).length < 3) penalty += 18;
+  if (/^(prodotto|alimento|food|generic)$/i.test(String(item.name || '').trim())) penalty += 28;
   return penalty;
 }
 
@@ -1374,17 +1389,27 @@ function scoreFoodResult(item, queryCtx, opts = {}) {
     else score -= Math.min(variantIndex * (queryCtx.brandHintTokens.length > 0 ? 14 : 10), 42);
   }
 
-  const wholeFoodDetails = getWholeFoodNameDetails(resultCtx, queryCtx);
-  meta.otherWholeFoodHits = wholeFoodDetails.otherWholeTokens.length;
-  meta.exactWholeFoodName = wholeFoodDetails.exactWholeName;
-  score += wholeFoodQueryAdjustment(resultCtx, queryCtx, wholeFoodDetails);
-  meta.verifiedBoost = verifiedFoodBoost(item, resultCtx, queryCtx, meta);
-  score += meta.verifiedBoost;
-
-  score += sourceRank(item.src) * 9;
-  score += foodLearningBoost(item, queryCtx, opts.contextKey || 'generic');
-  score -= foodQualityPenalty(item);
-  return {
+	  const wholeFoodDetails = getWholeFoodNameDetails(resultCtx, queryCtx);
+	  meta.otherWholeFoodHits = wholeFoodDetails.otherWholeTokens.length;
+	  meta.exactWholeFoodName = wholeFoodDetails.exactWholeName;
+	  score += wholeFoodQueryAdjustment(resultCtx, queryCtx, wholeFoodDetails);
+	  meta.verifiedBoost = verifiedFoodBoost(item, resultCtx, queryCtx, meta);
+	  score += meta.verifiedBoost;
+	
+	  score += sourceRank(item.src) * 9;
+	  if (item._sourceDetail === 'custom') score += 18;
+	  if (item.src === 'favorite') score += 16;
+	  if (item.src === 'recent') score += 12;
+	  if (item.src === 'template') score += 8;
+	  if (item.barcode && (item.src === 'cache' || item.src === 'off')) score += 5;
+	  if (queryCtx.intent === 'branded' || queryCtx.intent === 'store') {
+	    if (meta.brandHits > 0 || meta.storeHits > 0) score += 12;
+	    if (meta.matchedName === 0 && meta.aliasHits === 0) score -= 22;
+	  }
+	  if (queryCtx.intent === 'whole_food' && item.src === 'off' && !item.verified) score -= 8;
+	  score += foodLearningBoost(item, queryCtx, opts.contextKey || 'generic');
+	  score -= foodQualityPenalty(item);
+	  return {
     score,
     confidence: classifyFoodConfidence(score, meta, item, queryCtx),
     meta,
@@ -1411,10 +1436,15 @@ function verifiedFoodBoost(item, resultCtx, queryCtx, meta) {
 }
 
 function getFoodDedupeKey(item) {
+  const barcode = String(item?.barcode || '').replace(/\D/g, '');
+  if (barcode.length >= 8) return `barcode:${barcode}`;
   const resultCtx = buildFoodResultContext(item);
   const brandKey = (resultCtx.brandTokens.find(t => t !== 'generico') || '').slice(0, 18);
   const kcalKey = Math.round((Number(item.kcal100 || 0)) / 5) * 5;
-  return `${resultCtx.nameNorm}|${brandKey}|${kcalKey}`;
+  const pKey = Math.round(Number(item.p100 || 0) / 2) * 2;
+  const cKey = Math.round(Number(item.c100 || 0) / 3) * 3;
+  const fKey = Math.round(Number(item.f100 || 0) / 2) * 2;
+  return `${resultCtx.nameNorm}|${brandKey}|${kcalKey}|${pKey}|${cKey}|${fKey}`;
 }
 
 function rememberFoodSelection(item, queryCtx, contextKey = 'generic') {
@@ -1489,14 +1519,39 @@ function rankFoods(items, queryCtx, opts = {}) {
         _searchConfidence: evaluation.confidence,
         _searchMeta: evaluation.meta,
       };
-    })
-    .sort((a, b) =>
-      (sourceRank(b.src) - sourceRank(a.src)) ||
-      ((b._searchConfidence === 'high') - (a._searchConfidence === 'high')) ||
-      ((b._searchConfidence === 'medium') - (a._searchConfidence === 'medium')) ||
-      (b._searchScore - a._searchScore) ||
-      ((a.name || '').length - (b.name || '').length)
-    );
+	    })
+	    .sort((a, b) =>
+	      ((b._searchConfidence === 'high') - (a._searchConfidence === 'high')) ||
+	      ((b._searchConfidence === 'medium') - (a._searchConfidence === 'medium')) ||
+	      (b._searchScore - a._searchScore) ||
+	      (sourceRank(b.src) - sourceRank(a.src)) ||
+	      ((a.name || '').length - (b.name || '').length)
+	    );
+}
+
+function getFoodSourceTag(item) {
+  if (item?._sourceDetail === 'custom') return 'Personale';
+  if (item?.src === 'favorite') return 'Salvato';
+  if (item?.src === 'recent') return 'Recente';
+  if (item?.src === 'template') return 'Salvato';
+  if (item?.src === 'cache') return item?.barcode ? 'Barcode' : 'Online';
+  if (item?.src === 'off') return 'Online';
+  return 'Locale';
+}
+
+function mergeFoodResultSources(a, b) {
+  const tags = new Set([
+    ...(a?._sourceTags || [getFoodSourceTag(a)]),
+    ...(b?._sourceTags || [getFoodSourceTag(b)]),
+  ].filter(Boolean));
+  const better = (Number(a?._searchScore || 0) >= Number(b?._searchScore || 0)) ? a : b;
+  const other = better === a ? b : a;
+  return {
+    ...better,
+    _sourceTags: Array.from(tags).slice(0, 3),
+    _trustLabel: getFoodTrustLabel({ ...better, _sourceTags: Array.from(tags) }),
+    _qualityFlags: Array.from(new Set([...(better?._qualityFlags || []), ...(other?._qualityFlags || [])])),
+  };
 }
 
 function dedupeFoodResults(items, queryCtx, limit = Infinity, opts = {}) {
@@ -1505,7 +1560,14 @@ function dedupeFoodResults(items, queryCtx, limit = Infinity, opts = {}) {
   for (const item of ranked) {
     const key = getFoodDedupeKey(item);
     const prev = picked.get(key);
-    if (!prev || item._searchScore > prev._searchScore) picked.set(key, item);
+    const taggedItem = {
+      ...item,
+      _sourceTags: item._sourceTags || [getFoodSourceTag(item)],
+      _trustLabel: item._trustLabel || getFoodTrustLabel(item),
+      _qualityFlags: item._qualityFlags || [],
+    };
+    if (!prev) picked.set(key, taggedItem);
+    else picked.set(key, mergeFoodResultSources(prev, taggedItem));
   }
   return Array.from(picked.values())
     .sort((a, b) =>
@@ -1518,28 +1580,179 @@ function dedupeFoodResults(items, queryCtx, limit = Infinity, opts = {}) {
 // Alimenti recenti: scansiona foodLog (ultimi 14 gg) per alimenti effettivamente loggati
 function getRecentFoods(q) {
   const queryCtx = typeof q === 'string' ? buildFoodQueryContext(q) : q;
-  const seen = new Set();
-  const recents = [];
-  const dateKeys = Object.keys(S.foodLog || {}).sort().reverse();
-  for (const dk of dateKeys.slice(0, 14)) {
-    const dayLog = S.foodLog[dk];
-    for (const mealItems of Object.values(dayLog)) {
-      for (const item of (mealItems || [])) {
-        const dedupeKey = getFoodDedupeKey(item);
-        if (!seen.has(dedupeKey) && hasQueryMatch(item, queryCtx)) {
-          seen.add(dedupeKey);
-          recents.push({ ...item, src: 'recent' });
-          if (recents.length >= 4) return recents;
-        }
-      }
-    }
-  }
-  return recents;
+  return getFoodSearchLocalIndex()
+    .filter(item => item.src === 'recent' && hasQueryMatch(item, queryCtx))
+    .slice(0, 8);
 }
 
 // AbortController/versione per contesto di ricerca
 const _offAbortByContext = {};
 const _searchVersionByContext = {};
+const FOOD_SEARCH_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const FOOD_SEARCH_CACHE_MAX_QUERIES = 150;
+const FOOD_SEARCH_CACHE_MAX_RESULTS = 12;
+let _foodSearchLocalIndex = { signature: '', items: [] };
+
+function isValidFoodSearchItem(item) {
+  const kcal = Number(item?.kcal100 || 0);
+  const p = Number(item?.p100 || 0);
+  const c = Number(item?.c100 || 0);
+  const f = Number(item?.f100 || 0);
+  return !!item?.name &&
+    Number.isFinite(kcal) && kcal > 0 && kcal <= 950 &&
+    Number.isFinite(p) && Number.isFinite(c) && Number.isFinite(f) &&
+    p >= 0 && c >= 0 && f >= 0 && p <= 100 && c <= 100 && f <= 100;
+}
+
+function normalizeFoodSearchItem(item, src, sourceDetail = '', extra = {}) {
+  if (!isValidFoodSearchItem(item)) return null;
+  return {
+    ...item,
+    name: String(item.name || '').trim().slice(0, 70),
+    brand: String(item.brand || '').trim().slice(0, 40),
+    kcal100: Math.round(Number(item.kcal100 || 0)),
+    p100: Math.round(Number(item.p100 || 0) * 10) / 10,
+    c100: Math.round(Number(item.c100 || 0) * 10) / 10,
+    f100: Math.round(Number(item.f100 || 0) * 10) / 10,
+    src,
+    _sourceDetail: sourceDetail || item._sourceDetail || src,
+    ...extra,
+  };
+}
+
+function foodSearchStateSignature() {
+  const foodLog = S.foodLog || {};
+  const logSig = Object.keys(foodLog).sort().slice(-35).map(key => {
+    const count = Object.values(foodLog[key] || {}).reduce((sum, items) => sum + (Array.isArray(items) ? items.length : 0), 0);
+    return `${key}:${count}`;
+  }).join('|');
+  const templateSig = (S.templates || []).map(t => `${t.id || t.name || ''}:${(t.items || []).length}`).join('|');
+  return [
+    FOOD_DB.length,
+    (S.favoriteFoods || []).length,
+    (S.customFoods || []).length,
+    Object.keys(S.barcodeCache || {}).length,
+    templateSig,
+    logSig,
+  ].join('::');
+}
+
+function getFoodSearchLocalIndex() {
+  const signature = foodSearchStateSignature();
+  if (_foodSearchLocalIndex.signature === signature) return _foodSearchLocalIndex.items;
+
+  const items = [];
+  const push = (item, src, sourceDetail, extra = {}) => {
+    const normalized = normalizeFoodSearchItem(item, src, sourceDetail, extra);
+    if (normalized) items.push(normalized);
+  };
+
+  (S.favoriteFoods || []).forEach(item => push(item, 'favorite', 'favorite'));
+  (S.customFoods || []).forEach(item => push(item, 'local', 'custom'));
+  FOOD_DB.forEach(item => push(item, 'local', 'database'));
+
+  Object.values(S.barcodeCache || {}).forEach(item => {
+    push(item, 'cache', 'barcode', {
+      barcode: item.barcode,
+      cachedAt: item.cachedAt || item.updatedAt || null,
+    });
+  });
+
+  (S.templates || []).forEach(template => {
+    (template.items || []).forEach(item => push(item, 'template', 'template', {
+      _templateName: template.name || '',
+    }));
+  });
+
+  Object.keys(S.foodLog || {}).sort().reverse().slice(0, 30).forEach(dateKey => {
+    const dayLog = S.foodLog[dateKey] || {};
+    Object.values(dayLog).forEach(mealItems => {
+      (Array.isArray(mealItems) ? mealItems : []).forEach(item => push(item, 'recent', 'recent', {
+        _lastUsedAt: dateKey,
+      }));
+    });
+  });
+
+  _foodSearchLocalIndex = { signature, items };
+  return items;
+}
+
+function isFoodCacheFresh(item) {
+  if (!item?.cachedAt) return true;
+  const t = new Date(item.cachedAt).getTime();
+  return Number.isFinite(t) && (Date.now() - t) <= FOOD_SEARCH_CACHE_TTL_MS;
+}
+
+function getCachedFoodsForQuery(key, queryCtx) {
+  return ((S.foodCache && S.foodCache[key]) || [])
+    .filter(isFoodCacheFresh)
+    .map(item => normalizeFoodSearchItem(item, 'cache', item._sourceDetail || 'query-cache', {
+      cachedAt: item.cachedAt || null,
+      _sourceTags: ['Online'],
+    }))
+    .filter(Boolean)
+    .filter(item => hasQueryMatch(item, queryCtx));
+}
+
+function compactFoodSearchCache() {
+  if (!S.foodCache || typeof S.foodCache !== 'object') S.foodCache = {};
+  const keys = Object.keys(S.foodCache);
+  if (keys.length <= FOOD_SEARCH_CACHE_MAX_QUERIES) return;
+  keys
+    .sort((a, b) => {
+      const newestA = Math.max(0, ...((S.foodCache[a] || []).map(item => new Date(item.cachedAt || 0).getTime() || 0)));
+      const newestB = Math.max(0, ...((S.foodCache[b] || []).map(item => new Date(item.cachedAt || 0).getTime() || 0)));
+      return newestA - newestB;
+    })
+    .slice(0, keys.length - FOOD_SEARCH_CACHE_MAX_QUERIES)
+    .forEach(key => delete S.foodCache[key]);
+}
+
+function cacheFoodSearchResults(key, results) {
+  if (!key || !results?.length) return;
+  if (!S.foodCache || typeof S.foodCache !== 'object') S.foodCache = {};
+  const now = new Date().toISOString();
+  S.foodCache[key] = results
+    .filter(item => item.src === 'off' || (item.src === 'cache' && item._sourceDetail !== 'barcode'))
+    .slice(0, FOOD_SEARCH_CACHE_MAX_RESULTS)
+    .map(item => ({
+      name: item.name,
+      brand: item.brand || '',
+      kcal100: item.kcal100,
+      p100: item.p100 || 0,
+      c100: item.c100 || 0,
+      f100: item.f100 || 0,
+      barcode: item.barcode || '',
+      cachedAt: now,
+      src: 'cache',
+    }));
+  if (!S.foodCache[key].length) delete S.foodCache[key];
+  compactFoodSearchCache();
+  saveSoon();
+}
+
+function getFoodTrustLabel(item) {
+  const tags = item?._sourceTags || [];
+  if (item?._sourceDetail === 'custom' || tags.includes('Personale')) return 'Personale';
+  if (item?.src === 'favorite' || item?.src === 'template' || tags.includes('Salvato')) return 'Salvato';
+  if (item?.src === 'recent' || tags.includes('Recente')) return 'Recente';
+  if (item?.src === 'off' || item?.src === 'cache' || tags.includes('Online')) return 'Online';
+  return 'Locale';
+}
+
+function shouldFetchOFFForSearch(queryCtx, phaseOneResults) {
+  if (!queryCtx?.normalized || queryCtx.normalized.length < 3) return false;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+  const hasStrongLocal = phaseOneResults.some(item =>
+    item.src !== 'off' &&
+    item.src !== 'cache' &&
+    item._searchConfidence === 'high' &&
+    Number(item._searchScore || 0) >= 95
+  );
+  if (queryCtx.intent === 'branded' || queryCtx.intent === 'store') return true;
+  if (queryCtx.attributeTokens?.length > 0 && !hasStrongLocal) return true;
+  return !hasStrongLocal;
+}
 
 function _makeFoodSearchError(code, extra = {}) {
   const error = new Error(extra.message || code);
@@ -1574,33 +1787,19 @@ async function searchFoods(q, callback, opts = {}) {
   _offAbortByContext[contextKey] = new AbortController();
   const signal = _offAbortByContext[contextKey].signal;
 
-  // 1. Local: custom + database interno
-  const custom = (S.customFoods || [])
-    .filter(f => hasQueryMatch(f, queryCtx))
-    .map(f => ({ ...f, src: 'local' }));
+  const localIndex = getFoodSearchLocalIndex();
+  const localMatches = localIndex.filter(item => hasQueryMatch(item, queryCtx));
+  const cached = getCachedFoodsForQuery(key, queryCtx);
+  const phaseOneResults = dedupeFoodResults([...localMatches, ...cached], queryCtx, 12, { contextKey });
+  const shouldFetchOff = shouldFetchOFFForSearch(queryCtx, phaseOneResults);
 
-  const favorites = (S.favoriteFoods || [])
-    .filter(f => hasQueryMatch(f, queryCtx))
-    .map(f => ({ ...f, src: 'favorite' }));
+  callback(phaseOneResults, {
+    off: shouldFetchOff ? 'loading' : 'idle',
+    silent: true,
+    hasCache: cached.length > 0,
+  });
 
-  const local = FOOD_DB
-    .filter(f => hasQueryMatch(f, queryCtx))
-    .map(f => ({ ...f, src: 'local' }));
-
-  const allLocal = dedupeFoodResults([...favorites, ...custom, ...local], queryCtx, 10, { contextKey });
-
-  // 1.5 Cache query/sessione: usata davvero come prima sorgente esterna locale
-  const cached = ((S.foodCache && S.foodCache[key]) || [])
-    .map(f => ({ ...f, src: 'cache' }))
-    .filter(f => hasQueryMatch(f, queryCtx));
-
-  // 2. Recenti da log effettivo (non cache di ricerca)
-  const recents = dedupeFoodResults([...allLocal, ...cached, ...getRecentFoods(queryCtx)], queryCtx, 12, { contextKey })
-    .filter(r => r.src === 'recent');
-
-  // Callback fase 1 — locale + cache + recenti
-  const phaseOneResults = dedupeFoodResults([...allLocal, ...cached, ...recents], queryCtx, 12, { contextKey });
-  callback(phaseOneResults, { off: 'loading', hasCache: cached.length > 0 });
+  if (!shouldFetchOff) return;
 
   // 3. OFF in background
   try {
@@ -1608,20 +1807,13 @@ async function searchFoods(q, callback, opts = {}) {
     // Scarta se nel frattempo è partita una nuova ricerca
     if (version !== _searchVersionByContext[contextKey]) return;
     const merged = dedupeFoodResults([...phaseOneResults, ...offItems], queryCtx, 32, { contextKey });
-    const filtered = merged.filter(r => r.src === 'off' || r.src === 'cache');
-    // Cache OFF per sessione
-    if (filtered.length) {
-      S.foodCache[key] = filtered.map(r => ({ ...r, src: 'cache' }));
-      const ks = Object.keys(S.foodCache);
-      if (ks.length > 300) ks.slice(0, 80).forEach(k => delete S.foodCache[k]);
-      save();
-    }
-    callback(merged, { off: 'ok', hasCache: cached.length > 0 });
+    cacheFoodSearchResults(key, merged);
+    callback(merged, { off: 'ok', silent: true, hasCache: cached.length > 0 });
   } catch(e) {
     if (version !== _searchVersionByContext[contextKey]) return; // ricerca annullata, ignora
     const status = _classifyFoodSearchError(e);
     if (status === 'aborted') return;    // cancellato da nuova ricerca
-    callback(phaseOneResults, { off: status, hasCache: cached.length > 0 });
+    callback(phaseOneResults, { off: status, silent: phaseOneResults.length > 0, hasCache: cached.length > 0 });
   }
 }
 
@@ -1765,122 +1957,56 @@ function _bindManualForm(resEl, onSelectFn) {
 function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
   const uid = resEl.id || ('mf' + Date.now());
   const manualHtml = _manualFormHTML(uid);
-  const PRIMARY_VISIBLE = 5;
-  const OFF_VISIBLE = 5;
+  const VISIBLE_RESULTS = 6;
 
-  // Alert / spinner API status
   let alertsHtml = '';
-  if (apiStatus) {
-    if (apiStatus.off === 'loading' && results.length) {
-      alertsHtml = '<div class="fsr-loading-inline"><span class="fsr-spinner"></span>Ricerca ampliata su Open Food Facts…</div>';
-    }
-    if (apiStatus.off === 'timeout') alertsHtml += '<div class="alert-slim a-warn"><span class="alert-dot"></span><span class="alert-txt">Open Food Facts lento: continuo con i risultati locali</span></div>';
-    if (apiStatus.off === 'offline') alertsHtml += '<div class="alert-slim a-err"><span class="alert-dot"></span><span class="alert-txt">Connessione assente: uso solo risultati locali</span></div>';
-    if (apiStatus.off === 'provider_error') alertsHtml += '<div class="alert-slim a-err"><span class="alert-dot"></span><span class="alert-txt">Open Food Facts non raggiungibile</span></div>';
+  if (apiStatus?.off === 'loading' && results.length > 0 && results.length < 4) {
+    alertsHtml = '<div class="fsr-loading-inline"><span class="fsr-spinner"></span>Cerco altri risultati...</div>';
   }
 
   if (!results.length) {
     const msg = apiStatus?.off === 'loading'
-      ? 'Nessun risultato locale. Sto ancora ampliando la ricerca…'
-      : apiStatus
-        ? 'Nessun risultato utile — prova un altro termine o aggiungi manualmente'
+      ? 'Cerco altri risultati...'
+      : apiStatus?.off === 'offline'
+        ? 'Offline: nessun risultato locale. Prova un altro termine o aggiungi manualmente.'
+        : apiStatus?.off === 'timeout' || apiStatus?.off === 'provider_error'
+          ? 'Ricerca online non disponibile. Prova un altro termine o aggiungi manualmente.'
         : 'Nessun risultato. Prova un altro termine o usa il barcode.';
     resEl.innerHTML = alertsHtml + `<div class="fsr-loading">${msg}</div>` + manualHtml + (extraHTML || '');
     _bindManualForm(resEl, onSelectFn);
     return;
   }
 
-  // Raggruppa per src — 'cache' → 'off'
-  const groups = { favorite: [], local: [], recent: [], cache: [], off: [] };
-  results.forEach(r => {
-    const g = groups[r.src] ? r.src : 'off';
-    groups[g].push(r);
-  });
-
-  const srcBadge = {
-    favorite:'<span class="fsr-src fsr-src-favorite">Preferito</span>',
-    local:  '<span class="fsr-src fsr-src-local">Locale</span>',
-    recent: '<span class="fsr-src fsr-src-recent">Recente</span>',
-    cache:  '<span class="fsr-src fsr-src-cache">Cache</span>',
-    off:    '<span class="fsr-src fsr-src-api">OFF</span>',
-  };
-  const confidenceBadge = {
-    high: '<span class="fsr-conf fsr-conf-high">Match forte</span>',
-    medium: '<span class="fsr-conf fsr-conf-medium">Match buono</span>',
-    low: '<span class="fsr-conf fsr-conf-low">Altro risultato</span>',
-  };
   const verifiedBadge = '<span class="fsr-verified" title="Alimento verificato" aria-label="Alimento verificato"><span class="fsr-verified-check">✓</span></span>';
-
   let html = alertsHtml;
-  let idx = 0;
-  const primaryPool = [...groups.favorite, ...groups.local, ...groups.recent, ...groups.cache]
-    .sort((a, b) => (b._searchScore - a._searchScore));
-  const primaryItems = primaryPool.filter(item => item._searchConfidence !== 'low');
-  const lowConfidencePrimaryItems = primaryPool.filter(item => item._searchConfidence === 'low');
-  const strongOffItems = groups.off.filter(item => item._searchConfidence !== 'low');
-  const lowConfidenceOffItems = groups.off.filter(item => item._searchConfidence === 'low');
 
-  // Sezione locale + recenti: nessun header
-  const _renderPrimaryItem = (item) => {
+  const trustClass = item => {
+    const label = getFoodTrustLabel(item);
+    if (label === 'Salvato') return 'fsr-src-favorite';
+    if (label === 'Personale') return 'fsr-src-local';
+    if (label === 'Recente') return 'fsr-src-recent';
+    if (label === 'Online') return 'fsr-src-api';
+    return 'fsr-src-cache';
+  };
+  const renderItem = (item, idx) => {
     const k = 'r-' + idx++;
-    return '<div class="fsr-item" id="fsri-' + k + '">' +
-      (srcBadge[item.src] || '') +
+    const trustLabel = htmlEsc(item._trustLabel || getFoodTrustLabel(item));
+    const lowCls = item._searchConfidence === 'low' ? ' fsr-item-low' : '';
+    return '<div class="fsr-item' + lowCls + '" id="fsri-' + k + '">' +
+      '<span class="fsr-src ' + trustClass(item) + '">' + trustLabel + '</span>' +
       '<div class="fsr-info"><div class="fsr-name"><span class="fsr-name-txt">' + htmlEsc(item.name) + '</span>' + (item.verified ? verifiedBadge : '') + '</div>' +
       '<div class="fsr-brand">' + htmlEsc(item.brand || '') + '</div></div>' +
       '<div class="fsr-macros"><div class="fsr-kcal">' + item.kcal100 + '</div>' +
       '<div class="fsr-per">kcal/100g</div></div></div>';
   };
-  primaryItems.slice(0, PRIMARY_VISIBLE).forEach(item => { html += _renderPrimaryItem(item); });
-  if (primaryItems.length > PRIMARY_VISIBLE) {
-    const moreCount = primaryItems.length - PRIMARY_VISIBLE;
-    const moreId = 'fsr-primary-more-' + Date.now();
-    html += '<div class="fsr-show-more" onclick="document.getElementById(\'' + moreId + '\').style.display=\'block\';this.style.display=\'none\'">Mostra più risultati (' + moreCount + ')</div>';
+  const visible = results.slice(0, VISIBLE_RESULTS);
+  const hidden = results.slice(VISIBLE_RESULTS);
+  visible.forEach((item, idx) => { html += renderItem(item, idx); });
+  if (hidden.length) {
+    const moreId = 'fsr-more-' + Date.now();
+    html += '<div class="fsr-show-more" onclick="document.getElementById(\'' + moreId + '\').style.display=\'block\';this.style.display=\'none\'">Mostra altri risultati (' + hidden.length + ')</div>';
     html += '<div id="' + moreId + '" style="display:none">';
-    primaryItems.slice(PRIMARY_VISIBLE).forEach(item => { html += _renderPrimaryItem(item); });
-    html += '</div>';
-  }
-
-  // Sezione OFF: header + primi 5, poi "mostra più" per i restanti
-  if (strongOffItems.length) {
-    html += '<div class="fsr-section">Open Food Facts</div>';
-    const _offItem = (item) => {
-      const k = 'r-' + idx++;
-      return '<div class="fsr-item" id="fsri-' + k + '">' +
-        srcBadge.off +
-        '<div class="fsr-info"><div class="fsr-name"><span class="fsr-name-txt">' + htmlEsc(item.name) + '</span>' + (item.verified ? verifiedBadge : '') + '</div>' +
-        '<div class="fsr-brand">' + htmlEsc(item.brand || '') + '</div></div>' +
-        '<div class="fsr-macros"><div class="fsr-kcal">' + item.kcal100 + '</div>' +
-        '<div class="fsr-per">kcal/100g</div></div></div>';
-    };
-    strongOffItems.slice(0, OFF_VISIBLE).forEach(item => { html += _offItem(item); });
-    if (strongOffItems.length > OFF_VISIBLE) {
-      const moreCount = strongOffItems.length - OFF_VISIBLE;
-      const moreId = 'fsr-more-' + Date.now();
-      html += '<div class="fsr-show-more" onclick="document.getElementById(\'' + moreId + '\').style.display=\'block\';this.style.display=\'none\'">Mostra più risultati (' + moreCount + ')</div>';
-      html += '<div id="' + moreId + '" style="display:none">';
-      strongOffItems.slice(OFF_VISIBLE).forEach(item => { html += _offItem(item); });
-      html += '</div>';
-    }
-  }
-
-  const lowConfidenceItems = [...lowConfidencePrimaryItems, ...lowConfidenceOffItems]
-    .sort((a, b) => (b._searchScore - a._searchScore));
-
-  if (lowConfidenceItems.length) {
-    html += '<div class="fsr-section">Altri risultati</div>';
-    const lowId = 'fsr-low-' + Date.now();
-    html += '<div class="fsr-show-more" onclick="document.getElementById(\'' + lowId + '\').style.display=\'block\';this.style.display=\'none\'">Mostra risultati meno pertinenti (' + lowConfidenceItems.length + ')</div>';
-    html += '<div id="' + lowId + '" style="display:none">';
-    lowConfidenceItems.forEach(item => {
-      const k = 'r-' + idx++;
-      html += '<div class="fsr-item fsr-item-low" id="fsri-' + k + '">' +
-        (srcBadge[item.src] || srcBadge.off) +
-        confidenceBadge.low +
-        '<div class="fsr-info"><div class="fsr-name"><span class="fsr-name-txt">' + htmlEsc(item.name) + '</span>' + (item.verified ? verifiedBadge : '') + '</div>' +
-        '<div class="fsr-brand">' + htmlEsc(item.brand || '') + '</div></div>' +
-        '<div class="fsr-macros"><div class="fsr-kcal">' + item.kcal100 + '</div>' +
-        '<div class="fsr-per">kcal/100g</div></div></div>';
-    });
+    hidden.forEach((item, hiddenIdx) => { html += renderItem(item, VISIBLE_RESULTS + hiddenIdx); });
     html += '</div>';
   }
 
@@ -1889,9 +2015,8 @@ function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
   resEl.innerHTML = html;
 
   // Bind click su tutti gli item
-  let bindIdx = 0;
-  [...primaryItems, ...strongOffItems, ...lowConfidenceItems].forEach(item => {
-    const el = document.getElementById('fsri-r-' + bindIdx++);
+  results.forEach((item, idx) => {
+    const el = document.getElementById('fsri-r-' + idx);
     if (el) el.addEventListener('click', () => onSelectFn(item, el));
   });
   _bindManualForm(resEl, onSelectFn);
@@ -1914,15 +2039,7 @@ function showGramPicker(resEl, item, onConfirmFn, mealCtx) {
   const portionChips = FOOD_PORTIONS.map(p =>
     `<button class="fsr-portion" data-g="${p.g}">${p.label}<span class="fsr-portion-g">${p.g}g</span></button>`
   ).join('');
-  const sourceLabel = item.src === 'local'
-    ? 'Locale'
-    : item.src === 'recent'
-      ? 'Recente'
-      : item.src === 'cache'
-        ? 'Cache'
-        : item.src === 'off'
-          ? 'OFF'
-          : '';
+  const sourceLabel = getFoodTrustLabel(item);
   const verifiedHtml = item.verified
     ? `<span class="fsr-gp-verified" title="Alimento verificato">Verificato</span>`
     : '';
@@ -2113,7 +2230,7 @@ function onLogFoodSearch(input, dateKey, mealIdx, domKey) {
         null, apiStatus
       );
     }, { contextKey: `meal-log:${domKey}` });
-  }, 400);
+  }, 200);
 }
 
 function onTmplFoodSearch(input) {
@@ -2143,7 +2260,7 @@ function onTmplFoodSearch(input) {
         null, apiStatus
       );
     }, { contextKey: 'template-form' });
-  }, 400);
+  }, 200);
 }
 
 function onFoodSearch(input, type, mealIdx, domKey) {
@@ -2177,5 +2294,5 @@ function onFoodSearch(input, type, mealIdx, domKey) {
         null, apiStatus
       );
     }, { contextKey: `piano:${domKey}` });
-  }, 400);
+  }, 200);
 }

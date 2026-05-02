@@ -1868,16 +1868,108 @@ function toggleLogSearch(domKey) {
   const panel = document.getElementById('mlp-'+domKey);
   if (!el) return;
   const isOpen = el.style.display !== 'none';
-  el.style.display = isOpen ? 'none' : 'block';
-  if (panel) panel.classList.toggle('is-open', !isOpen);
-  if (!isOpen) {
-    const inp = document.getElementById('mlsi-'+domKey);
-    if (inp) { inp.value=''; inp.focus(); }
-    const res = document.getElementById('mlsr-'+domKey);
-    if (res) res.innerHTML='';
-    const gram = document.getElementById('mlsg-'+domKey);
-    if (gram) gram.remove();
+  if (isOpen) {
+    closeLogSearch(domKey);
+    return;
   }
+  el.style.display = 'block';
+  if (panel) panel.classList.add('is-open');
+  document.body.classList.add('food-search-sheet-open');
+  const inp = document.getElementById('mlsi-'+domKey);
+  if (inp) { inp.value=''; inp.focus(); }
+  const res = document.getElementById('mlsr-'+domKey);
+  if (res) res.innerHTML='';
+  const gram = document.getElementById('mlsg-'+domKey);
+  if (gram) gram.remove();
+}
+
+function closeLogSearch(domKey) {
+  const el = document.getElementById('mls-'+domKey);
+  const panel = document.getElementById('mlp-'+domKey);
+  if (!el) return;
+  el.style.display = 'none';
+  if (panel) panel.classList.remove('is-open');
+  const inp = document.getElementById('mlsi-'+domKey);
+  if (inp) inp.value = '';
+  const res = document.getElementById('mlsr-'+domKey);
+  if (res) res.innerHTML = '';
+  const gram = document.getElementById('mlsg-'+domKey);
+  if (gram) gram.remove();
+  const anyOpen = Array.from(document.querySelectorAll('.mc-log-search'))
+    .some(node => node.style.display !== 'none');
+  if (!anyOpen) document.body.classList.remove('food-search-sheet-open');
+}
+
+function decodeInlineArg(value) {
+  try { return decodeURIComponent(String(value || '')); }
+  catch (_) { return String(value || ''); }
+}
+
+function getTemplateKcal(template) {
+  const items = template?.items || [];
+  if (typeof computeTemplateMacros === 'function') return computeTemplateMacros(items).k || 0;
+  return items.reduce((sum, it) => sum + Math.round((it.kcal100 || 0) * (it.grams || 0) / 100), 0);
+}
+
+function openMealTemplatePicker(dateArg, mealIdxArg, mealTypeArg, mealNameArg) {
+  const dateKey = decodeInlineArg(dateArg) || (S.selDate || localDate());
+  const mealIdxRaw = decodeInlineArg(mealIdxArg);
+  const mealIdx = /^\d+$/.test(mealIdxRaw) ? Number(mealIdxRaw) : mealIdxRaw;
+  const mealType = decodeInlineArg(mealTypeArg);
+  const mealName = decodeInlineArg(mealNameArg) || 'questo pasto';
+  const matches = typeof getMealTemplateMatches === 'function'
+    ? getMealTemplateMatches(mealType)
+    : (S.templates || []).filter(t => String(t?.mealType || t?.tag || '').toLowerCase().includes(String(mealType || '').toLowerCase()));
+  if (!matches.length) {
+    toast('Nessun template disponibile per questo pasto');
+    return;
+  }
+  const optionsHTML = matches.map(t => {
+    const kcal = getTemplateKcal(t);
+    const count = (t.items || []).length;
+    return `<button class="meal-template-option" onclick="applyMealTemplateFromPicker('${encodeURIComponent(t.id)}','${encodeURIComponent(dateKey)}','${encodeURIComponent(String(mealIdx))}')">
+      <span class="meal-template-option-copy">
+        <span class="meal-template-option-name">${htmlEsc(t.name || 'Template')}</span>
+        <span class="meal-template-option-meta">${kcal} kcal · ${count} ${count === 1 ? 'alimento' : 'alimenti'}</span>
+      </span>
+      <span class="meal-template-option-arrow">›</span>
+    </button>`;
+  }).join('');
+  showDayModal({
+    icon: '🍽️',
+    eyebrow: 'Template',
+    title: `Aggiungi a ${mealName}`,
+    noButtons: true,
+    modalClass: 'day-modal-detail meal-template-modal',
+    body: `
+      <div class="meal-template-lead">Scegli un template salvato per inserirlo nel log del pasto.</div>
+      <div class="meal-template-modal-list">${optionsHTML}</div>`,
+  });
+}
+
+async function applyMealTemplateFromPicker(tmplArg, dateArg, mealIdxArg) {
+  const tmplId = decodeInlineArg(tmplArg);
+  const dateKey = decodeInlineArg(dateArg) || (S.selDate || localDate());
+  const mealIdxRaw = decodeInlineArg(mealIdxArg);
+  const mealIdx = /^\d+$/.test(mealIdxRaw) ? Number(mealIdxRaw) : mealIdxRaw;
+  const t = S.templates.find(t => t.id === tmplId);
+  if (!t) return;
+  closeDayModal();
+  const multiplier = await askTemplatePortionMultiplier(t.name);
+  if (multiplier == null) return;
+  const dayType = resolveDayTypeForDate(dateKey);
+  if (typeof mealIdx === 'string') {
+    if (!S.extraMealsActive[dateKey]) S.extraMealsActive[dateKey] = {};
+    S.extraMealsActive[dateKey][mealIdx] = true;
+  }
+  const applied = applyTemplateToMealLog(t, dateKey, mealIdx, { multiplier, confirmMerge: false });
+  if (!applied.ok) return;
+  syncLoggedMealState(dateKey, mealIdx, dayType);
+  save();
+  if (typeof mealIdx === 'number') refreshMealCard(dayType, mealIdx);
+  else renderTodayLog();
+  renderMacroStrip(dayType, S.meals[dayType], S.macro[dayType]);
+  toast(`✅ ${t.name} caricato`);
 }
 
 let _logSearchTimer=null, _logSearchSel=null;
@@ -2513,34 +2605,24 @@ function onFfSearch(inp) {
   if (q.length < 2) { if (sr) sr.style.display = 'none'; return; }
   _ffSearchTimer = setTimeout(() => {
     searchFoods(q, (results, apiStatus) => {
-      _ffSearchResults = results.slice(0, 8);
       if (!sr) return;
-      if (!_ffSearchResults.length) {
-        const emptyMsg = apiStatus?.off === 'loading'
-          ? 'Sto ampliando la ricerca...'
-          : 'Nessun risultato';
-        sr.innerHTML = `<div class="ff-search-empty">${emptyMsg}</div>`;
-        sr.style.display = 'block';
-        return;
-      }
-      const statusHtml = apiStatus?.off === 'loading'
-        ? `<div class="ff-search-state"><span class="fsr-spinner"></span>Ricerca ampliata su Open Food Facts...</div>`
-        : apiStatus?.off === 'timeout'
-          ? `<div class="ff-search-state is-warn">OFF lento: continuo con i risultati locali</div>`
-          : apiStatus?.off === 'offline'
-            ? `<div class="ff-search-state is-warn">Offline: uso solo risultati locali</div>`
-            : apiStatus?.off === 'provider_error'
-              ? `<div class="ff-search-state is-warn">Open Food Facts non raggiungibile</div>`
-              : '';
-      sr.innerHTML = statusHtml + _ffSearchResults.map((r, i) => `
-        <div class="ff-sr-item" onclick="selectFfFood(${i})">
-          <div class="ff-sr-name">${htmlEsc ? htmlEsc(r.name) : r.name}</div>
-          ${r.brand ? `<div class="ff-sr-brand">${r.brand}</div>` : ''}
-          <div class="ff-sr-macros">${r.kcal100} kcal · P ${r.p100}g · C ${r.c100}g · G ${r.f100}g</div>
-        </div>`).join('');
+      _ffSearchResults = results.slice(0, 12);
+      renderFoodDropdown(
+        _ffSearchResults,
+        sr,
+        (item) => {
+          if (typeof rememberFoodSelection === 'function') {
+            rememberFoodSelection(item, typeof buildFoodQueryContext === 'function' ? buildFoodQueryContext(q) : { key: q }, 'favorite-foods');
+          }
+          fillFfFromProduct(item);
+          sr.style.display = 'none';
+        },
+        null,
+        apiStatus
+      );
       sr.style.display = 'block';
     }, { contextKey: 'favorite-foods' });
-  }, 400);
+  }, 200);
 }
 
 function selectFfFood(i) {

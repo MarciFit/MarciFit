@@ -78,29 +78,7 @@ function extraMealCardHTML(key, dateKey) {
 
   const addBtn = `<button class="mc-add-btn" onclick="toggleLogSearch('${domKey}');event.stopPropagation()" title="Aggiungi alimento"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`;
   const extraMealType = getMealTypeFromName(def.name);
-  const matchingTmpls = (S.templates || []).filter(t => (
-    typeof templateMatchesMealType === 'function'
-      ? templateMatchesMealType(t, extraMealType || key)
-      : String(t?.mealType || t?.tag || '').toLowerCase().includes(extraMealType || key)
-  ));
-  const tmplPickerHTML = matchingTmpls.length ? `
-    <div class="mc-tmpl-picker">
-      <div class="mc-tmpl-title">Template consigliati</div>
-      ${matchingTmpls.map(t => {
-        const mk = (typeof computeTemplateMacros === 'function'
-          ? computeTemplateMacros(t.items || []).k
-          : (t.items || []).reduce((s, it) => s + Math.round(it.kcal100 * it.grams / 100), 0));
-        const mp = (t.items || []).reduce((s, it) => s + ((it.p100 || 0) * (it.grams || 0) / 100), 0);
-        return `<div class="mc-tmpl-row">
-          <div class="mc-tmpl-info">
-            <div class="mc-tmpl-name">${htmlEsc(t.name)}</div>
-            <div class="mc-tmpl-macros">${mk} kcal · P ${mp.toFixed(1)}g</div>
-          </div>
-          <button class="mc-tmpl-load" onclick="loadTemplateToMeal('${t.id}','${dateKey}','${key}');event.stopPropagation()">Usa</button>
-        </div>`;
-      }).join('')}
-    </div>
-    <div class="mc-tmpl-sep">oppure cerca un alimento</div>` : '';
+  const tmplButtonHTML = mealTemplateButtonHTML(dateKey, key, extraMealType || key, def.name);
 
   return `<div class="mc mc-extra" id="mc-${domKey}">
     <div class="mc-row">
@@ -117,7 +95,14 @@ function extraMealCardHTML(key, dateKey) {
     <div class="mc-log-panel" id="mlp-${domKey}">
       ${hasLog ? `<div class="mc-log-items">${logRows}</div>${logSummary}` : ''}
       <div class="mc-log-search" id="mls-${domKey}" style="display:none">
-        ${tmplPickerHTML}
+        <div class="mc-log-search-head">
+          <div>
+            <div class="mc-log-search-kicker">Aggiungi alimento</div>
+            <div class="mc-log-search-title">Aggiungi a ${htmlEsc(def.name)}</div>
+          </div>
+          <button class="mc-log-search-close" onclick="closeLogSearch('${domKey}');event.stopPropagation()" title="Chiudi ricerca" aria-label="Chiudi ricerca">×</button>
+        </div>
+        ${tmplButtonHTML}
         <div class="food-search-input-row">
           <span class="food-search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></span>
           <input type="text" class="food-search-input" id="mlsi-${domKey}"
@@ -139,6 +124,43 @@ function getMealTypeFromName(name) {
   if (n.includes('merenda'))   return 'spuntino';
   if (n.includes('spuntino'))  return 'spuntino';
   return null;
+}
+
+function getMealTemplateMatches(mealType) {
+  const type = String(mealType || '').toLowerCase();
+  if (!type) return [];
+  return (S.templates || []).filter(t => (
+    typeof templateMatchesMealType === 'function'
+      ? templateMatchesMealType(t, type)
+      : String(t?.mealType || t?.tag || '').toLowerCase().includes(type)
+  ));
+}
+
+function encInlineArg(value) {
+  return encodeURIComponent(String(value ?? ''));
+}
+
+function mealTemplateButtonHTML(dateKey, mealIdx, mealType, mealName) {
+  const matches = getMealTemplateMatches(mealType);
+  if (!matches.length) return '';
+  const label = matches.length === 1 ? '1 template disponibile' : `${matches.length} template disponibili`;
+  return `<button class="mc-template-open-btn" onclick="openMealTemplatePicker('${encInlineArg(dateKey)}','${encInlineArg(mealIdx)}','${encInlineArg(mealType)}','${encInlineArg(mealName)}');event.stopPropagation()">
+    <span class="mc-template-open-copy">
+      <span class="mc-template-open-title">Aggiungi template</span>
+      <span class="mc-template-open-meta">${label}</span>
+    </span>
+    <span class="mc-template-open-arrow">›</span>
+  </button>`;
+}
+
+function getMealDeltaTone(delta, target) {
+  const safeTarget = Math.max(1, Number(target) || 0);
+  const absDelta = Math.abs(Number(delta) || 0);
+  const okWindow = Math.max(80, Math.round(safeTarget * 0.08));
+  if (absDelta <= okWindow) return 'is-even';
+  if (delta < 0) return 'is-under';
+  const criticalOver = Math.max(160, Math.round(safeTarget * 0.15));
+  return delta > criticalOver ? 'is-over' : 'is-warn';
 }
 
 function mealCardHTML(type, i, mode, isCurrent=false, currentKind='now') {
@@ -218,10 +240,10 @@ function mealCardHTML(type, i, mode, isCurrent=false, currentKind='now') {
     const curF = Math.round(_logMac.f);
     const kcalDelta = curK - dispK;
     const kcalDeltaAbs = Math.abs(kcalDelta);
-    const kcalDeltaLabel = kcalDelta === 0
+    const kcalDeltaCls = getMealDeltaTone(kcalDelta, dispK);
+    const kcalDeltaLabel = kcalDeltaCls === 'is-even'
       ? 'in target'
       : `${kcalDelta > 0 ? '+' : '-'}${kcalDeltaAbs} kcal`;
-    const kcalDeltaCls = kcalDelta > 0 ? 'is-over' : kcalDelta < 0 ? 'is-under' : 'is-even';
     // Always show cur / tgt so every meal card has the same format
     const kcalHTML = `<span class="mc-badge-kcal-cur">${curK}</span><span class="mc-badge-kcal-sep">/</span><span class="mc-badge-kcal-tgt">${dispK} kcal</span>`;
     const macHTML  = `P <span class="mc-badge-mac-cur">${curP}</span><span class="mc-badge-mac-sep">/</span>${dispP}g&thinsp;·&thinsp;C <span class="mc-badge-mac-cur">${curC}</span><span class="mc-badge-mac-sep">/</span>${dispC}g&thinsp;·&thinsp;G <span class="mc-badge-mac-cur">${curF}</span><span class="mc-badge-mac-sep">/</span>${dispF}g`;
@@ -358,34 +380,20 @@ function mealCardHTML(type, i, mode, isCurrent=false, currentKind='now') {
             <span>Azzera</span>
           </button>
         </div>` : '';
-    // Template picker: filter templates matching this meal type
     const mealType = getMealTypeFromName(base.name);
-    const matchingTmpls = (S.templates || []).filter(t => mealType && (
-      typeof templateMatchesMealType === 'function'
-        ? templateMatchesMealType(t, mealType)
-        : String(t?.mealType || t?.tag || '').toLowerCase().includes(mealType)
-    ));
-    const tmplPickerHTML = matchingTmpls.length ? `
-      <div class="mc-tmpl-picker">
-        <div class="mc-tmpl-title">Template consigliati</div>
-        ${matchingTmpls.map(t => {
-          const mk = t.items.reduce((s,it) => s + Math.round(it.kcal100*it.grams/100), 0);
-          const mp = t.items.reduce((s,it) => s + it.p100*it.grams/100, 0);
-          return `<div class="mc-tmpl-row">
-            <div class="mc-tmpl-info">
-              <div class="mc-tmpl-name">${htmlEsc(t.name)}</div>
-              <div class="mc-tmpl-macros">${mk} kcal · P ${mp.toFixed(1)}g</div>
-            </div>
-            <button class="mc-tmpl-load" onclick="loadTemplateToMeal('${t.id}','${dateKey}',${i});event.stopPropagation()">Usa</button>
-          </div>`;
-        }).join('')}
-      </div>
-      <div class="mc-tmpl-sep">oppure cerca un alimento</div>` : '';
+    const tmplButtonHTML = mealTemplateButtonHTML(dateKey, i, mealType, base.name);
 
     return `<div class="mc-log-panel${hasLog ? '' : ' mc-log-panel-empty'}" id="mlp-${domKey}">
       ${hasLog ? `<div class="mc-log-items">${logRows}</div>${logSummary}` : ''}
       <div class="mc-log-search" id="mls-${domKey}" style="display:none">
-        ${tmplPickerHTML}
+        <div class="mc-log-search-head">
+          <div>
+            <div class="mc-log-search-kicker">Aggiungi alimento</div>
+            <div class="mc-log-search-title">Aggiungi a ${htmlEsc(base.name)}</div>
+          </div>
+          <button class="mc-log-search-close" onclick="closeLogSearch('${domKey}');event.stopPropagation()" title="Chiudi ricerca" aria-label="Chiudi ricerca">×</button>
+        </div>
+        ${tmplButtonHTML}
         <div class="food-search-input-row">
           <span class="food-search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg></span>
           <input type="text" class="food-search-input" id="mlsi-${domKey}"
@@ -2358,9 +2366,14 @@ function renderMacroStrip(type, meals, tgt) {
   // --- Kcal hero ---
   const kPct = effectiveTargetK > 0 ? Math.min(eK / effectiveTargetK, 1) * 100 : 0;
   const kRem = effectiveTargetK - eK;
-  const kRc  = kRem <= 0 ? (eK > effectiveTargetK * 1.08 ? 'err' : 'ok') : 'missing';
+  const kOkWindow = Math.max(150, Math.round(effectiveTargetK * 0.1));
+  const kRc  = Math.abs(kRem) <= kOkWindow
+    ? 'ok'
+    : kRem < 0
+      ? (eK > effectiveTargetK * 1.15 ? 'err' : 'warn')
+      : 'missing';
   const kRt  = kRem <= 0
-    ? (eK > effectiveTargetK ? `+${Math.round(eK - effectiveTargetK)} kcal oltre` : 'In linea con il target')
+    ? (eK > effectiveTargetK && kRc !== 'ok' ? `+${Math.round(eK - effectiveTargetK)} kcal oltre` : 'In linea con il target')
     : `${Math.abs(Math.round(kRem))} kcal mancanti`;
   const basePct = effectiveTargetK > 0 ? Math.min(baseTargetK / effectiveTargetK, 1) * 100 : 0;
   const extraPct = effectiveTargetK > 0 ? Math.min(cheatExtraK / effectiveTargetK, 1) * 100 : 0;
@@ -2391,10 +2404,15 @@ function renderMacroStrip(type, meals, tgt) {
   const macroCards = macros.map(m => {
     const pct = m.tgt > 0 ? Math.min(m.eaten / m.tgt, 1) * 100 : 0;
     const rem = m.tgt - m.eaten;
-    const rc  = rem <= 0 ? (m.eaten > m.tgt * 1.15 ? 'err' : 'ok') : 'missing';
+    const okWindow = Math.max(8, Math.round((m.tgt || 0) * 0.16));
+    const rc  = Math.abs(rem) <= okWindow
+      ? 'ok'
+      : rem < 0
+        ? (m.eaten > m.tgt * 1.22 ? 'err' : 'warn')
+        : 'missing';
     const diff = Math.abs(Math.round(rem));
     const rt  = rem <= 0
-      ? (m.eaten > m.tgt ? `+${Math.round(m.eaten - m.tgt)}g oltre` : 'Target centrato')
+      ? (m.eaten > m.tgt && rc !== 'ok' ? `+${Math.round(m.eaten - m.tgt)}g oltre` : 'Target centrato')
       : `${diff}g mancanti`;
     return `<div class="ms-macro-card ${m.cls}" onclick="openMacroDetail('${m.cls}')" title="Vedi dettaglio ${m.lbl.toLowerCase()}">
       <div class="ms-macro-top">
@@ -4787,14 +4805,12 @@ function renderWater() {
   const waterInfo = getWaterTargetInfo(dateKey);
   const totalMl = waterInfo.totalMl;
   const target = waterInfo.glasses;
-  const waterStateCls = count >= target ? 'done' : count > 0 ? 'progress' : 'idle';
-  const waterStateText = count >= target ? 'In linea' : count > 0 ? 'In corso' : 'Si parte';
   const remaining = Math.max(0, target - count);
   const footText = remaining === 0
-    ? 'Sei in linea con l obiettivo di oggi.'
+    ? 'Obiettivo idratazione centrato.'
     : remaining === 1
-      ? 'Ancora 1 bicchiere e ci sei.'
-      : `Ancora ${remaining} bicchieri e ci sei.`;
+      ? 'Manca 1 bicchiere.'
+      : `Mancano ${remaining} bicchieri.`;
 
   const pct = Math.min(count / target, 1) * 100;
   const glasses = Array.from({length: target}, (_,i) =>
@@ -4815,7 +4831,7 @@ function renderWater() {
             ${editBtn}
           </div>
         </div>
-        <div class="support-mini-sub">${count}/${target} bicchieri oggi · obiettivo ${totalMl} ml</div>
+        <div class="support-mini-sub">${count}/${target} bicchieri · ${totalMl} ml</div>
       </div>
       <div class="water-head-actions">
         <div class="water-btns">
@@ -4923,12 +4939,12 @@ function renderSuppToday() {
       ? 'Fatta'
       : `${doneCount}/${active.length} presi`;
   const subText = active.length === 0
-    ? 'Costruisci qui la routine che vuoi ritrovarti ogni giorno.'
+    ? 'Crea la routine giornaliera.'
     : pendingCount === 0
-      ? 'Oggi hai gia chiuso tutta la routine.'
+      ? 'Routine chiusa.'
       : doneCount === 0
-        ? 'Tocca quelli che stai prendendo per segnarli.'
-        : `${pendingCount} ${pendingCount === 1 ? 'integratore da segnare' : 'integratori da segnare'}.`;
+        ? 'Tocca per segnare.'
+        : `${pendingCount} da segnare.`;
   const rows = active.length ? active.map(s => {
     const done = checked.includes(s.id);
     const suppIndex = S.supplements.findIndex(item => item.id === s.id);
