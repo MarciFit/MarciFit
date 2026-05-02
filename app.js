@@ -55,6 +55,8 @@ const S = {
   },
   suppChecked: {},  // {'2026-03-17': ['creatina']}
   water: {},        // {'2026-03-17': 3}  (bicchieri)
+  waterTargetOverrides: {}, // {'2026-03-17': 2230} target manuale in ml
+  condimentConfirmations: {}, // {'2026-03-17': { mealIdx: true }} conferma "nessun condimento"
   lastCheckin: null,
   weeklyCheckinWarmupWeek: null,
   barcodeCache: {}, // { barcode: { barcode,name,brand,quantity,kcal100,p100,c100,f100,cachedAt } }
@@ -305,11 +307,33 @@ function pulseTodayElement(selector, className = 'ui-bump') {
     setTimeout(() => el.classList.remove(className), 700);
   });
 }
+function isElementComfortablyVisible(el, { topPad = 96, bottomPad = 96 } = {}) {
+  if (!el) return false;
+  const rect = el.getBoundingClientRect();
+  const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+  return rect.top >= topPad && rect.bottom <= Math.max(topPad, vh - bottomPad);
+}
+function animateProgressFill(selector, prevPct, nextPct, { className = 'progress-sheen', updatedClass = 'progress-just-updated', duration = 760, glow = true } = {}) {
+  requestAnimationFrame(() => {
+    const fill = document.querySelector(selector);
+    if (!fill) return;
+    const from = Math.max(0, Math.min(100, Number(prevPct) || 0));
+    const to = Math.max(0, Math.min(100, Number(nextPct) || 0));
+    fill.style.width = `${from}%`;
+    fill.classList.remove(className, updatedClass);
+    void fill.offsetWidth;
+    requestAnimationFrame(() => {
+      fill.style.width = `${to}%`;
+      if (glow) fill.classList.add(className, updatedClass);
+      setTimeout(() => fill.classList.remove(className, updatedClass), duration);
+    });
+  });
+}
 function revealTodayElement(selector, className = 'ui-glow') {
   requestAnimationFrame(() => {
     const el = document.querySelector(selector);
     if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!isElementComfortablyVisible(el)) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     pulseTodayElement(selector, className);
   });
 }
@@ -320,12 +344,13 @@ function performAfterReveal(selector, action, { className = 'ui-glow', delay = 3
       action?.();
       return;
     }
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const needsScroll = !isElementComfortablyVisible(el);
+    if (needsScroll) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setTimeout(() => {
       action?.();
       pulseTodayElement(selector, className);
       if (fallbackSelector) pulseTodayElement(fallbackSelector, className);
-    }, delay);
+    }, needsScroll ? delay : 0);
   });
 }
 function addWaterAndReveal(delta = 1) {
@@ -442,6 +467,10 @@ function scrollMealCardIntoView(type, mealIdx, { behavior = 'smooth', focusAdd =
   const card = document.getElementById(`mc-${domKey}`);
   if (!card) return;
   const target = focusAdd ? card.querySelector('.mc-add-btn') || card : card;
+  if (isElementComfortablyVisible(target, { topPad: 118, bottomPad: 118 })) {
+    pulseTodayElement(`#mc-${domKey}`);
+    return;
+  }
   const rect = target.getBoundingClientRect();
   const navHeight = document.querySelector('.nav')?.offsetHeight || 56;
   const tabsHeight = document.querySelector('.nav-tabs')?.offsetHeight || 56;
@@ -449,6 +478,102 @@ function scrollMealCardIntoView(type, mealIdx, { behavior = 'smooth', focusAdd =
   const nextTop = window.scrollY + rect.top - topOffset;
   window.scrollTo({ top: Math.max(0, nextTop), behavior });
   pulseTodayElement(`#mc-${domKey}`);
+}
+
+function isCondimentFood(item) {
+  const name = String(item?.name || '').toLowerCase();
+  const roles = [
+    ...(Array.isArray(item?.foodRoles) ? item.foodRoles : []),
+    ...(Array.isArray(item?.manualFoodRoles) ? item.manualFoodRoles : []),
+  ].map(role => String(role || '').toLowerCase());
+  if (roles.some(role => ['condimento', 'fat_source'].includes(role))) return true;
+  if (/(olio|evo|burro|ghee|maionese|mayo|pesto|salsa|vinaigrette|tahina|tahini|semi|frutta secca|mandorle|noci|arachidi)/i.test(name)) return true;
+  return Number(item?.f100 || 0) >= 55 && Number(item?.grams || 0) <= 35;
+}
+
+function getMealCondimentPromptState(type, mealIdx, dateKey = (S.selDate || localDate())) {
+  if (typeof mealIdx !== 'number') return { show: false };
+  const meal = S.meals?.[type]?.[mealIdx];
+  const mealType = typeof getMealTypeFromName === 'function' ? getMealTypeFromName(meal?.name || '') : null;
+  if (!['pranzo', 'cena'].includes(mealType)) return { show: false };
+  const items = S.foodLog?.[dateKey]?.[mealIdx] || [];
+  if (!items.length) return { show: false };
+  if (items.some(isCondimentFood)) return { show: false };
+  if (S.condimentConfirmations?.[dateKey]?.[mealIdx]) return { show: false };
+
+  const macros = items.reduce((acc, item) => {
+    const grams = Number(item?.grams || 0) / 100;
+    acc.k += Math.round(Number(item?.kcal100 || 0) * grams);
+    return acc;
+  }, { k: 0 });
+  const base = typeof effMeal === 'function' ? effMeal(type, mealIdx) : meal;
+  const totalPlanK = (S.meals[type] || []).reduce((sum, m) => sum + (mealMacros(m).kcal || 0), 0);
+  const targetK = Math.max(1, Math.round((base?.kcal || 0) * (((S.macro?.[type]?.k || 0) > 0 && totalPlanK > 0)
+    ? (S.macro[type].k / totalPlanK)
+    : 1)));
+  const laterMealHasLog = (() => {
+    const timeline = typeof getMealTimelineCandidates === 'function' ? getMealTimelineCandidates(type, dateKey) : [];
+    const currentIdx = timeline.findIndex(entry => !entry.isExtra && entry.key === mealIdx);
+    if (currentIdx === -1) return false;
+    const dayLog = S.foodLog?.[dateKey] || {};
+    return timeline.slice(currentIdx + 1).some(entry => Array.isArray(dayLog[entry.key]) && dayLog[entry.key].length > 0);
+  })();
+  const isComplete = macros.k >= targetK * 0.9 || laterMealHasLog;
+  return { show: isComplete, mealType, targetK, loggedK: macros.k };
+}
+
+function clearCondimentConfirmation(dateKey, mealIdx) {
+  if (!S.condimentConfirmations?.[dateKey]) return;
+  delete S.condimentConfirmations[dateKey][mealIdx];
+  if (!Object.keys(S.condimentConfirmations[dateKey]).length) delete S.condimentConfirmations[dateKey];
+}
+
+function confirmNoCondiment(dateKey, mealIdx) {
+  if (!S.condimentConfirmations) S.condimentConfirmations = {};
+  if (!S.condimentConfirmations[dateKey]) S.condimentConfirmations[dateKey] = {};
+  S.condimentConfirmations[dateKey][mealIdx] = true;
+  const dayType = resolveDayTypeForDate(dateKey);
+  save();
+  refreshMealCard(dayType, mealIdx);
+  toast('✅ Condimenti confermati');
+}
+
+function addQuickCondiment(dateKey, mealIdx, grams = 10) {
+  const dayType = resolveDayTypeForDate(dateKey);
+  const g = Math.max(1, Math.min(30, Math.round(Number(grams) || 10)));
+  if (!S.foodLog[dateKey]) S.foodLog[dateKey] = {};
+  if (!S.foodLog[dateKey][mealIdx]) S.foodLog[dateKey][mealIdx] = [];
+  S.foodLog[dateKey][mealIdx].push({
+    name: 'Olio extravergine di oliva',
+    brand: 'Quick add',
+    grams: g,
+    kcal100: 884,
+    p100: 0,
+    c100: 0,
+    f100: 100,
+    manualFoodRoles: ['condimento'],
+    foodRoles: ['fat_source'],
+    src: 'quick-condiment',
+  });
+  clearCondimentConfirmation(dateKey, mealIdx);
+  syncLoggedMealState(dateKey, mealIdx, dayType);
+  save();
+  refreshMealCard(dayType, mealIdx);
+  toast(`✅ Olio EVO ${g}g aggiunto`);
+}
+
+function searchCondimentForMeal(dateKey, mealIdx) {
+  const dayType = resolveDayTypeForDate(dateKey);
+  const domKey = `${dayType}-${mealIdx}`;
+  const panel = document.getElementById(`mls-${domKey}`);
+  if (panel && panel.style.display === 'none') toggleLogSearch(domKey);
+  requestAnimationFrame(() => {
+    const input = document.getElementById(`mlsi-${domKey}`);
+    if (!input) return;
+    input.value = 'olio';
+    input.focus();
+    onLogFoodSearch(input, dateKey, mealIdx, domKey);
+  });
 }
 
 function scheduleGreetingStateTransition(prevType, nextType) {
@@ -1597,10 +1722,22 @@ function toggleSupp(id) {
   if (!S.suppChecked[key]) S.suppChecked[key] = [];
   const arr = S.suppChecked[key];
   const idx = arr.indexOf(id);
+  const activeSupps = (S.supplements || []).filter(s => s && s.active);
+  const prevDoneCount = activeSupps.filter(s => arr.includes(s.id)).length;
+  const prevPct = activeSupps.length ? Math.round(prevDoneCount / activeSupps.length * 100) : 0;
   if (idx>=0) arr.splice(idx,1); else arr.push(id);
+  const nextDoneCount = activeSupps.filter(s => arr.includes(s.id)).length;
+  const nextPct = activeSupps.length ? Math.round(nextDoneCount / activeSupps.length * 100) : 0;
+  const completed = idx < 0;
   syncDoneByDate(key, getTrackedDayType(key));
   save();
   renderSuppToday(); // always update today supp section (cheap, no full re-render)
+  animateProgressFill('#supp-today .supp-today-progress-fill', prevPct, nextPct, { glow: completed });
+  pulseTodayElement(`[data-supp-id="${id}"] .supp-today-btn`, completed ? 'ui-pop' : 'ui-bump');
+  if (completed) pulseTodayElement(`[data-supp-id="${id}"] .supp-today-check`, 'ui-pop');
+  if (completed && activeSupps.length && nextDoneCount === activeSupps.length) {
+    pulseTodayElement('#supp-today .support-mini-card-supp', 'ui-glow');
+  }
   refreshTodayDerivedViews();
   refreshTodayAlertSurfaces();
 }
@@ -1608,33 +1745,93 @@ function addWater(delta) {
   const key = S.selDate || localDate();
   if (!S.water) S.water = {};
   const cur = S.water[key] || 0;
-  const next = Math.max(0, Math.min(12, cur + delta));
+  const targetInfo = typeof getWaterTargetInfo === 'function'
+    ? getWaterTargetInfo(key)
+    : { glasses: 9 };
+  const maxGlasses = Math.max(12, targetInfo.glasses || 9);
+  const next = Math.max(0, Math.min(maxGlasses, cur + delta));
   S.water[key] = next;
   syncDoneByDate(key, getTrackedDayType(key));
   save();
   renderWater();
   if (delta !== 0) {
-    const dayType = getTrackedDayType(key, getScheduledDayType(key));
-    const peso = S.anagrafica?.peso || 0;
-    const baseMl = peso > 0 ? Math.round(peso * 35) : 2000;
-    const totalMl = baseMl + (dayType === 'on' ? 350 : 0);
-    const target = Math.max(6, Math.round(totalMl / 250));
+    const target = Math.max(1, targetInfo.glasses || 9);
     const prevPct = Math.min(cur / target, 1) * 100;
     const nextPct = Math.min(next / target, 1) * 100;
-    requestAnimationFrame(() => {
-      const fill = document.querySelector('#water-widget .water-bar-fill');
-      if (!fill) return;
-      fill.style.width = `${prevPct}%`;
-      fill.classList.remove('is-animating');
-      void fill.offsetWidth;
-      requestAnimationFrame(() => {
-        fill.style.width = `${nextPct}%`;
-        if (delta > 0) fill.classList.add('is-animating');
-        setTimeout(() => fill.classList.remove('is-animating'), 720);
-      });
-    });
+    animateProgressFill('#water-widget .water-bar-fill', prevPct, nextPct, { className: 'is-animating', glow: delta > 0, duration: 720 });
+    if (delta > 0 && next > cur) pulseTodayElement(`#water-widget .water-glass:nth-child(${Math.min(next, target)})`, 'ui-pop');
+    pulseTodayElement('#water-widget .water-count', 'ui-bump');
   }
   refreshTodayDerivedViews();
+}
+function editWaterTarget(dateKey = null) {
+  const key = dateKey || S.selDate || localDate();
+  const info = typeof getWaterTargetInfo === 'function'
+    ? getWaterTargetInfo(key)
+    : { totalMl: 2000, autoMl: 2000 };
+  showDayModal({
+    icon: '💧',
+    eyebrow: 'Idratazione',
+    title: 'Obiettivo acqua',
+    modalClass: 'day-modal-detail water-target-modal',
+    noButtons: true,
+    body: `
+      <div class="water-target-form">
+        <div class="water-target-current">
+          <span>Automatico</span>
+          <strong>${Math.round(info.autoMl || 2000)} ml</strong>
+        </div>
+        <label class="water-target-label" for="water-target-input">Target manuale per questa giornata</label>
+        <div class="water-target-input-row">
+          <input id="water-target-input" class="water-target-input" type="number" inputmode="numeric" min="1000" max="6000" step="50" value="${info.isManual ? Math.round(info.totalMl) : ''}" placeholder="${Math.round(info.autoMl || 2000)}">
+          <span>ml</span>
+        </div>
+        <div class="water-target-help">Valori ammessi: 1000-6000 ml. Lascia automatico se non vuoi forzare il target.</div>
+        <div class="water-target-actions">
+          <button class="water-target-save" onclick="saveWaterTargetFromModal('${key}')">Salva obiettivo</button>
+          <button class="water-target-cancel" onclick="closeDayModal()">Annulla</button>
+        </div>
+        ${info.isManual ? `<button class="water-target-reset" onclick="resetWaterTarget('${key}')">Torna al calcolo automatico</button>` : ''}
+      </div>
+    `,
+  });
+  setTimeout(() => document.getElementById('water-target-input')?.focus(), 60);
+}
+function saveWaterTargetFromModal(key) {
+  const raw = document.getElementById('water-target-input')?.value || '';
+  const trimmed = String(raw).trim();
+  if (!S.waterTargetOverrides || typeof S.waterTargetOverrides !== 'object' || Array.isArray(S.waterTargetOverrides)) {
+    S.waterTargetOverrides = {};
+  }
+  if (!trimmed) {
+    delete S.waterTargetOverrides[key];
+    save();
+    closeDayModal();
+    renderWater();
+    refreshTodayDerivedViews();
+    toast('✅ Fabbisogno idrico automatico');
+    return;
+  }
+  const ml = Math.round(Number(trimmed.replace(',', '.')));
+  if (!Number.isFinite(ml) || ml < 1000 || ml > 6000) {
+    toast('⚠️ Inserisci un valore realistico tra 1000 e 6000 ml');
+    return;
+  }
+  S.waterTargetOverrides[key] = ml;
+  save();
+  closeDayModal();
+  renderWater();
+  refreshTodayDerivedViews();
+  toast(`✅ Obiettivo acqua: ${ml} ml`);
+}
+function resetWaterTarget(key = null) {
+  const dateKey = key || S.selDate || localDate();
+  if (S.waterTargetOverrides && typeof S.waterTargetOverrides === 'object') delete S.waterTargetOverrides[dateKey];
+  save();
+  closeDayModal();
+  renderWater();
+  refreshTodayDerivedViews();
+  toast('✅ Fabbisogno idrico automatico');
 }
 function toggleSuppActive(i) {
   S.supplements[i].active = !S.supplements[i].active;
@@ -1697,29 +1894,35 @@ function refreshMealCard(type, mealIdx) {
   if (typeof mealIdx !== 'number' && typeof mealIdx !== 'string') { renderTodayLog(); return; }
   const domKey = typeof mealIdx === 'string' ? `extra-${mealIdx}` : `${type}-${mealIdx}`;
   const card   = document.getElementById(`mc-${domKey}`);
+  const dpFillBefore = document.getElementById('dp-fill');
+  const prevDpPct = dpFillBefore ? parseFloat(dpFillBefore.style.width) || 0 : 0;
   if (!card) {
     renderTodayLog();
     pulseTodayElement(`#mc-${domKey}`);
     pulseTodayElement('#macro-strip .ms-kcal-card', 'ui-glow');
+    pulseTodayElement('#current-meal-focus .current-meal-focus', 'ui-glow');
     return;
   }
 
+  const dateKey = S.selDate || localDate();
+  const mealState = getCurrentMealState(type, dateKey);
+  const isCurrentMeal = typeof mealIdx === 'number' && !mealState.isExtra && mealState.key === mealIdx;
   const tmp = document.createElement('div');
   tmp.innerHTML = typeof mealIdx === 'string'
     ? extraMealCardHTML(mealIdx, S.selDate || localDate())
-    : mealCardHTML(type, mealIdx, 'today');
+    : mealCardHTML(type, mealIdx, 'today', isCurrentMeal, mealState.kind);
   card.replaceWith(tmp.firstElementChild);
 
   // Update macro strip + progress
   const meals   = S.meals[type];
   const tgt     = S.macro[type];
   renderMacroStrip(type, meals, tgt);
+  pulseTodayElement('#macro-strip .ms-kcal-card', 'ui-glow');
 
-  const dateKey = S.selDate || localDate();
   const completion = getDayCompletion(dateKey, type);
-  const mealState = getCurrentMealState(type, dateKey);
   const alertModel = splitTodayAlerts(type, dateKey);
   renderCurrentMealFocus(type, mealState, dateKey, alertModel);
+  pulseTodayElement('#current-meal-focus .current-meal-focus', 'ui-glow');
   if (typeof renderCheatWidget === 'function') renderCheatWidget();
   if (typeof renderTodaySignals === 'function') renderTodaySignals(type, dateKey);
   if (typeof renderDashboardAlertSummary === 'function') renderDashboardAlertSummary(type, dateKey);
@@ -1727,11 +1930,14 @@ function refreshMealCard(type, mealIdx) {
   const dpLabel = document.getElementById('dp-label');
   const dpFill  = document.getElementById('dp-fill');
   if (dpLabel) dpLabel.textContent = `${completion.done} su ${completion.total} completati`;
-  if (dpFill)  dpFill.style.width  = `${completion.total ? (completion.done/completion.total)*100 : 0}%`;
+  const nextDpPct = completion.total ? (completion.done/completion.total)*100 : 0;
+  if (dpFill) {
+    dpFill.style.width = `${nextDpPct}%`;
+    animateProgressFill('#dp-fill', prevDpPct, nextDpPct, { glow: nextDpPct !== prevDpPct });
+  }
 
   refreshTodayDerivedViews({ greeting: true, calendar: true, stats: true });
-  pulseTodayElement(`#mc-${domKey}`);
-  pulseTodayElement('#macro-strip .ms-kcal-card', 'ui-glow');
+  pulseTodayElement(`#mc-${domKey}`, 'ui-glow');
 }
 
 function removeLogItem(dateKey, mealIdx, itemIdx) {
@@ -1739,6 +1945,7 @@ function removeLogItem(dateKey, mealIdx, itemIdx) {
   S.foodLog[dateKey]?.[mealIdx]?.splice(itemIdx,1);
   if (!S.foodLog[dateKey]?.[mealIdx]?.length) {
     delete S.foodLog[dateKey]?.[mealIdx];
+    clearCondimentConfirmation(dateKey, mealIdx);
   }
   syncDoneByDate(dateKey, dayType);
   save(); refreshMealCard(dayType, mealIdx);
@@ -2092,6 +2299,7 @@ function clearLogMeal(dateKey, mealIdx) {
   if (!hasItems) return;
   if (!confirm('Vuoi davvero azzerare tutti gli alimenti di questo pasto?')) return;
   if (S.foodLog[dateKey]) delete S.foodLog[dateKey][mealIdx];
+  clearCondimentConfirmation(dateKey, mealIdx);
   syncDoneByDate(dateKey, dayType);
   save(); refreshMealCard(dayType, mealIdx);
 }
@@ -2354,21 +2562,37 @@ function addNoteTag(tag) {
   onNoteInput(inp);
 }
 function toggleSuppForm(scope = 'today') {
-  const el = document.getElementById(`supp-form-${scope}`);
-  if (!el) return;
-  const willOpen = el.style.display === 'none';
-  el.style.display = willOpen ? 'block' : 'none';
-  if (willOpen) {
-    setTimeout(() => document.getElementById(`sf-name-${scope}`)?.focus(), 40);
-  }
+  openSupplementModal(scope);
+}
+function openSupplementModal(scope = 'today') {
+  showDayModal({
+    icon: '💊',
+    eyebrow: 'Routine',
+    title: 'Aggiungi integratore',
+    modalClass: 'day-modal-detail supplement-add-modal',
+    noButtons: true,
+    body: typeof supplementFormHTML === 'function'
+      ? supplementFormHTML(scope, { visible: true, modal: true })
+      : '',
+  });
+  setTimeout(() => document.getElementById(`sf-name-${scope}`)?.focus(), 60);
 }
 function confirmAddSupp(scope = 'today') {
   const name = document.getElementById(`sf-name-${scope}`)?.value.trim();
   if (!name) { toast('❌  Inserisci il nome'); return; }
-  const dose = document.getElementById(`sf-dose-${scope}`)?.value.trim() || '---';
-  const when = document.getElementById(`sf-when-${scope}`)?.value.trim() || 'mattina';
+  const doseRaw = document.getElementById(`sf-dose-${scope}`)?.value || '';
+  const doseValue = Number(String(doseRaw).replace(',', '.'));
+  if (!Number.isFinite(doseValue) || doseValue <= 0 || doseValue > 100) {
+    toast('⚠️ Inserisci una dose verosimile tra 0,1 e 100 g');
+    return;
+  }
+  const dose = `${Number.isInteger(doseValue) ? doseValue : Math.round(doseValue * 10) / 10} g`;
+  const whenValue = document.getElementById(`sf-when-${scope}`)?.value || 'mattina';
+  const allowedWhen = ['mattina', 'pranzo', 'pomeriggio', 'cena', 'sera'];
+  const when = allowedWhen.includes(whenValue) ? whenValue : 'mattina';
   S.supplements.push({ id:'supp_'+Date.now(), name, dose, when, active:true });
   save();
+  closeDayModal();
   renderSuppToday();
   refreshTodayDerivedViews();
   refreshTodayAlertSurfaces();
@@ -3988,6 +4212,75 @@ function calMove(delta) {
 let _weekCalSwipeBound = false;
 let _weekCalTouchStartX = 0;
 let _weekCalTouchStartY = 0;
+let _todaySwipeBound = false;
+let _todaySwipeStartX = 0;
+let _todaySwipeStartY = 0;
+let _todaySwipeStartTarget = null;
+
+function getMondayKeyForDate(dateKey) {
+  const d = new Date(`${dateKey}T12:00:00`);
+  const dow = d.getDay();
+  const monOff = dow === 0 ? -6 : 1 - dow;
+  d.setDate(d.getDate() + monOff);
+  return localDate(d);
+}
+
+function getCalendarOffsetForDate(dateKey) {
+  const todayMonday = getMondayKeyForDate(localDate());
+  const targetMonday = getMondayKeyForDate(dateKey);
+  return Math.round((new Date(`${targetMonday}T12:00:00`) - new Date(`${todayMonday}T12:00:00`)) / (7 * 86400000));
+}
+
+function moveSelectedDate(deltaDays) {
+  const baseKey = S.selDate || localDate();
+  const next = new Date(`${baseKey}T12:00:00`);
+  next.setDate(next.getDate() + deltaDays);
+  const nextKey = localDate(next);
+  const nextType = getTrackedDayType(nextKey, getScheduledDayType(nextKey));
+  S.selDate = nextKey;
+  S.day = nextType;
+  S.planTab = nextType;
+  S.calOffset = getCalendarOffsetForDate(nextKey);
+  const ni = document.getElementById('notes-input');
+  if (ni) {
+    delete ni.dataset.loaded;
+    ni.dataset.key = nextKey;
+    ni.value = S.notes[nextKey] || '';
+  }
+  save();
+  renderToday();
+}
+
+function isTodaySwipeIgnoredTarget(target) {
+  const el = target?.closest?.('button,input,textarea,select,a,[contenteditable="true"],.day-modal,.drawer-ov,.food-search-wrap,.food-search-results,.fsr-gram-row,#week-cal,.week-cal,.tg-extras,.stats-range-chips,.today-context-alert-actions,.mc-log-panel,.notes-input-group');
+  return !!el;
+}
+
+function attachTodaySwipe() {
+  const el = document.getElementById('view-today');
+  if (!el || _todaySwipeBound) return;
+  el.addEventListener('touchstart', evt => {
+    const touch = evt.changedTouches?.[0];
+    if (!touch || isTodaySwipeIgnoredTarget(evt.target)) {
+      _todaySwipeStartTarget = null;
+      return;
+    }
+    _todaySwipeStartTarget = evt.target;
+    _todaySwipeStartX = touch.clientX;
+    _todaySwipeStartY = touch.clientY;
+  }, { passive: true });
+  el.addEventListener('touchend', evt => {
+    if (!_todaySwipeStartTarget) return;
+    const touch = evt.changedTouches?.[0];
+    _todaySwipeStartTarget = null;
+    if (!touch || isTodaySwipeIgnoredTarget(evt.target)) return;
+    const deltaX = touch.clientX - _todaySwipeStartX;
+    const deltaY = touch.clientY - _todaySwipeStartY;
+    if (Math.abs(deltaX) < 72 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.35) return;
+    moveSelectedDate(deltaX < 0 ? 1 : -1);
+  }, { passive: true });
+  _todaySwipeBound = true;
+}
 
 function attachWeekCalendarSwipe() {
   const el = document.getElementById('week-cal');
@@ -4163,15 +4456,48 @@ function renderNotes() {
   const entries = Object.entries(S.notes)
     .filter(([,v]) => !q || v.toLowerCase().includes(q.toLowerCase()))
     .sort((a,b)=>b[0].localeCompare(a[0])).slice(0,20);
-  document.getElementById('notes-prev').innerHTML = entries.length ? entries.map(([k,v])=>`
-    <div class="note-item">
-      <span class="note-date">${k.split('-').reverse().join('/')}</span>
-      <span class="note-text">${esc(v)}</span>
-      <button class="note-del" onclick="deleteNote('${k}')">✕</button>
-    </div>`).join('') : (q ? `<div style="font-size:12px;color:var(--muted);padding:8px 0">Nessuna nota per "${esc(q)}"</div>` : '');
+  const el = document.getElementById('notes-prev');
+  if (!el) return;
+  const total = Object.values(S.notes || {}).filter(v => v && String(v).trim()).length;
+  if (q && !entries.length) {
+    el.innerHTML = `<div class="notes-empty-state">Nessuna nota per "${esc(q)}"</div>`;
+    return;
+  }
+  el.innerHTML = total
+    ? `<button class="notes-diary-btn" onclick="openNotesDiary()">Apri diario note<span>${total}</span></button>`
+    : `<div class="notes-empty-state">Ancora nessuna nota. Scrivi qui quello che vuoi ritrovare piu tardi.</div>`;
 }
 
-function deleteNote(key) { delete S.notes[key]; save(); renderNotes(); }
+function openNotesDiary() {
+  const entries = Object.entries(S.notes || {})
+    .filter(([,v]) => v && String(v).trim())
+    .sort((a,b)=>b[0].localeCompare(a[0]));
+  const body = entries.length ? `
+    <div class="notes-diary-list">
+      ${entries.map(([k,v]) => `
+        <div class="notes-diary-item">
+          <div class="notes-diary-date">${k.split('-').reverse().join('/')}</div>
+          <div class="notes-diary-text">${esc(v)}</div>
+          <button class="notes-diary-del" onclick="deleteNote('${k}')" title="Elimina nota">✕</button>
+        </div>
+      `).join('')}
+    </div>
+  ` : `<div class="notes-empty-state">Ancora nessuna nota salvata.</div>`;
+  showDayModal({
+    icon: '📝',
+    eyebrow: 'Diario',
+    title: 'Diario note',
+    body,
+    noButtons: true,
+    modalClass: 'day-modal-detail notes-diary-modal',
+  });
+}
+function deleteNote(key) {
+  delete S.notes[key];
+  save();
+  renderNotes();
+  if (document.getElementById('day-modal-card')?.classList.contains('notes-diary-modal')) openNotesDiary();
+}
 
 function printDay() { window.print(); }
 function macroAlerts() {

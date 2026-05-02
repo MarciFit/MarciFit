@@ -15,7 +15,7 @@ const USER_STATE_KEYS = [
   'checked','altSel','weightLog','notes','noteSearch','profHist',
   'profilo','anagrafica','macro','meals','alts','onDays','calOffset','selDate',
   'doneByDate','measurements','goal','supplements','suppChecked','statsRange',
-  'lastCheckin','weeklyCheckinWarmupWeek','barcodeCache','foodCache','foodSearchLearn','foodLog','templates','customFoods','water',
+    'lastCheckin','weeklyCheckinWarmupWeek','barcodeCache','foodCache','foodSearchLearn','foodLog','templates','customFoods','water','waterTargetOverrides','condimentConfirmations',
   'cheatMealsByDate','cheatConfig',
   'favoriteFoods','mealPlanner'
   ,'authEntryCompleted','onboardingCompleted','onboardingVersion'
@@ -30,6 +30,8 @@ function applyValidatedState(saved) {
   if (!Array.isArray(S.onDays) || S.onDays.length === 0) S.onDays = [1, 3, 5];
   if (typeof S.noteSearch !== 'string') S.noteSearch = '';
   if (!S.cheatMealsByDate || typeof S.cheatMealsByDate !== 'object' || Array.isArray(S.cheatMealsByDate)) S.cheatMealsByDate = {};
+  if (!S.condimentConfirmations || typeof S.condimentConfirmations !== 'object' || Array.isArray(S.condimentConfirmations)) S.condimentConfirmations = {};
+  if (!S.waterTargetOverrides || typeof S.waterTargetOverrides !== 'object' || Array.isArray(S.waterTargetOverrides)) S.waterTargetOverrides = {};
   if (typeof normalizeCheatConfig === 'function') normalizeCheatConfig(S.cheatConfig);
 }
 

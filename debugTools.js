@@ -225,6 +225,7 @@ function validateImportedState(state, options = {}) {
   if ('measurements' in state && !Array.isArray(state.measurements)) return { ok: false, code: 'measurements_invalid', detail: 'Le misurazioni non sono in formato valido.' };
   if ('notes' in state && !_isPlainObject(state.notes)) return { ok: false, code: 'notes_invalid', detail: 'Le note non sono in formato valido.' };
   if ('water' in state && !_isPlainObject(state.water)) return { ok: false, code: 'water_invalid', detail: 'I dati acqua non sono in formato valido.' };
+  if ('waterTargetOverrides' in state && !_isPlainObject(state.waterTargetOverrides)) return { ok: false, code: 'watertargetoverrides_invalid', detail: 'Gli obiettivi acqua manuali non sono in formato valido.' };
   if ('cheatMealsByDate' in state && !_isPlainObject(state.cheatMealsByDate)) return { ok: false, code: 'cheatmeals_invalid', detail: 'Gli sgarri salvati non sono in formato valido.' };
   if ('cheatConfig' in state) {
     const cheatValidation = _validateCheatConfig(state.cheatConfig);
@@ -233,6 +234,7 @@ function validateImportedState(state, options = {}) {
   if ('supplements' in state && !Array.isArray(state.supplements)) return { ok: false, code: 'supplements_invalid', detail: 'Gli integratori non sono in formato valido.' };
   if ('suppChecked' in state && !_isPlainObject(state.suppChecked)) return { ok: false, code: 'suppchecked_invalid', detail: 'Lo stato integratori non e valido.' };
   if ('foodLog' in state && !_isPlainObject(state.foodLog)) return { ok: false, code: 'foodlog_invalid', detail: 'Il food log non e in formato valido.' };
+  if ('condimentConfirmations' in state && !_isPlainObject(state.condimentConfirmations)) return { ok: false, code: 'condimentconfirmations_invalid', detail: 'Le conferme condimenti non sono in formato valido.' };
   if ('doneByDate' in state && !_isPlainObject(state.doneByDate)) return { ok: false, code: 'donebydate_invalid', detail: 'Lo stato giornaliero non e in formato valido.' };
   if ('favoriteFoods' in state && !Array.isArray(state.favoriteFoods)) return { ok: false, code: 'favoritefoods_invalid', detail: 'I cibi preferiti non sono in formato valido.' };
   if ('customFoods' in state && !Array.isArray(state.customFoods)) return { ok: false, code: 'customfoods_invalid', detail: 'I cibi personalizzati non sono in formato valido.' };

@@ -96,10 +96,12 @@ function ensureBootstrapDefaults(state) {
   if (!state.foodCache || typeof state.foodCache !== 'object' || Array.isArray(state.foodCache)) state.foodCache = {};
   if (!state.foodSearchLearn || typeof state.foodSearchLearn !== 'object' || Array.isArray(state.foodSearchLearn)) state.foodSearchLearn = {};
   if (!state.foodLog || typeof state.foodLog !== 'object' || Array.isArray(state.foodLog)) state.foodLog = {};
+  if (!state.condimentConfirmations || typeof state.condimentConfirmations !== 'object' || Array.isArray(state.condimentConfirmations)) state.condimentConfirmations = {};
   if (!Array.isArray(state.templates)) state.templates = [];
   if (!Array.isArray(state.customFoods)) state.customFoods = [];
   if (!Array.isArray(state.favoriteFoods)) state.favoriteFoods = [];
   if (!state.water || typeof state.water !== 'object' || Array.isArray(state.water)) state.water = {};
+  if (!state.waterTargetOverrides || typeof state.waterTargetOverrides !== 'object' || Array.isArray(state.waterTargetOverrides)) state.waterTargetOverrides = {};
   if (!state.cheatMealsByDate || typeof state.cheatMealsByDate !== 'object' || Array.isArray(state.cheatMealsByDate)) state.cheatMealsByDate = {};
   if (!state.mealPlanner || typeof state.mealPlanner !== 'object' || Array.isArray(state.mealPlanner)) {
     state.mealPlanner = {
