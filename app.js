@@ -1073,12 +1073,21 @@ function setPlanTab() {}
 
 function ensurePianoUiState() {
   if (!S.pianoUi || typeof S.pianoUi !== 'object') {
-    S.pianoUi = { activeMealFilter: 'all', templateSort: 'useful_now', helperExpanded: true };
+    S.pianoUi = { activeMealFilter: 'all', templateSort: 'useful_now', helperExpanded: true, activeSubView: 'meals' };
   }
   if (typeof S.pianoUi.activeMealFilter !== 'string') S.pianoUi.activeMealFilter = 'all';
   if (typeof S.pianoUi.templateSort !== 'string') S.pianoUi.templateSort = 'useful_now';
   if (typeof S.pianoUi.helperExpanded !== 'boolean') S.pianoUi.helperExpanded = true;
+  if (!['meals', 'templates'].includes(S.pianoUi.activeSubView)) S.pianoUi.activeSubView = 'meals';
   return S.pianoUi;
+}
+
+function setPianoSubView(view, { render = true } = {}) {
+  const ui = ensurePianoUiState();
+  ui.activeSubView = view === 'templates' ? 'templates' : 'meals';
+  if (ui.activeSubView === 'meals') closeTemplateForm();
+  save();
+  if (render) renderPiano();
 }
 
 function setPianoMealFilter(mealType) {
@@ -1334,6 +1343,7 @@ function _resetTmplMealTypePills(types) {
 }
 
 function openNewTemplate() {
+  if (typeof setPianoSubView === 'function') setPianoSubView('templates', { render: false });
   _editingTmplId = null; _tmplFormItems = [];
   document.getElementById('tf-name').value = '';
   _resetTmplMealTypePills([]);
@@ -1344,6 +1354,7 @@ function openNewTemplate() {
 }
 
 function editTemplate(id) {
+  if (typeof setPianoSubView === 'function') setPianoSubView('templates', { render: false });
   const t = S.templates.find(t=>t.id===id); if (!t) return;
   _editingTmplId = id;
   _tmplFormItems = t.items.map(it=>({...it}));
@@ -1515,7 +1526,7 @@ async function loadTemplateToMeal(tmplId, dateKey, mealIdx) {
 function toggleOnDay(dow) {
   const idx = S.onDays.indexOf(dow);
   if (idx >= 0) {
-    if (S.onDays.length <= 1) { toast('Almeno un giorno ON richiesto'); return; }
+  if (S.onDays.length <= 1) { toast('Almeno un giorno Workout richiesto'); return; }
     S.onDays.splice(idx, 1);
   } else {
     S.onDays.push(dow);
@@ -1690,17 +1701,7 @@ function setGoalPhase(phase, persist = true) {
   if (_r) {
     const fabEl = document.getElementById('fab-preview');
     if (fabEl) {
-      const { bmr, pal, tdee, tdeeRange, formula, components, macroOn, macroOff, calibration } = _r;
-      fabEl.innerHTML = `
-        <div class="fab-row fab-row-top"><span class="fab-label">BMR</span><span class="fab-value">${bmr} kcal</span><span class="fab-note">${formula}</span></div>
-        <div class="fab-row"><span class="fab-label">NEAT</span><span class="fab-value">${components.neat.base} kcal</span><span class="fab-note">${components.neat.label}</span></div>
-        <div class="fab-row"><span class="fab-label">EAT</span><span class="fab-value">${components.eat.base} kcal</span><span class="fab-note">media da allenamento</span></div>
-        <div class="fab-row"><span class="fab-label">TEF</span><span class="fab-value">${Math.round(components.tefPct * 100)}%</span><span class="fab-note">termogenesi del cibo</span></div>
-        <div class="fab-row fab-row-tdee"><span class="fab-label">TDEE</span><span class="fab-value">${tdee} kcal</span><span class="fab-note">${tdeeRange ? `${tdeeRange.low}–${tdeeRange.high} kcal · eq. PAL ${pal}` : `eq. PAL ${pal}`}</span></div>
-        ${calibration?.offsetKcal ? `<div class="fab-row"><span class="fab-label">Calibrazione 14g</span><span class="fab-value">${calibration.offsetKcal > 0 ? '+' : ''}${calibration.offsetKcal} kcal</span><span class="fab-note">${calibration.reason}</span></div>` : ''}
-        <div class="fab-divider"></div>
-        <div class="fab-day-row"><span class="fab-day-label on-lbl">Giorno ON</span><span class="fab-day-kcal">${macroOn.k} kcal</span><span class="fab-day-macros">P ${macroOn.p}g · C ${macroOn.c}g · F ${macroOn.f}g</span></div>
-        <div class="fab-day-row"><span class="fab-day-label off-lbl">Giorno OFF</span><span class="fab-day-kcal">${macroOff.k} kcal</span><span class="fab-day-macros">P ${macroOff.p}g · C ${macroOff.c}g · F ${macroOff.f}g</span></div>`;
+      fabEl.innerHTML = buildFabbisognoPreviewHTML(_r, phase);
     }
   }
 }
@@ -2460,12 +2461,25 @@ function openProfileFavoriteFoods() {
 function openPianoTemplates() {
   closeDayModal();
   goView('piano');
+  if (typeof setPianoSubView === 'function') setPianoSubView('templates', { render: false });
   setTimeout(() => {
     const templateSection = document.querySelector('#view-piano .piano-section-library');
     if (templateSection) {
       templateSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     pulseTodayElement('#view-piano .piano-section-library', 'ui-glow');
+  }, 80);
+}
+
+function openPianoMeals(targetId = '') {
+  closeDayModal();
+  goView('piano');
+  if (typeof setPianoSubView === 'function') setPianoSubView('meals', { render: false });
+  setTimeout(() => {
+    const target = targetId ? document.getElementById(targetId) : null;
+    const section = document.querySelector('#view-piano .piano-section-meals') || document.getElementById('meals-today');
+    (target || section)?.scrollIntoView({ behavior: 'smooth', block: target ? 'center' : 'start' });
+    pulseTodayElement(target ? `#${targetId}` : '#view-piano .piano-section-meals', 'ui-glow');
   }, 80);
 }
 
@@ -3428,51 +3442,52 @@ function _updateFabbisognoPreview() {
     el.innerHTML = `<div class="fab-empty">Completa i campi per vedere il fabbisogno calcolato.</div>`;
     return;
   }
+  el.innerHTML = buildFabbisognoPreviewHTML(result, draftGoal.phase);
+}
+
+function buildFabbisognoPreviewHTML(result, phase = S.goal?.phase) {
   const { bmr, pal, tdee, tdeeRange, formula, components, macroOn, macroOff, calibration } = result;
-  const _isvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`;
-  const phaseLabels = { bulk: 'Bulk — Massa', cut: 'Cut — Definizione', mantieni: 'Mantenimento' };
-  const phaseLabel = phaseLabels[S.goal?.phase] || 'Mantenimento';
-  el.innerHTML = `
-    <div class="fab-row fab-row-top">
-      <span class="fab-label">BMR <button class="fab-info-btn" onmouseenter="showFabBmrTip(this)" onmouseleave="hideTip('tip-fab-bmr')" onclick="showFabBmrTip(this)">${_isvg}</button></span>
-      <span class="fab-value">${bmr} kcal</span>
-      <span class="fab-note">${formula}</span>
+  const phaseLabels = { bulk: 'Bulk - Massa', cut: 'Cut - Definizione', mantieni: 'Mantenimento' };
+  const phaseLabel = phaseLabels[phase] || 'Mantenimento';
+  const rangeText = tdeeRange ? `Range stimato ${tdeeRange.low}-${tdeeRange.high} kcal` : `PAL ${pal}`;
+  const calibHTML = calibration?.offsetKcal
+    ? `<div class="fab-tech-row fab-calibration-row">
+        <span>Calibrazione trend</span>
+        <strong>${calibration.offsetKcal > 0 ? '+' : ''}${calibration.offsetKcal} kcal</strong>
+        <em>${htmlEsc(calibration.reason || 'In base al trend recente')}</em>
+      </div>`
+    : '';
+  return `
+    <div class="fab-summary">
+      <div class="fab-summary-copy">
+        <span class="fab-summary-kicker">Fabbisogno stimato</span>
+        <div class="fab-main-value">${tdee}<span>kcal</span></div>
+        <div class="fab-summary-note">${rangeText} · attività eq. PAL ${pal}</div>
+      </div>
+      <button class="fab-info-btn fab-info-btn--modal" onclick="showFabTdeeTip(this)">Come lo calcoliamo?</button>
     </div>
-    <div class="fab-row">
-      <span class="fab-label">NEAT <button class="fab-info-btn" onmouseenter="showFabPalTip(this)" onmouseleave="hideTip('tip-fab-pal')" onclick="showFabPalTip(this)">${_isvg}</button></span>
-      <span class="fab-value">${components.neat.base} kcal</span>
-      <span class="fab-note">${components.neat.label}</span>
+    <div class="fab-target-head">
+      <span>${phaseLabel}</span>
+      <button class="fab-info-btn fab-info-btn--plain" onclick="showFabGoalTip(this)">Perché questi target?</button>
     </div>
-    <div class="fab-row">
-      <span class="fab-label">EAT <button class="fab-info-btn" onmouseenter="showFabPalTip(this)" onmouseleave="hideTip('tip-fab-pal')" onclick="showFabPalTip(this)">${_isvg}</button></span>
-      <span class="fab-value">${components.eat.base} kcal</span>
-      <span class="fab-note">media allenamento</span>
+    <div class="fab-day-list">
+      <div class="fab-day-row">
+        <span class="fab-day-label on-lbl">Giorno Workout</span>
+        <span class="fab-day-kcal">${macroOn.k} kcal</span>
+        <span class="fab-day-macros">P ${macroOn.p}g · C ${macroOn.c}g · G ${macroOn.f}g</span>
+      </div>
+      <div class="fab-day-row">
+        <span class="fab-day-label off-lbl">Giorno Rest</span>
+        <span class="fab-day-kcal">${macroOff.k} kcal</span>
+        <span class="fab-day-macros">P ${macroOff.p}g · C ${macroOff.c}g · G ${macroOff.f}g</span>
+      </div>
     </div>
-    <div class="fab-row">
-      <span class="fab-label">TEF <button class="fab-info-btn" onmouseenter="showFabPalTip(this)" onmouseleave="hideTip('tip-fab-pal')" onclick="showFabPalTip(this)">${_isvg}</button></span>
-      <span class="fab-value">${Math.round(components.tefPct * 100)}%</span>
-      <span class="fab-note">termogenesi del cibo</span>
-    </div>
-    <div class="fab-row fab-row-tdee">
-      <span class="fab-label">TDEE <button class="fab-info-btn" onmouseenter="showFabTdeeTip(this)" onmouseleave="hideTip('tip-fab-tdee')" onclick="showFabTdeeTip(this)">${_isvg}</button></span>
-      <span class="fab-value">${tdee} kcal</span>
-      <span class="fab-note">${tdeeRange ? `${tdeeRange.low}–${tdeeRange.high} kcal · eq. PAL ${pal}` : `eq. PAL ${pal}`}</span>
-    </div>
-    ${calibration?.offsetKcal ? `<div class="fab-row"><span class="fab-label">Calibrazione 14g</span><span class="fab-value">${calibration.offsetKcal > 0 ? '+' : ''}${calibration.offsetKcal} kcal</span><span class="fab-note">${calibration.reason}</span></div>` : ''}
-    <div class="fab-divider"></div>
-    <div class="fab-goal-header">
-      <span class="fab-goal-phase">${phaseLabel}</span>
-      <button class="fab-info-btn fab-info-btn--goal" onmouseenter="showFabGoalTip(this)" onmouseleave="hideTip('tip-fab-goal')" onclick="showFabGoalTip(this)">${_isvg} perché questi valori?</button>
-    </div>
-    <div class="fab-day-row">
-      <span class="fab-day-label on-lbl">Giorno ON</span>
-      <span class="fab-day-kcal">${macroOn.k} kcal</span>
-      <span class="fab-day-macros">P ${macroOn.p}g · C ${macroOn.c}g · F ${macroOn.f}g</span>
-    </div>
-    <div class="fab-day-row">
-      <span class="fab-day-label off-lbl">Giorno OFF</span>
-      <span class="fab-day-kcal">${macroOff.k} kcal</span>
-      <span class="fab-day-macros">P ${macroOff.p}g · C ${macroOff.c}g · F ${macroOff.f}g</span>
+    <div class="fab-tech-list">
+      <button class="fab-tech-row" onclick="showFabBmrTip(this)"><span>Base metabolica</span><strong>${bmr} kcal</strong><em>${htmlEsc(formula)}</em></button>
+      <button class="fab-tech-row" onclick="showFabPalTip(this)"><span>Movimento quotidiano</span><strong>${components.neat.base} kcal</strong><em>${htmlEsc(components.neat.label)}</em></button>
+      <button class="fab-tech-row" onclick="showFabPalTip(this)"><span>Allenamento medio</span><strong>${components.eat.base} kcal</strong><em>media settimanale</em></button>
+      <button class="fab-tech-row" onclick="showFabPalTip(this)"><span>Digestione</span><strong>${Math.round(components.tefPct * 100)}%</strong><em>effetto termico del cibo</em></button>
+      ${calibHTML}
     </div>`;
 }
 
@@ -4417,19 +4432,22 @@ function updateMealTime(idx) {
   });
   saveSoon();
   const active = document.querySelector('.view.active')?.id;
-  if (active === 'view-today') refreshMealCard(S.day, idx);
+  if (active === 'view-today' || active === 'view-piano') refreshMealCard(S.day, idx);
 }
 
 function setDay(type) {
   const prevType = S.day;
   S.day = type;
   S.planTab = type;
-  document.getElementById('ds-on').className  = 'ds-btn' + (type==='on' ?' on':'');
-  document.getElementById('ds-off').className = 'ds-btn' + (type==='off'?' off':'');
+  const onBtn = document.getElementById('ds-on');
+  const offBtn = document.getElementById('ds-off');
+  if (onBtn) onBtn.className  = 'ds-btn' + (type==='on' ?' on':'');
+  if (offBtn) offBtn.className = 'ds-btn' + (type==='off'?' off':'');
   // Update doneByDate so the calendar cell reflects the new day type immediately
   syncDoneByDate();
   save();
   renderToday();
+  if (document.querySelector('.view.active')?.id === 'view-piano') renderPiano();
   requestAnimationFrame(() => scheduleGreetingStateTransition(prevType, type));
 }
 
@@ -4451,6 +4469,11 @@ function calMove(delta) {
 let _weekCalSwipeBound = false;
 let _weekCalTouchStartX = 0;
 let _weekCalTouchStartY = 0;
+let _weekDayLongPressTimer = null;
+let _weekDayLongPressStartX = 0;
+let _weekDayLongPressStartY = 0;
+let _weekDayLongPressTarget = null;
+let _weekDaySuppressClickUntil = 0;
 let _todaySwipeBound = false;
 let _todaySwipeStartX = 0;
 let _todaySwipeStartY = 0;
@@ -4488,6 +4511,7 @@ function moveSelectedDate(deltaDays) {
   }
   save();
   renderToday();
+  if (document.querySelector('.view.active')?.id === 'view-piano') renderPiano();
 }
 
 function isTodaySwipeIgnoredTarget(target) {
@@ -4524,6 +4548,8 @@ function attachTodaySwipe() {
 function attachWeekCalendarSwipe() {
   const el = document.getElementById('week-cal');
   if (!el || _weekCalSwipeBound) return;
+  attachWeekDayLongPress(el);
+  if (window.matchMedia?.('(max-width: 720px)').matches) return;
   el.addEventListener('touchstart', evt => {
     const touch = evt.changedTouches?.[0];
     if (!touch) return;
@@ -4539,6 +4565,46 @@ function attachWeekCalendarSwipe() {
     calMove(deltaX < 0 ? 1 : -1);
   }, { passive: true });
   _weekCalSwipeBound = true;
+}
+
+function attachWeekDayLongPress(el = document.getElementById('week-cal')) {
+  if (!el || el.dataset.longPressBound === '1') return;
+  const clearPress = () => {
+    clearTimeout(_weekDayLongPressTimer);
+    _weekDayLongPressTimer = null;
+    _weekDayLongPressTarget?.classList.remove('is-long-pressing');
+    _weekDayLongPressTarget = null;
+  };
+  el.addEventListener('pointerdown', evt => {
+    const dayEl = evt.target?.closest?.('.wc-day');
+    if (!dayEl) return;
+    _weekDayLongPressTarget = dayEl;
+    _weekDayLongPressStartX = evt.clientX;
+    _weekDayLongPressStartY = evt.clientY;
+    dayEl.classList.add('is-long-pressing');
+    clearTimeout(_weekDayLongPressTimer);
+    _weekDayLongPressTimer = setTimeout(() => {
+      const dateStr = dayEl.dataset.date;
+      const dayType = dayEl.dataset.dayType;
+      if (!dateStr || !dayType) return;
+      _weekDaySuppressClickUntil = Date.now() + 650;
+      dayEl.classList.remove('is-long-pressing');
+      dayEl.classList.add('long-press-fired');
+      setTimeout(() => dayEl.classList.remove('long-press-fired'), 520);
+      openDayTypeSheet(dateStr, dayType);
+      _weekDayLongPressTarget = null;
+    }, 520);
+  }, { passive: true });
+  el.addEventListener('pointermove', evt => {
+    if (!_weekDayLongPressTarget) return;
+    const dx = Math.abs(evt.clientX - _weekDayLongPressStartX);
+    const dy = Math.abs(evt.clientY - _weekDayLongPressStartY);
+    if (dx > 10 || dy > 10) clearPress();
+  }, { passive: true });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => {
+    el.addEventListener(type, clearPress, { passive: true });
+  });
+  el.dataset.longPressBound = '1';
 }
 
 function calGoToday() {
@@ -4648,12 +4714,15 @@ function pickerGoToday() {
 }
 
 function calSelectDay(dateStr, dayType) {
+  if (Date.now() < _weekDaySuppressClickUntil) return;
   S.selDate = dateStr;
   S.day     = dayType;
   S.planTab = dayType;
   // Update switch buttons visually
-  document.getElementById('ds-on').className  = 'ds-btn' + (dayType==='on' ?' on':'');
-  document.getElementById('ds-off').className = 'ds-btn' + (dayType==='off'?' off':'');
+  const onBtn = document.getElementById('ds-on');
+  const offBtn = document.getElementById('ds-off');
+  if (onBtn) onBtn.className  = 'ds-btn' + (dayType==='on' ?' on':'');
+  if (offBtn) offBtn.className = 'ds-btn' + (dayType==='off'?' off':'');
   // Reset notes-input for the selected date
   const ni = document.getElementById('notes-input');
   if (ni) {
@@ -4664,6 +4733,65 @@ function calSelectDay(dateStr, dayType) {
   save();
   renderToday();
   renderNotes();
+}
+
+function openDayTypeSheet(dateStr, currentType) {
+  const ov = document.getElementById('day-type-sheet-ov');
+  const sheet = document.getElementById('day-type-sheet');
+  if (!ov || !sheet) return;
+  const d = new Date(`${dateStr}T12:00:00`);
+  const label = d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+  const scheduled = getScheduledDayType(dateStr);
+  const effective = currentType || getTrackedDayType(dateStr, scheduled);
+  sheet.innerHTML = `
+    <button class="day-type-sheet-handle" onclick="closeDayTypeSheet()" aria-label="Chiudi"></button>
+    <div class="day-type-sheet-kicker">Cambio giornata</div>
+    <div class="day-type-sheet-title">${label}</div>
+    <div class="day-type-sheet-copy">Imposta il tipo di giornata. Il tap breve sul calendario continua a selezionare il giorno.</div>
+    <div class="day-type-options">
+      <button class="day-type-option workout${effective === 'on' ? ' active' : ''}" onclick="setCalendarDayType('${dateStr}','on')">
+        <span class="day-type-option-rail"></span>
+        <span>
+          <strong>Workout</strong>
+          <small>Target e pasti da giorno di allenamento</small>
+        </span>
+      </button>
+      <button class="day-type-option rest${effective === 'off' ? ' active' : ''}" onclick="setCalendarDayType('${dateStr}','off')">
+        <span class="day-type-option-rail"></span>
+        <span>
+          <strong>Rest</strong>
+          <small>Target e pasti da giorno di riposo</small>
+        </span>
+      </button>
+    </div>
+  `;
+  ov.classList.add('open');
+  lockUiScroll();
+}
+
+function closeDayTypeSheet() {
+  const ov = document.getElementById('day-type-sheet-ov');
+  if (ov) ov.classList.remove('open');
+  unlockUiScroll();
+}
+
+function setCalendarDayType(dateStr, type) {
+  const prevType = S.selDate === dateStr ? S.day : getTrackedDayType(dateStr, getScheduledDayType(dateStr));
+  if (S.selDate === dateStr) {
+    S.day = type;
+    S.planTab = type;
+  }
+  syncDoneByDate(dateStr, type);
+  save();
+  closeDayTypeSheet();
+  renderToday();
+  if (document.querySelector('.view.active')?.id === 'view-piano') renderPiano();
+  requestAnimationFrame(() => {
+    const cell = document.querySelector(`#week-cal .wc-day[data-date="${dateStr}"]`);
+    cell?.classList.add('type-change-feedback');
+    setTimeout(() => cell?.classList.remove('type-change-feedback'), 700);
+    if (S.selDate === dateStr) scheduleGreetingStateTransition(prevType, type);
+  });
 }
 let _noteTimer;
 function onNoteInput(el) {
@@ -4747,21 +4875,21 @@ function macroAlerts() {
   if (mo.p < 110 || mf.p < 110)
     a.push({cls:'err', ico:'🚨 ', msg:`<strong>Target proteine basso:</strong> rischio perdita muscolare. Consigliato ≥  130 g/die.`});
   else if (mo.p > 180)
-    a.push({cls:'warn', ico:'⚠️ ', msg:`Target proteine ON molto alto (${mo.p} g). Oltre 180 g raramente migliora i risultati.`});
+    a.push({cls:'warn', ico:'⚠️ ', msg:`Target proteine Workout molto alto (${mo.p} g). Oltre 180 g raramente migliora i risultati.`});
   if (mo.c < 150)
-    a.push({cls:'warn', ico:'ℹ️ ', msg:`Target carb ON basso (${mo.c} g): rischio calo performance in allenamento.`});
+    a.push({cls:'warn', ico:'ℹ️ ', msg:`Target carb Workout basso (${mo.c} g): rischio calo performance in allenamento.`});
   if (mf.c > mo.c)
-    a.push({cls:'warn', ico:'⚠️ ', msg:`Target carb OFF (${mf.c} g) > ON (${mo.c} g) · solitamente dovrebbe essere il contrario.`});
+    a.push({cls:'warn', ico:'⚠️ ', msg:`Target carb Rest (${mf.c} g) > Workout (${mo.c} g) · solitamente dovrebbe essere il contrario.`});
   if (mo.f < 50)
     a.push({cls:'err', ico:'🚨 ', msg:`Target grassi troppo basso (${mo.f} g): minimo fisiologico ~50 g.`});
   if (mo.k - mf.k < 0)
-    a.push({cls:'warn', ico:'⚠️ ', msg:`Target kcal OFF (${mf.k}) > ON (${mo.k}) · il surplus dovrebbe essere nei giorni di allenamento.`});
+    a.push({cls:'warn', ico:'⚠️ ', msg:`Target kcal Rest (${mf.k}) > Workout (${mo.k}) · il surplus dovrebbe essere nei giorni di allenamento.`});
 
   // ? ?  2. Totali pasti vs target ? ? 
   ['on','off'].forEach(type => {
     const meals = S.meals[type];
     const tgt   = S.macro[type];
-    const label = type === 'on' ? 'ON' : 'OFF';
+    const label = type === 'on' ? 'Workout' : 'Rest';
     const totK = meals.reduce((s,_,i2)=>{const mm=mealMacros(S.meals[type][i2]);return s+mm.kcal;},0);
   const totP = meals.reduce((s,_,i2)=>{const mm=mealMacros(S.meals[type][i2]);return s+mm.p;},0);
   const totC = meals.reduce((s,_,i2)=>{const mm=mealMacros(S.meals[type][i2]);return s+mm.c;},0);

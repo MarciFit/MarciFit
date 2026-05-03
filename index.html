@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=148">
+<link rel="stylesheet" href="style.css?v=154">
 </head>
 <body>
 <div class="app">
@@ -31,7 +31,7 @@
 </div>
 <div class="nav-tabs">
   <button class="nav-tab active" data-view="today" onclick="goView('today')"><i data-lucide="calendar-days" class="nav-tab-icon"></i>Oggi</button>
-  <button class="nav-tab" data-view="piano" onclick="goView('piano')"><i data-lucide="utensils" class="nav-tab-icon"></i>Piano</button>
+  <button class="nav-tab" data-view="piano" onclick="goView('piano')"><i data-lucide="utensils" class="nav-tab-icon"></i>Pasti</button>
   <button class="nav-tab" data-view="stats" onclick="goView('stats')"><i data-lucide="bar-chart-2" class="nav-tab-icon"></i>Stats</button>
   <button class="nav-tab" data-view="profilo" onclick="goView('profilo')"><i data-lucide="user" class="nav-tab-icon"></i>Profilo</button>
 </div>
@@ -50,36 +50,25 @@
     </div>
     <div id="today-signal-row"></div>
     <div id="today-alerts-summary"></div>
-    <div class="today-dashboard-grid">
-      <div class="today-dashboard-block today-summary-card">
-        <div class="today-dashboard-block-head support-mini-head">
-          <div class="support-mini-head-copy">
-            <div class="support-mini-kicker">Oggi</div>
-            <div class="support-mini-title-row">
-              <div class="support-mini-title">Energia e macro</div>
-            </div>
-          </div>
-        </div>
-        <div class="macro-strip" id="macro-strip"></div>
-        <div class="today-recap-divider"></div>
-        <div class="dp-compact">
-          <div class="dp-compact-copy">
-            <span class="dp-compact-kicker">Progress pasti</span>
-            <span id="dp-label" class="dp-compact-label">0 su 4 completati</span>
-          </div>
-          <div class="dp-bar"><div class="dp-fill" id="dp-fill" style="width:0%"></div></div>
-          <div class="dp-compact-actions">
-            <button class="dp-info-btn" onmouseenter="showPastiDistTip(this)" onmouseleave="hideTip('tip-pasti-dist')" onclick="showPastiDistTip(this)" title="Info distribuzione calorie">i</button>
-            <button class="dp-print-btn" onclick="printDay()" title="Stampa / PDF"><i data-lucide="printer" style="width:14px;height:14px;stroke-width:2"></i></button>
-          </div>
-        </div>
+    <div class="macro-strip" id="macro-strip"></div>
+    <div class="today-recap-divider"></div>
+    <div class="dp-compact">
+      <div class="dp-compact-copy">
+        <span class="dp-compact-kicker">Progress pasti</span>
+        <span id="dp-label" class="dp-compact-label">0 su 4 completati</span>
       </div>
+      <div class="dp-bar"><div class="dp-fill" id="dp-fill" style="width:0%"></div></div>
+      <div class="dp-compact-actions">
+        <button class="dp-info-btn" onmouseenter="showPastiDistTip(this)" onmouseleave="hideTip('tip-pasti-dist')" onclick="showPastiDistTip(this)" title="Info distribuzione calorie">i</button>
+      </div>
+    </div>
+    <div class="today-dashboard-grid">
       <div class="today-dashboard-block today-week-card">
         <div class="today-dashboard-block-head support-mini-head">
           <div class="support-mini-head-copy">
             <div class="support-mini-kicker">Settimana</div>
             <div class="support-mini-title-row">
-              <div class="support-mini-title">Calendario attivo</div>
+              <div class="support-mini-title">Calendario</div>
             </div>
           </div>
         </div>
@@ -93,20 +82,6 @@
       </div>
     </div>
   </div>
-
-  <div id="current-meal-focus"></div>
-
-  <div class="today-flow-head">
-    <div class="support-mini-head-copy">
-      <div class="support-mini-kicker">Oggi</div>
-      <div class="support-mini-title-row">
-        <div class="support-mini-title">Pasti di oggi</div>
-      </div>
-      <div class="support-mini-sub">Apri il prossimo pasto utile e registra il resto in pochi tocchi.</div>
-    </div>
-  </div>
-
-  <div class="meals-list" id="meals-today"></div>
 
   <div class="today-support-panel">
     <div class="today-support-head">
@@ -162,19 +137,33 @@
 <!-- VIEW: PIANO -->
 <div class="view" id="view-piano">
   <div class="prog-head piano-head">
-    <div class="prog-title">Piano</div>
-    <div class="prog-sub">Qui tieni pronti i pasti che vuoi richiamare al volo e prepari le prossime mosse.</div>
+    <div class="piano-head-row">
+      <div class="prog-title">Pasti</div>
+      <button class="piano-template-open" onclick="setPianoSubView('templates')" aria-label="Apri template" title="Template">
+        <i data-lucide="layout-list" class="piano-template-open-icon"></i>
+        <span>Template</span>
+      </button>
+    </div>
+    <div class="prog-sub">Compila i pasti della giornata selezionata. Aggiungi alimenti, controlla calorie e macro, e richiama i template quando ti servono.</div>
   </div>
 
-  <!-- SEZIONE: Libreria Template -->
-  <div class="piano-section piano-section-library">
-    <div class="piano-section-head">
+  <div id="current-meal-focus" class="piano-meals-only"></div>
+
+  <div class="piano-section piano-section-meals">
+    <div class="meals-list" id="meals-today"></div>
+  </div>
+
+  <div class="piano-section piano-section-library piano-template-page">
+    <div class="piano-template-page-head">
+      <button class="piano-template-back" onclick="setPianoSubView('meals')" aria-label="Torna ai pasti" title="Torna ai pasti">
+        <i data-lucide="arrow-left" class="piano-template-back-icon"></i>
+      </button>
       <div class="piano-section-copy">
-        <span class="support-mini-kicker">Piano</span>
+        <span class="support-mini-kicker">Libreria pasti</span>
         <div class="support-mini-title-row">
           <span class="support-mini-title">Template</span>
         </div>
-        <span class="support-mini-sub">Salva i pasti che ripeti e usali al volo quando ti servono.</span>
+        <span class="support-mini-sub">Gestisci i pasti salvati, aggiungili alla giornata o modificali quando cambiano le tue abitudini.</span>
       </div>
       <button class="btn btn-ghost piano-add-btn" onclick="openNewTemplate()" aria-label="Nuovo template" title="Nuovo template">+</button>
     </div>
@@ -275,11 +264,6 @@
   <!-- Card: Anagrafica + Obiettivo + Fabbisogno -->
   <div class="stat-section profile-section profile-section-primary" data-profile-section="anagrafica">
     <div class="prof-card-box" id="prof-card"></div>
-  </div>
-
-  <!-- Goal extra fields (data inizio, peso target, note) -->
-  <div class="stat-section profile-section" id="goal-extra-section" data-profile-section="anagrafica">
-    <div id="goal-card"></div>
   </div>
 
   <!-- Card: Orari pasti -->
@@ -447,6 +431,11 @@
 <!-- Calendar month/year picker -->
 <div id="cal-picker" style="display:none;position:fixed;inset:0;background:rgba(24,20,16,.42);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:500;align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)closeCalPicker()"></div>
 
+<!-- Workout/rest bottom sheet -->
+<div id="day-type-sheet-ov" class="day-type-sheet-ov" onclick="if(event.target===this)closeDayTypeSheet()">
+  <div id="day-type-sheet" class="day-type-sheet"></div>
+</div>
+
 <!-- Auth entry -->
 <div id="auth-entry" class="auth-entry-ov" style="display:none"></div>
 
@@ -466,9 +455,9 @@ window.MARCI_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 <script src="mealTaxonomy.js?v=1"></script>
 <script src="templateEngine.js?v=2"></script>
 <script src="mealHelperEngine.js?v=1"></script>
-<script src="uiComponents.js?v=119"></script>
+<script src="uiComponents.js?v=126"></script>
 <script src="bootstrapTools.js?v=7"></script>
-<script src="app.js?v=99"></script>
+<script src="app.js?v=105"></script>
 <script src="barcodeTools.js?v=18"></script>
 <script>lucide.createIcons();</script>
 </body>

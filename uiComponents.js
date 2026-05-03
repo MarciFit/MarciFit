@@ -476,7 +476,7 @@ function getDailyScienceTip(dateKey, dayType='on', phase='mantieni') {
       topic: 'Recupero in bulk',
       phases: ['bulk'],
       contexts: ['off'],
-      text: 'Nel giorno OFF di bulk non conviene tagliare troppo: proteine e calorie coerenti aiutano a trasformare il lavoro accumulato in recupero e adattamento.',
+      text: 'Nel giorno Rest di bulk non conviene tagliare troppo: proteine e calorie coerenti aiutano a trasformare il lavoro accumulato in recupero e adattamento.',
       source: '',
     },
     {
@@ -522,7 +522,7 @@ function getDailyScienceTip(dateKey, dayType='on', phase='mantieni') {
       topic: 'Mantenimento e recupero',
       phases: ['mantieni'],
       contexts: ['off'],
-      text: 'Nel giorno OFF di mantenimento non serve inseguire il minimo calorico: meglio restare regolari e dare spazio a recupero, sonno e aderenza.',
+      text: 'Nel giorno Rest di mantenimento non serve inseguire il minimo calorico: meglio restare regolari e dare spazio a recupero, sonno e aderenza.',
       source: '',
     },
     {
@@ -609,7 +609,7 @@ function getDailyScienceTip(dateKey, dayType='on', phase='mantieni') {
       topic: 'Recupero',
       phases: ['bulk', 'cut', 'mantieni'],
       contexts: ['off'],
-      text: 'Il giorno OFF non e una pausa dal progresso: e il momento in cui sonno, calorie e proteine trasformano lo stimolo dell allenamento in adattamento.',
+      text: 'Il giorno Rest non e una pausa dal progresso: e il momento in cui sonno, calorie e proteine trasformano lo stimolo dell allenamento in adattamento.',
       source: '',
     },
     {
@@ -1387,7 +1387,7 @@ function generateAlerts(type, h, dateKey, maxAlerts = 2) {
       dedupeGroup: 'meal-intake',
       text: 'Non hai ancora loggato pasti oggi',
       ctaLabel: 'Apri il primo pasto',
-      ctaAction: `document.getElementById('mc-${type}-0')?.scrollIntoView({behavior:'smooth',block:'center'})`,
+      ctaAction: `openPianoMeals('mc-${type}-0')`,
     });
   } else if (ctx.isToday && ctx.timePhase === 'late' && ctx.loggedMealsCount === 0) {
     alerts.push({
@@ -1398,7 +1398,7 @@ function generateAlerts(type, h, dateKey, maxAlerts = 2) {
       dedupeGroup: 'meal-intake',
       text: 'Oggi non hai ancora registrato pasti',
       ctaLabel: 'Vai ai pasti',
-      ctaAction: `document.getElementById('meals-today')?.scrollIntoView({behavior:'smooth',block:'start'})`,
+      ctaAction: `openPianoMeals()`,
     });
   } else if (ctx.isToday && ctx.hasLunchSlot && ctx.lunchStatus === 'overdue' && !ctx.hasLunch && ctx.loggedMealsCount > 0 && ctx.timePhase !== 'late' && ctx.timePhase !== 'end') {
     alerts.push({
@@ -1409,7 +1409,7 @@ function generateAlerts(type, h, dateKey, maxAlerts = 2) {
       dedupeGroup: 'meal-intake',
       text: 'Pranzo non ancora registrato',
       ctaLabel: 'Vai al pranzo',
-      ctaAction: `document.getElementById('mc-${type}-${ctx.lunchIndex}')?.scrollIntoView({behavior:'smooth',block:'center'})`,
+      ctaAction: `openPianoMeals('mc-${type}-${ctx.lunchIndex}')`,
     });
   } else if (ctx.isToday && ctx.timePhase === 'midday' && ctx.loggedMealsCount > 0 && ctx.pct < 25) {
     alerts.push({
@@ -1420,7 +1420,7 @@ function generateAlerts(type, h, dateKey, maxAlerts = 2) {
       dedupeGroup: 'meal-intake',
       text: `Apporto ancora basso per quest'ora: ${ctx.eK} kcal finora`,
       ctaLabel: 'Vai al prossimo pasto',
-      ctaAction: `document.getElementById('meals-today')?.scrollIntoView({behavior:'smooth',block:'start'})`,
+      ctaAction: `openPianoMeals()`,
     });
   } else if (ctx.isToday && ctx.timePhase === 'late' && ctx.loggedMealsCount <= 1 && ctx.pct < 45) {
     alerts.push({
@@ -1431,7 +1431,7 @@ function generateAlerts(type, h, dateKey, maxAlerts = 2) {
       dedupeGroup: 'meal-intake',
       text: `Giornata ancora indietro: ${ctx.eK} kcal e ${ctx.loggedMealsCount} past${ctx.loggedMealsCount === 1 ? 'o' : 'i'} loggati`,
       ctaLabel: 'Completa il prossimo pasto',
-      ctaAction: `document.getElementById('meals-today')?.scrollIntoView({behavior:'smooth',block:'start'})`,
+      ctaAction: `openPianoMeals()`,
     });
   }
 
@@ -1474,7 +1474,7 @@ function generateAlerts(type, h, dateKey, maxAlerts = 2) {
         icon: '🍚',
         priority: 65,
         dedupeGroup: 'macro-recovery',
-        text: `Carboidrati bassi per un giorno ON: mancano ${ctx.remC}g`,
+        text: `Carboidrati bassi per un giorno Workout: mancano ${ctx.remC}g`,
         hasSuggest: true,
         remK: Math.max(0, ctx.remK),
         remP: Math.max(0, ctx.remP),
@@ -1613,7 +1613,7 @@ function buildSupportAlertGroups(type, dateKey) {
       priority: Math.max(...trackingAlerts.map(alert => alert.priority || 0), 80),
       text: trackingText,
       ctaLabel: 'Vai ai pasti',
-      ctaAction: `document.getElementById('meals-today')?.scrollIntoView({behavior:'smooth',block:'start'})`,
+      ctaAction: `openPianoMeals()`,
     });
   }
 
@@ -1857,15 +1857,6 @@ function renderGreeting(type, now) {
   // Chip giorno Workout/Rest
   const isOn = resolvedType === 'on';
   const chipTxt = isOn ? 'Giorno Workout' : 'Giorno Rest';
-  const chipIcon = isOn ? '●' : '◐';
-  const dayChip = `<span class="tg-day-chip-wrap">
-    <button class="tg-day-chip tg-day-chip-${isOn ? 'on' : 'off'}" onclick="setDay('${isOn?'off':'on'}')">
-      <span class="tg-day-chip-dot">${chipIcon}</span>
-      <span class="tg-day-chip-text">${chipTxt}</span>
-    </button>
-    <button class="tg-day-chip-help" onmouseenter="showDayModeTip(this)" onmouseleave="hideTip('tip-day-mode')" onclick="showDayModeTip(this);event.stopPropagation()" aria-label="Spiega il cambio tra giorno Workout e giorno Rest" title="Come funziona Workout/Rest">i</button>
-  </span>`;
-
   // Badge fase obiettivo rimosso (tracking settimane rimandato a implementazione futura)
   let goalBadge = '';
 
@@ -1909,7 +1900,6 @@ function renderGreeting(type, now) {
           <div class="tg-date">${isTodayView ? 'Oggi' : 'Selezionato'} · ${DAYS[viewDate.getDay()]} ${viewDate.getDate()} ${MONTHS[viewDate.getMonth()]} ${viewDate.getFullYear()}</div>
         </div>
         <div class="tg-mobile-meta">
-          ${dayChip}
           ${cheatBadge}
         </div>
         <div class="tg-hello">${saluto}, <em>${nome}.</em></div>
@@ -1982,8 +1972,8 @@ function renderTodayQuickActions(type, dateKey) {
   const checkedSupps = new Set((S.suppChecked?.[dateKey]) || []);
   const pendingSupps = (S.supplements || []).filter(s => s.active && !checkedSupps.has(s.id)).length;
   const mealAction = hasMealFocus
-    ? `document.getElementById('${mealState.isExtra ? `mc-extra-${mealState.key}` : `mc-${type}-${mealState.key}`}')?.scrollIntoView({behavior:'smooth',block:'center'})`
-    : `document.getElementById('meals-today')?.scrollIntoView({behavior:'smooth',block:'start'})`;
+    ? `openPianoMeals('${mealState.isExtra ? `mc-extra-${mealState.key}` : `mc-${type}-${mealState.key}`}')`
+    : `openPianoMeals()`;
   const waterCount = (S.water?.[dateKey]) || 0;
   const waterTarget = getWaterTargetInfo(dateKey).glasses;
   const noteValue = (S.notes?.[dateKey] || '').trim();
@@ -2225,40 +2215,23 @@ function renderWeekCal(now) {
 
   const weekMetaEl = document.getElementById('week-cal-meta');
   if (weekMetaEl) {
-    const overrideCount = dayModels.filter(day => day.hasOverride).length;
-    const cheatCount = dayModels.filter(day => day.cheat).length;
-    const fullCount = dayModels.filter(day => day.isFull).length;
-    const chips = [
-      dayModels.filter(day => day.visualOn).length
-        ? `<span class="week-meta-chip workout"><strong>${dayModels.filter(day => day.visualOn).length}</strong> ${dayModels.filter(day => day.visualOn).length === 1 ? 'allenamento' : 'allenamenti'}</span>`
-        : '',
-      cheatCount
-        ? `<span class="week-meta-chip cheat"><strong>${cheatCount}</strong> ${cheatCount === 1 ? 'sgarro' : 'sgarri'} <span class="week-meta-dot" aria-hidden="true"></span></span>`
-        : '',
-    ].filter(Boolean);
-    weekMetaEl.innerHTML = chips.join('');
+    weekMetaEl.innerHTML = '';
   }
 
   document.getElementById('week-cal').innerHTML = dayModels.map(day => {
-    const doneBadge = day.hasDone
-      ? `<div class="wc-done ${day.isFull ? 'full' : 'partial'}${day.cheat ? ' cheat' : ''}" title="${day.doneTitle || ''}"></div>`
-      : '';
+    const typeRail = `<div class="wc-done ${day.visualOn ? 'workout' : 'rest'}" title="${day.typeLabel}"></div>`;
     const eventDots = [
       day.hasOverride ? `<span class="wc-marker wc-marker-override" title="${day.overrideTitle}"></span>` : '',
       day.cheat ? `<span class="wc-marker wc-marker-cheat" title="Sgarro +${day.cheat.extraKcal || 0} kcal"></span>` : '',
     ].filter(Boolean).join('');
-    return `<div class="${day.cls}" onclick="calSelectDay('${day.dStr}','${day.clickType}')" title="${day.cellTitle}">
-      ${doneBadge}
+    return `<div class="${day.cls}" data-date="${day.dStr}" data-day-type="${day.clickType}" onclick="calSelectDay('${day.dStr}','${day.clickType}')" title="${day.cellTitle}">
+      ${typeRail}
       <div class="wc-top">
         <div class="wc-name">${day.dowLabel}</div>
       </div>
       <div class="wc-markers">${eventDots}</div>
       <div class="wc-num-wrap">
         <div class="wc-num">${day.dateNum}</div>
-      </div>
-      <div class="wc-type ${day.visualOn ? 'workout' : 'rest'}">
-        <span class="wc-type-full">${day.typeLabel}</span>
-        <span class="wc-type-compact">${day.typeLabelCompact}</span>
       </div>
     </div>`;
   }).join('');
@@ -2454,7 +2427,7 @@ function renderToday() {
   renderGreeting(type, now);
   renderWeekCal(now);
   if (typeof attachTodaySwipe === 'function') attachTodaySwipe();
-  renderTodayLog(); // cards + macro + alerts + progress
+  renderTodayLog(); // dashboard + support surfaces; meal cards live in Piano
   // Notes
   const noteKey   = S.selDate || localDate(now);
   const noteInput = document.getElementById('notes-input');
@@ -2551,7 +2524,8 @@ function renderTodayLog() {
         : extraMealAddBtnHTML('spuntino', 'Spuntino');
     }
   });
-  document.getElementById('meals-today').innerHTML = _mealsHTML;
+  const mealsEl = document.getElementById('meals-today');
+  if (mealsEl) mealsEl.innerHTML = _mealsHTML;
   renderCurrentMealFocus(type, mealState, dateKey, alertModel);
   renderDashboardAlertSummary(type, dateKey);
   renderTodaySignals(type, dateKey);
@@ -2824,9 +2798,16 @@ function getTemplateMealMetaMap() {
 
 function renderPiano() {
   if (!S.templates) S.templates = [];
+  renderTodayLog();
   const pianoUi = typeof ensurePianoUiState === 'function'
     ? ensurePianoUiState()
-    : { activeMealFilter: 'all', templateSort: 'useful_now', helperExpanded: true };
+    : { activeMealFilter: 'all', templateSort: 'useful_now', helperExpanded: true, activeSubView: 'meals' };
+  const activeSubView = pianoUi.activeSubView === 'templates' ? 'templates' : 'meals';
+  const pianoView = document.getElementById('view-piano');
+  if (pianoView) {
+    pianoView.classList.toggle('is-template-subview', activeSubView === 'templates');
+    pianoView.classList.toggle('is-meals-subview', activeSubView !== 'templates');
+  }
   const activeMealFilter = pianoUi.activeMealFilter || 'all';
   const mealTypeCounts = typeof getTemplateCountsByMealType === 'function'
     ? getTemplateCountsByMealType(S.templates || [])
@@ -3714,7 +3695,7 @@ function getStatsRecoverySummary(range = (S.statsRange || '30d'), resolvedData =
   const actualOnPct = Math.round(data.adherence.onDays / Math.max(1, data.adherence.onDays + data.adherence.offDays) * 100);
   if (onOffDiff != null && onOffDiff >= 120) {
     return {
-      title: 'ON e OFF hanno una separazione energetica leggibile',
+      title: 'Workout e Rest hanno una separazione energetica leggibile',
       body: 'Le giornate di allenamento ricevono piu energia delle rest: il setup e abbastanza coerente con il ritmo settimanale.',
       coach: 'Mantieni semplice questa differenza: e uno dei segnali pratici piu utili che hai gia dentro l app.',
       onOffDiff,
@@ -3724,7 +3705,7 @@ function getStatsRecoverySummary(range = (S.statsRange || '30d'), resolvedData =
   }
   if (onOffDiff != null && onOffDiff < 80) {
     return {
-      title: 'ON e OFF oggi si assomigliano troppo',
+      title: 'Workout e Rest oggi si assomigliano troppo',
       body: 'Il ritmo settimanale c e, ma dal lato kcal le giornate stanno diventando troppo piatte per aiutarti davvero.',
       coach: 'Non serve estremizzare: basta rendere un po piu netta la differenza tra allenamento e recupero.',
       onOffDiff,
@@ -3735,8 +3716,8 @@ function getStatsRecoverySummary(range = (S.statsRange || '30d'), resolvedData =
   if (data.adherence.onDays < 2 || data.adherence.offDays < 2) {
     return {
       title: 'Il recupero e ancora poco leggibile nel periodo scelto',
-      body: 'Ci sono ancora pochi giorni ON/OFF distinti per capire se il ritmo settimanale ti sta aiutando davvero.',
-      coach: 'Con qualche giornata in piu la lettura ON/OFF diventa molto piu concreta.',
+      body: 'Ci sono ancora pochi giorni Workout/Rest distinti per capire se il ritmo settimanale ti sta aiutando davvero.',
+      coach: 'Con qualche giornata in piu la lettura Workout/Rest diventa molto piu concreta.',
       onOffDiff,
       theoreticalOnPct,
       actualOnPct,
@@ -3745,7 +3726,7 @@ function getStatsRecoverySummary(range = (S.statsRange || '30d'), resolvedData =
   return {
     title: 'Il ritmo allenamento-recupero e presente ma non ancora forte',
     body: 'La distribuzione settimanale e leggibile, ma il beneficio pratico dipende da quanto riesci a farla sentire anche nella routine.',
-    coach: 'Qui conta piu la coerenza che la precisione: ON e OFF devono essere diversi in modo semplice.',
+    coach: 'Qui conta piu la coerenza che la precisione: Workout e Rest devono essere diversi in modo semplice.',
     onOffDiff,
     theoreticalOnPct,
     actualOnPct,
@@ -4128,7 +4109,7 @@ function renderStatsRecoveryModule(data, targetId = 'stats-weight') {
             <div class="support-mini-title">Allenamento + recovery</div>
             <span class="support-mini-state ${targetId === 'stats-weight' ? 'done' : 'pending'}">${targetId === 'stats-weight' ? 'segnale principale' : 'supporto'}</span>
           </div>
-          <div class="support-mini-sub">Qui leggi se i giorni ON e OFF stanno davvero lavorando in squadra.</div>
+          <div class="support-mini-sub">Qui leggi se i giorni Workout e Rest stanno davvero lavorando in squadra.</div>
         </div>
         <div class="stats-inline-actions">
           <button class="stats-head-action-btn" onclick="goView('today')">Torna a oggi</button>
@@ -4143,7 +4124,7 @@ function renderStatsRecoveryModule(data, targetId = 'stats-weight') {
         <div class="sc-card">
           <div class="sc-kicker">Distribuzione</div>
           <div class="sc-val">${recovery.actualOnPct}%</div>
-          <div class="sc-lbl">giorni ON reali</div>
+          <div class="sc-lbl">giorni Workout reali</div>
           <div class="sc-sub">teorico ${recovery.theoreticalOnPct}% dal calendario</div>
         </div>
         <div class="sc-card">
@@ -4641,14 +4622,14 @@ function renderRatio(data) {
   const expOnPct = Math.round(S.onDays.length/7*100);
   el.innerHTML = `
     <div class="ratio-labels stats-ratio-labels">
-      <span style="color:var(--on)">ON ${onDays} giorni (${onPct}%)</span>
-      <span style="color:var(--off)">OFF ${offDays} giorni</span>
+      <span style="color:var(--on)">Workout ${onDays} giorni (${onPct}%)</span>
+      <span style="color:var(--off)">Rest ${offDays} giorni</span>
     </div>
     <div class="ratio-bar"><div class="ratio-fill" style="width:${onPct}%"></div></div>
-    <div style="font-size:10px;color:var(--muted);margin-top:4px">Teorico: ${expOnPct}% ON · ${100-expOnPct}% OFF</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:4px">Teorico: ${expOnPct}% Workout · ${100-expOnPct}% Rest</div>
     <div class="ratio-stats">
-      <div class="rs"><div class="rs-v" style="color:var(--on)">${entries.filter(e=>e.type==='on'&&e.done>0&&e.done>=e.total).length}</div><div class="rs-l">ON comp.</div></div>
-      <div class="rs"><div class="rs-v" style="color:var(--off)">${entries.filter(e=>e.type==='off'&&e.done>0&&e.done>=e.total).length}</div><div class="rs-l">OFF comp.</div></div>
+      <div class="rs"><div class="rs-v" style="color:var(--on)">${entries.filter(e=>e.type==='on'&&e.done>0&&e.done>=e.total).length}</div><div class="rs-l">Workout comp.</div></div>
+      <div class="rs"><div class="rs-v" style="color:var(--off)">${entries.filter(e=>e.type==='off'&&e.done>0&&e.done>=e.total).length}</div><div class="rs-l">Rest comp.</div></div>
     </div>`;
 }
 function renderMeasurementsForm(bounds, entryTargetId = 'measurements-entry', logTargetId = 'measurements-log') {
@@ -4701,42 +4682,7 @@ function renderMeasurementsLog(bounds, targetId = 'measurements-log') {
 function renderGoalCard() {
   const el = document.getElementById('goal-card');
   if (!el) return;
-  const g = S.goal;
-  const weeksSince = g.startDate ? Math.floor((new Date()-new Date(g.startDate+'T12:00:00'))/(7*86400000)) : null;
-  const phaseLabel = {bulk:'Bulk 💪',cut:'Cut 🔥',mantieni:'Mantenimento ⚖️'}[g.phase] || g.phase;
-  const phaseState = g.phase === 'bulk' ? 'progress' : g.phase === 'cut' ? 'danger' : 'idle';
-  el.innerHTML = `
-    <div class="goal-card">
-      <div class="profile-card-head support-mini-head">
-        <div class="support-mini-head-copy">
-          <div class="support-mini-kicker">Profilo</div>
-          <div class="support-mini-title-row">
-            <div class="support-mini-title">Obiettivo fase</div>
-            <span class="support-mini-state ${phaseState}">${phaseLabel.replace(/\s*[💪🔥⚖️]/g, '')}</span>
-          </div>
-          <div class="support-mini-sub">Data di partenza, target e note per restare sul pezzo.</div>
-        </div>
-      </div>
-      <div class="goal-extra-head">
-        <span class="goal-extra-phase">${phaseLabel}</span>
-        ${weeksSince!==null?`<span class="goal-extra-weeks">Settimana ${weeksSince+1}</span>`:''}
-      </div>
-      <div class="goal-fields">
-        <div class="goal-field">
-          <label>Data inizio fase</label>
-          <input id="goal-start-date" type="date" value="${g.startDate||''}" onchange="scheduleGoalDetailsAutosave({immediate:true})">
-        </div>
-        <div class="goal-field">
-          <label>Peso target (kg)</label>
-          <input id="goal-target-weight" type="number" step="0.5" value="${g.targetWeight||''}" placeholder="–" oninput="scheduleGoalDetailsAutosave()" onblur="scheduleGoalDetailsAutosave({immediate:true})">
-        </div>
-        <div class="goal-field goal-full">
-          <label>Note obiettivo</label>
-          <textarea id="goal-notes" rows="2" oninput="scheduleGoalDetailsAutosave()" onblur="scheduleGoalDetailsAutosave({immediate:true})">${esc(g.notes||'')}</textarea>
-        </div>
-      </div>
-      <div class="profile-autosave-note">Salvataggio automatico attivo</div>
-    </div>`;
+  el.innerHTML = '';
 }
 function supplementFormHTML(scope, opts = {}) {
   const safeScope = htmlEsc(scope || 'today');
@@ -4825,7 +4771,7 @@ function showWaterTip(anchor) {
   tip.innerHTML = `
     <div class="tip-title">💧 Fabbisogno idrico</div>
     <div class="tip-desc">
-      Formula: <strong>35 ml × kg</strong> di peso corporeo${dayType === 'on' ? ' + <strong>350 ml</strong> giorno ON' : ''}.
+      Formula: <strong>35 ml × kg</strong> di peso corporeo${dayType === 'on' ? ' + <strong>350 ml</strong> giorno Workout' : ''}.
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
         <div style="text-align:center;background:var(--bg);border-radius:6px;padding:6px 4px">
           <div style="font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:500;color:var(--on)">${totalMl} ml</div>
@@ -4836,7 +4782,7 @@ function showWaterTip(anchor) {
           <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-top:2px">Bicchieri (250ml)</div>
         </div>
       </div>
-      ${S.anagrafica?.peso > 0 ? `<div style="margin-top:8px;font-size:11px">Base automatica: ${S.anagrafica.peso} kg × 35 ml = <strong>${baseMl} ml</strong>${bonusMl ? ` + ${bonusMl} ml (giorno ON) = <strong>${autoMl} ml</strong>` : ''}</div>` : '<div style="margin-top:8px;font-size:11px;color:var(--muted)">Inserisci il peso nel Profilo per un calcolo preciso.</div>'}
+      ${S.anagrafica?.peso > 0 ? `<div style="margin-top:8px;font-size:11px">Base automatica: ${S.anagrafica.peso} kg × 35 ml = <strong>${baseMl} ml</strong>${bonusMl ? ` + ${bonusMl} ml (giorno Workout) = <strong>${autoMl} ml</strong>` : ''}</div>` : '<div style="margin-top:8px;font-size:11px;color:var(--muted)">Inserisci il peso nel Profilo per un calcolo preciso.</div>'}
       ${isManual ? `<div style="margin-top:6px;font-size:11px;color:var(--on)">Target manuale attivo per questa data.</div>` : ''}
       <div style="margin-top:6px;font-size:10px;color:var(--muted)">Fonte: linee guida EFSA (2010) — adulti sani in clima temperato.</div>
     </div>`;
@@ -5116,45 +5062,53 @@ function hideTip(id) {
 // --- Fabbisogno section tooltips ---
 
 function showFabBmrTip(anchor) {
-  const el = document.getElementById('tip-fab-bmr');
-  if (!el) return;
-  el.innerHTML = `
-    <div class="tip-title">METABOLISMO BASALE (BMR)</div>
-    <div class="tip-desc">Kcal bruciate a completo riposo — il minimo per le funzioni vitali.<br><br>
-    <strong>Katch-McArdle</strong> (se % grasso disponibile):<br>
-    BMR = 370 + 21.6 × massa magra (kg)<br><br>
-    <strong>Mifflin-St Jeor</strong> (fallback):<br>
-    M: 10×kg + 6.25×cm − 5×età + 5<br>
-    F: 10×kg + 6.25×cm − 5×età − 161</div>`;
-  showTip('tip-fab-bmr', anchor);
+  showDayModal({
+    icon: '⚙️',
+    title: 'Base metabolica',
+    eyebrow: 'Fabbisogno',
+    modalClass: 'day-modal-detail fab-explain-modal',
+    noButtons: true,
+    body: `<div class="fab-modal-copy">
+      <p>È la stima delle calorie che consumeresti in una giornata di riposo completo, solo per mantenere attive le funzioni vitali: respirazione, temperatura corporea, organi, cervello.</p>
+      <p>MarciFit usa la formula più adatta ai dati disponibili. Se hai inserito la percentuale di grasso, può stimare meglio la massa magra; altrimenti usa una formula standard basata su sesso, età, peso e altezza.</p>
+      <p>Non è un obiettivo da mangiare: è la base su cui vengono aggiunti movimento, allenamento e digestione.</p>
+    </div>`
+  });
 }
 
 function showFabPalTip(anchor) {
-  const el = document.getElementById('tip-fab-pal');
-  if (!el) return;
-  el.innerHTML = `
-    <div class="tip-title">ATTIVITÀ QUOTIDIANA</div>
-    <div class="tip-desc"><strong>NEAT</strong> = movimento non strutturato: passi, scale, spostamenti, lavoro dinamico.<br>
-    Nell app viene stimato da stile di vita/professione e, se disponibili, anche dai passi medi giornalieri.<br><br>
-    <strong>EAT</strong> = allenamento strutturato, convertito in media giornaliera settimanale.<br><br>
-    <strong>TEF</strong> = termogenesi del cibo, impostata al 10% come default prudente.</div>`;
-  showTip('tip-fab-pal', anchor);
+  showDayModal({
+    icon: '🚶',
+    title: 'Movimento e attività',
+    eyebrow: 'Fabbisogno',
+    modalClass: 'day-modal-detail fab-explain-modal',
+    noButtons: true,
+    body: `<div class="fab-modal-copy">
+      <p>Qui vengono aggiunte alla base metabolica le calorie legate alla vita reale.</p>
+      <p><strong>Movimento quotidiano</strong>: passi, spostamenti, scale, lavoro e tutto ciò che non è allenamento. Se inserisci i passi medi, la stima diventa più personale.</p>
+      <p><strong>Allenamento medio</strong>: le calorie degli allenamenti vengono distribuite sulla settimana, così il piano resta stabile giorno per giorno.</p>
+      <p><strong>Digestione</strong>: una piccola quota di energia viene usata per digerire e metabolizzare il cibo. L'app usa un valore prudente e stabile.</p>
+    </div>`
+  });
 }
 
 function showFabTdeeTip(anchor) {
-  const el = document.getElementById('tip-fab-tdee');
-  if (!el) return;
-  el.innerHTML = `
-    <div class="tip-title">DISPENDIO ENERGETICO TOTALE (TDEE)</div>
-    <div class="tip-desc"><strong>Total Daily Energy Expenditure</strong> — stima delle kcal bruciate in un giorno medio.<br><br>
-    <strong>Formula</strong>: TDEE = (BMR + NEAT + EAT) / (1 - TEF%)<br><br>
-    Dopo almeno 14 giorni di pesate sufficienti, MarciFit può spostare automaticamente il target di circa 100-150 kcal se il trend non è coerente con la fase.</div>`;
-  showTip('tip-fab-tdee', anchor);
+  showDayModal({
+    icon: '🔥',
+    title: 'Fabbisogno stimato',
+    eyebrow: 'Fabbisogno',
+    modalClass: 'day-modal-detail fab-explain-modal',
+    noButtons: true,
+    body: `<div class="fab-modal-copy">
+      <p>È la stima delle calorie che consumi in un giorno medio. Serve come punto di partenza per calcolare i target di dieta.</p>
+      <p>In pratica: <strong>base metabolica + movimento quotidiano + allenamento + digestione</strong>. Il risultato non è una verità assoluta, ma una stima ragionevole da cui partire.</p>
+      <p>Il range mostrato accanto al valore principale ricorda che il dispendio reale può oscillare: sonno, stress, passi, intensità degli allenamenti e aderenza cambiano il risultato.</p>
+      <p>Dopo abbastanza dati, l'app può calibrare leggermente i target se il peso non si muove come previsto.</p>
+    </div>`
+  });
 }
 
 function showFabGoalTip(anchor) {
-  const el = document.getElementById('tip-fab-goal');
-  if (!el) return;
   const phase = (typeof S !== 'undefined' && S.goal?.phase) || 'mantieni';
   const data = {
     bulk:     { title: 'BULK — MASSA', on: 'TDEE + 200 kcal', off: 'TDEE + 100 kcal', note: 'Surplus moderato: proteine fisse, grassi adeguati e carboidrati come variabile principale per spingere performance e recupero.', prot: '1.7 g/kg · grassi 1.0 g/kg' },
@@ -5162,14 +5116,19 @@ function showFabGoalTip(anchor) {
     mantieni: { title: 'MANTENIMENTO', on: 'TDEE', off: 'TDEE − 100 kcal', note: 'Proteine e grassi restano stabili; i carboidrati completano le calorie residue e sostengono meglio le giornate ON.', prot: '1.6 g/kg · grassi 0.9 g/kg' },
   };
   const d = data[phase] || data.mantieni;
-  el.innerHTML = `
-    <div class="tip-title">${d.title}</div>
-    <div class="tip-desc">
-    <strong>Giorno ON</strong>: ${d.on}<br>
-    <strong>Giorno OFF</strong>: ${d.off}<br><br>
-    ${d.note}<br><br>
-    Proteine target: <strong>${d.prot}</strong></div>`;
-  showTip('tip-fab-goal', anchor);
+  showDayModal({
+    icon: '🎯',
+    title: d.title,
+    eyebrow: 'Target',
+    modalClass: 'day-modal-detail fab-explain-modal',
+    noButtons: true,
+    body: `<div class="fab-modal-copy">
+      <p><strong>Giorno Workout:</strong> ${d.on}. È il giorno in cui l'allenamento richiede più energia e più carboidrati disponibili.</p>
+      <p><strong>Giorno Rest:</strong> ${d.off}. È leggermente più basso perché non deve sostenere la stessa richiesta dell'allenamento.</p>
+      <p>${d.note}</p>
+      <p>Le proteine e i grassi hanno una soglia minima sensata: <strong>${d.prot}</strong>. Le calorie rimanenti vengono assegnate ai carboidrati.</p>
+    </div>`
+  });
 }
 function renderTmplFormItems() {
   const el = document.getElementById('tf-items-list');
@@ -5273,15 +5232,27 @@ function renderAnagrafica() {
   const isPrimaryExpanded = S.profileUi?.activeSection === 'anagrafica' ? true : !!S.profileUi.primaryExpanded;
 
   document.getElementById('prof-card').innerHTML = `
-    <button class="profile-collapse-head${isPrimaryExpanded ? ' expanded' : ''}" onclick="toggleProfilePrimaryCard()">
-      <span class="profile-collapse-title">Dati base e target</span>
-      <span class="profile-collapse-meta">
-        <span class="profile-collapse-badge ${profileStateCls}">${profileStateText}</span>
-        <svg class="profile-collapse-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
-      </span>
-    </button>
-    ${isPrimaryExpanded ? `<div class="profile-collapse-body">
-    <div class="anag-section-title">Anagrafica</div>
+    <div class="profile-anag-stack">
+      <section class="profile-subcard profile-fab-subcard">
+        <div class="profile-subcard-head">
+          <div>
+            <div class="anag-section-title">Fabbisogno</div>
+            <div class="profile-subcard-title">Target giornalieri</div>
+          </div>
+          <span class="profile-collapse-badge ${profileStateCls}">${profileStateText}</span>
+        </div>
+        <div class="fabbisogno-card" id="fab-preview">
+          <div class="fab-empty">Caricamento…</div>
+        </div>
+      </section>
+
+      <section class="profile-subcard">
+        <div class="profile-subcard-head">
+          <div>
+            <div class="anag-section-title">Anagrafica</div>
+            <div class="profile-subcard-title">Dati base</div>
+          </div>
+        </div>
     <div class="anag-grid">
       <div class="anag-field anag-field-name">
         <div class="field-label-row">
@@ -5348,8 +5319,15 @@ function renderAnagrafica() {
         <div class="anag-field-error" id="anag-error-passi"></div>
       </div>
     </div>
+      </section>
 
-    <div class="anag-section-title" style="margin-top:22px">Attività</div>
+      <section class="profile-subcard">
+        <div class="profile-subcard-head">
+          <div>
+            <div class="anag-section-title">Attività</div>
+            <div class="profile-subcard-title">Movimento e allenamento</div>
+          </div>
+        </div>
     <div class="anag-field anag-field-wide" style="margin-bottom:12px">
       <label class="anag-label">Professione</label>
       <div class="pdrop" id="pdrop">
@@ -5364,20 +5342,21 @@ function renderAnagrafica() {
       <label class="anag-label">Allenamenti / sett.</label>
       <div class="freq-toggle">${freqBtns}</div>
     </div>
+      </section>
 
-    <div class="anag-section-title" style="margin-top:22px">Obiettivo</div>
-    <div class="goal-card" style="margin-bottom:0">
+      <section class="profile-subcard profile-target-subcard">
+        <div class="profile-subcard-head">
+          <div>
+            <div class="anag-section-title">Target</div>
+            <div class="profile-subcard-title">Obiettivo nutrizionale</div>
+          </div>
+        </div>
       <div class="goal-phase-btns">${phaseBtns}</div>
       <div class="goal-phase-desc" id="goal-phase-desc">${activePhaseDesc}</div>
-    </div>
+      </section>
 
-    <div class="anag-section-title" style="margin-top:22px">Fabbisogno</div>
-    <div class="fabbisogno-card" id="fab-preview">
-      <div class="fab-empty">Caricamento…</div>
-    </div>
-
-    <div class="profile-autosave-note">Salvataggio automatico attivo</div>
-    </div>` : ''}`;
+      <div class="profile-autosave-note">Salvataggio automatico attivo</div>
+    </div>`;
 
   // ── Card 2: Orari pasti ──
   const timesEl = document.getElementById('prof-times-card');
