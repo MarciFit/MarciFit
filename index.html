@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=164">
+<link rel="stylesheet" href="style.css?v=171">
 </head>
 <body>
 <div class="app">
@@ -65,6 +65,25 @@
     </div>
   </div>
 
+  <div class="today-dashboard-block today-week-card today-week-secondary is-collapsed">
+    <button class="today-week-toggle" type="button" onclick="this.closest('.today-week-secondary').classList.toggle('is-collapsed')" aria-label="Espandi o comprimi calendario settimana">
+      <div class="support-mini-head-copy">
+        <div class="support-mini-kicker">Settimana</div>
+        <div class="support-mini-title-row">
+          <div class="support-mini-title">Settimana</div>
+        </div>
+      </div>
+      <span class="today-week-toggle-icon">&#x203A;</span>
+    </button>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="cal-prev" onclick="calMove(-1)">&#x2039;</button>
+      <span class="cal-nav-title" id="cal-title" onclick="openCalPicker()"></span>
+      <button class="cal-nav-btn" id="cal-next" onclick="calMove(+1)">&#x203A;</button>
+    </div>
+    <div class="week-cal-meta" id="week-cal-meta"></div>
+    <div class="week-cal" id="week-cal"></div>
+  </div>
+
   <div class="today-support-panel">
     <div class="today-support-head">
       <div class="support-mini-head-copy">
@@ -85,25 +104,6 @@
         </div>
       </div>
     </div>
-  </div>
-
-  <div class="today-dashboard-block today-week-card today-week-secondary is-collapsed">
-    <button class="today-week-toggle" type="button" onclick="this.closest('.today-week-secondary').classList.toggle('is-collapsed')" aria-label="Espandi o comprimi calendario settimana">
-      <div class="support-mini-head-copy">
-        <div class="support-mini-kicker">Settimana</div>
-        <div class="support-mini-title-row">
-          <div class="support-mini-title">Settimana</div>
-        </div>
-      </div>
-      <span class="today-week-toggle-icon">&#x203A;</span>
-    </button>
-    <div class="cal-nav">
-      <button class="cal-nav-btn" id="cal-prev" onclick="calMove(-1)">&#x2039;</button>
-      <span class="cal-nav-title" id="cal-title" onclick="openCalPicker()"></span>
-      <button class="cal-nav-btn" id="cal-next" onclick="calMove(+1)">&#x203A;</button>
-    </div>
-    <div class="week-cal-meta" id="week-cal-meta"></div>
-    <div class="week-cal" id="week-cal"></div>
   </div>
 
 </div>
@@ -423,15 +423,15 @@ window.MARCI_SUPABASE_URL = 'https://rlwwzdfcvdouytelqxdf.supabase.co';
 window.MARCI_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsd3d6ZGZjdmRvdXl0ZWxxeGRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDExNTgsImV4cCI6MjA4OTc3NzE1OH0.0iguqJgjBHp34OnthGTJnaFX-T4xfd5a3eSEJDmm5UM';
 </script>
 <script src="debugTools.js?v=5"></script>
-<script src="authSync.js?v=17"></script>
+<script src="authSync.js?v=21"></script>
 <script src="storage.js?v=42"></script>
 <script src="nutritionLogic.js?v=57"></script>
 <script src="mealTaxonomy.js?v=1"></script>
 <script src="templateEngine.js?v=2"></script>
 <script src="mealHelperEngine.js?v=1"></script>
-<script src="uiComponents.js?v=130"></script>
+<script src="uiComponents.js?v=133"></script>
 <script src="bootstrapTools.js?v=7"></script>
-<script src="app.js?v=106"></script>
+<script src="app.js?v=108"></script>
 <script src="barcodeTools.js?v=18"></script>
 <script>lucide.createIcons();</script>
 </body>

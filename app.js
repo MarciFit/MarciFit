@@ -435,6 +435,7 @@ function syncLoggedMealState(dateKey, mealIdx, type = S.day) {
   syncDoneByDate(dateKey, type);
 }
 let _modalConfirmFn = null;
+let _modalCloseTimer = null;
 let _uiScrollLockDepth = 0;
 let _uiScrollLockY = 0;
 let _greetingTransitionTimer = null;
@@ -631,6 +632,9 @@ function showDayModal({icon, title, body, onConfirm, danger = false, noButtons =
   bodyEl.style.marginBottom = noButtons ? '0' : '20px';
   _modalConfirmFn = onConfirm;
   const ov = document.getElementById('day-modal-ov');
+  clearTimeout(_modalCloseTimer);
+  ov.classList.remove('closing');
+  ov.classList.add('open');
   ov.style.zIndex = '980';
   ov.style.display = 'flex';
   lockUiScroll();
@@ -687,7 +691,7 @@ function askAuthStateConflictChoice(conflict) {
       eyebrow: 'Profilo',
       title: 'Abbiamo trovato due versioni del tuo profilo',
       body: `
-        <div class="sync-choice-lead">Abbiamo trovato una copia su ${htmlEsc(contextLabel)} e una nel cloud. Scegli quale aprire adesso.</div>
+        <div class="sync-choice-lead">Abbiamo trovato due versioni del tuo profilo. Scegli quale aprire adesso.</div>
         <div class="sync-choice-stack">
           <div class="sync-choice-item">
             <div class="sync-choice-item-top">
@@ -696,23 +700,23 @@ function askAuthStateConflictChoice(conflict) {
               ${getAuthConflictPresenceChip(conflict, 'local')}
             </div>
             <div class="sync-choice-time">${localTime}</div>
-            <div class="sync-choice-copy">Continui dalla copia che hai su questo dispositivo e la tieni come base.</div>
+            <div class="sync-choice-copy">Continui dalla versione presente su questo dispositivo.</div>
           </div>
           <div class="sync-choice-sep">oppure</div>
           <div class="sync-choice-item">
             <div class="sync-choice-item-top">
-              <span class="sync-choice-chip">Cloud account</span>
+              <span class="sync-choice-chip">Versione account</span>
               ${getAuthConflictBadge(conflict, 'remote')}
               ${getAuthConflictPresenceChip(conflict, 'remote')}
             </div>
             <div class="sync-choice-time">${remoteTime}</div>
-            <div class="sync-choice-copy">Apri la versione trovata nel cloud e usala come nuovo punto di partenza.</div>
+            <div class="sync-choice-copy">Apri la versione salvata nel tuo account.</div>
           </div>
         </div>
-        <div class="sync-choice-foot">Scegli la versione che contiene davvero i dati giusti per te: poi MarciFit riallinea il resto.</div>
+        <div class="sync-choice-foot">Scegli la versione che contiene i dati giusti. Poi MarciFit terra tutto aggiornato automaticamente.</div>
       `,
-      confirmText: 'Usa il cloud',
-      cancelText: 'Tieni questa',
+      confirmText: 'Usa versione account',
+      cancelText: 'Usa questa versione',
       onConfirm: () => resolve('remote'),
       modalClass: 'day-modal-detail day-modal-sync-choice',
     });
@@ -727,12 +731,23 @@ function askAuthStateConflictChoice(conflict) {
 }
 function closeDayModal() {
   const ov = document.getElementById('day-modal-ov');
-  ov.style.display = 'none';
-  ov.style.zIndex = '400';
   const card = document.getElementById('day-modal-card');
-  if (card) card.className = 'day-modal-card';
   _modalConfirmFn = null;
-  unlockUiScroll();
+  if (!ov || ov.style.display === 'none') {
+    if (card) card.className = 'day-modal-card';
+    unlockUiScroll();
+    return;
+  }
+  clearTimeout(_modalCloseTimer);
+  ov.classList.remove('open');
+  ov.classList.add('closing');
+  _modalCloseTimer = setTimeout(() => {
+    ov.style.display = 'none';
+    ov.style.zIndex = '400';
+    ov.classList.remove('closing');
+    if (card) card.className = 'day-modal-card';
+    unlockUiScroll();
+  }, 240);
 }
 function syncDoneByDate(dateKey = (S.selDate || localDate()), type = S.day) {
   const info = getDayCompletion(dateKey, type);
@@ -1992,6 +2007,11 @@ function toggleLogSearch(domKey, options = {}) {
   sheet.classList.remove('is-expanded');
   sheet.dataset.state = 'compact';
   ov.classList.add('open');
+  requestAnimationFrame(() => {
+    sheet.classList.add('ui-press-pop');
+    setTimeout(() => sheet.classList.remove('ui-press-pop'), 360);
+  });
+  if (ctx.domKey) pulseTodayElement('#current-meal-focus .current-meal-primary', 'ui-glow');
 }
 
 function closeLogSearch(domKey = null) {
@@ -2010,7 +2030,7 @@ function closeLogSearch(domKey = null) {
     _foodSearchSheetCloseTimer = setTimeout(() => {
       if (body) body.innerHTML = '';
       ov.classList.remove('open', 'closing');
-      sheet?.classList.remove('is-expanded');
+      sheet?.classList.remove('is-expanded', 'is-dragging', 'ui-press-pop');
       if (sheet) {
         sheet.style.height = '';
         sheet.style.transition = '';
@@ -2019,7 +2039,7 @@ function closeLogSearch(domKey = null) {
   } else {
     if (body) body.innerHTML = '';
     ov?.classList.remove('open', 'closing');
-    sheet?.classList.remove('is-expanded');
+    sheet?.classList.remove('is-expanded', 'is-dragging', 'ui-press-pop');
     if (sheet) {
       sheet.style.height = '';
       sheet.style.transition = '';
@@ -2052,6 +2072,7 @@ function startFoodSearchSheetDrag(event) {
   let lastY = startY;
   let dragged = false;
   sheet.setPointerCapture?.(event.pointerId);
+  sheet.classList.add('is-dragging');
   sheet.style.transition = 'none';
   const onMove = moveEvent => {
     const dy = moveEvent.clientY - startY;
@@ -2084,6 +2105,7 @@ function startFoodSearchSheetDrag(event) {
       setTimeout(() => { if (!sheet.classList.contains('is-expanded')) sheet.style.height = ''; }, 460);
     }
     if (_foodSearchSheetDragged) setTimeout(() => { _foodSearchSheetDragged = false; }, 220);
+    sheet.classList.remove('is-dragging');
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
   };
@@ -3548,8 +3570,39 @@ function buildFabbisognoPreviewHTML(result, phase = S.goal?.phase) {
 
 let _anagAutosaveTimer = null;
 
+function isEditingAnagrafica() {
+  const el = document.activeElement;
+  return !!(el && el.closest && el.closest('[data-profile-section="anagrafica"]') && el.matches('input,textarea,select'));
+}
+
+function captureProfileEditState() {
+  const el = document.activeElement;
+  if (!el || !el.id || !el.closest('[data-profile-section="anagrafica"]')) return null;
+  return {
+    id: el.id,
+    scrollY: window.scrollY,
+    start: typeof el.selectionStart === 'number' ? el.selectionStart : null,
+    end: typeof el.selectionEnd === 'number' ? el.selectionEnd : null,
+  };
+}
+
+function restoreProfileEditState(state) {
+  if (!state) return;
+  requestAnimationFrame(() => {
+    const el = document.getElementById(state.id);
+    if (el && typeof el.focus === 'function') {
+      el.focus({ preventScroll: true });
+      if (state.start != null && typeof el.setSelectionRange === 'function') {
+        try { el.setSelectionRange(state.start, state.end ?? state.start); } catch (_) {}
+      }
+    }
+    if (Number.isFinite(state.scrollY)) window.scrollTo(0, state.scrollY);
+  });
+}
+
 function persistAnagraficaDraft(options = {}) {
   const { silent = true, rerenderAfter = false } = options;
+  const editingAnagrafica = isEditingAnagrafica();
   const validation = validateAnagraficaDraft(_readAnagForm());
   _renderAnagFieldErrors(validation.fieldErrors);
   if (!validation.ok) {
@@ -3569,9 +3622,15 @@ function persistAnagraficaDraft(options = {}) {
   }
   syncProfileRowsFromAnagrafica();
   saveSoon();
-  if (typeof authEnsureRemoteProfile === 'function') authEnsureRemoteProfile().catch(() => {});
-  if (typeof authQueueStateSync === 'function') authQueueStateSync();
-  if (rerenderAfter) rerender();
+  if (!editingAnagrafica) {
+    if (typeof authEnsureRemoteProfile === 'function') authEnsureRemoteProfile().catch(() => {});
+    if (typeof authQueueStateSync === 'function') authQueueStateSync();
+  }
+  if (rerenderAfter) {
+    const editState = captureProfileEditState();
+    rerender();
+    restoreProfileEditState(editState);
+  }
   return true;
 }
 
@@ -3665,7 +3724,8 @@ function renderAuthEntry() {
   const attemptDiag = typeof authGetLastAttemptDiagnostics === 'function'
     ? authGetLastAttemptDiagnostics()
     : null;
-  const attemptHtml = attemptDiag && mode !== 'gateway' ? `
+  const showAuthAttemptDebug = typeof authShowDevelopmentUi === 'function' && authShowDevelopmentUi();
+  const attemptHtml = showAuthAttemptDebug && attemptDiag && mode !== 'gateway' ? `
     <div class="auth-attempt-box">
       <div class="auth-attempt-head">Diagnostica ultimo tentativo${attemptDiag.email ? ` · ${htmlEsc(attemptDiag.email)}` : ''}</div>
       ${attemptDiag.lines.map(line => `
@@ -3754,7 +3814,7 @@ function renderAuthEntry() {
           <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.password)}" oninput="setAuthField('password', this.value)" placeholder="La tua password" ${isPending ? 'disabled' : ''}>
         </div>
         ${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? `<button class="auth-entry-inline-link" type="button" onclick="requestPasswordReset()" ${isPending ? 'disabled' : ''}>Password dimenticata?</button>` : ''}
-        <div class="auth-entry-callout">Se la copia locale e quella cloud non coincidono, ti facciamo scegliere in modo chiaro prima di continuare.</div>
+        <div class="auth-entry-callout">Se troviamo due versioni del profilo, ti aiutiamo a scegliere quella giusta prima di continuare.</div>
       </div>`;
   }
 
@@ -3854,7 +3914,7 @@ async function finalizeAuthEntrySuccess(successMessage, options = {}) {
       if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
       didImmediateBootstrap = true;
       if (typeof authRecordAttemptStage === 'function') {
-        authRecordAttemptStage('bootstrap', 'success', 'Cache account trovata e aperta subito');
+        authRecordAttemptStage('bootstrap', 'success', 'Profilo salvato trovato e aperto subito');
       }
     }
   }
@@ -4513,7 +4573,12 @@ function rerender() {
   if (active==='view-today')   renderToday();
   if (active==='view-piano')   renderPiano();
   if (active==='view-stats')   renderStats();
-  if (active==='view-profilo') renderProfile();
+  if (active==='view-profilo') {
+    if (isEditingAnagrafica()) return;
+    const editState = captureProfileEditState();
+    renderProfile();
+    restoreProfileEditState(editState);
+  }
 }
 function calMove(delta) {
   S.calOffset = S.calOffset + delta;
@@ -5047,12 +5112,12 @@ async function initAll() {
         toast(
           authConflictResolution?.choice === 'local'
             ? '✅ Abbiamo tenuto questa versione'
-            : '✅ Abbiamo tenuto e riallineato la versione locale piu recente'
+            : '✅ Abbiamo tenuto e aggiornato la versione piu recente su questo dispositivo'
         );
       }
       else if (!syncResult?.skipped) toast(`⚠️ ${syncResult.message || 'Aggiornamento del profilo non riuscito'}`);
     } else if (authConflictResolution?.choice === 'remote') {
-      toast('✅ Abbiamo caricato la versione cloud');
+      toast('✅ Abbiamo caricato la versione account');
     }
   } catch (err) {
     console.error('initAll failed', err);

@@ -256,13 +256,13 @@ function authDescribeBootstrapSource(source = AUTH.bootstrapSource) {
     case 'guest_seed':
       return 'Dati guest collegati';
     case 'remote':
-      return 'Cloud';
+      return 'Account';
     case 'local':
-      return 'Cache account';
+      return 'Profilo salvato';
     case 'local_resume':
-      return 'Cache locale ripresa';
+      return 'Profilo trovato';
     case 'local_reset':
-      return 'Reset locale';
+      return 'Profilo ripristinato';
     case 'empty':
       return 'Nessun dato trovato';
     case 'account_connected':
@@ -270,7 +270,7 @@ function authDescribeBootstrapSource(source = AUTH.bootstrapSource) {
     case 'awaiting_email':
       return 'Conferma email';
     case 'cloud_push':
-      return 'Cloud aggiornato';
+      return 'Profilo aggiornato';
     case 'error':
       return 'Serve attenzione';
     default:
@@ -299,7 +299,7 @@ function authAttemptMaskEmail(email) {
 function authAttemptStageLabel(stage) {
   switch (stage) {
     case 'auth_gateway':
-      return 'Gateway auth';
+      return 'Servizio accesso';
     case 'sign_in':
       return 'Login account';
     case 'sign_in_fallback':
@@ -307,7 +307,7 @@ function authAttemptStageLabel(stage) {
     case 'profile_sync':
       return 'Profilo base';
     case 'remote_state':
-      return 'Stato cloud';
+      return 'Profilo account';
     case 'bootstrap':
       return 'Apertura profilo';
     case 'done':
@@ -406,6 +406,13 @@ function authGatewayFailureHelp() {
   return `${standaloneHint} Se usi VPN, Private Relay, DNS filtrato o adblock, disattivali un attimo e ritenta.`;
 }
 
+function authFriendlyAccessIssueMessage(hasDeviceProfile = false) {
+  const profileCopy = hasDeviceProfile
+    ? ' Il profilo su questo dispositivo resta disponibile.'
+    : '';
+  return `Non siamo riusciti ad aprire il profilo. Riprova tra poco.${profileCopy}`;
+}
+
 function authGetAccountDiagnostics() {
   authUpdateClientContext();
   const meta = authReadStateMeta();
@@ -417,46 +424,42 @@ function authGetAccountDiagnostics() {
   const dirty = !!meta.dirty;
   const standaloneSessionNote = authGetStandaloneSessionNote();
 
-  let storageLabel = 'Guest locale';
+  let storageLabel = 'Profilo ospite';
   let storageTone = 'guest';
   let statusDetail = 'Stai usando i dati salvati solo su questo dispositivo.';
-  let syncDetail = standaloneSessionNote || 'Le modifiche restano qui finche non colleghi un account.';
-  let scopeLabel = 'Spazio guest di questo dispositivo';
+  let syncDetail = standaloneSessionNote || 'Accedi per ritrovare il profilo anche dal tuo account.';
+  let scopeLabel = 'Questo dispositivo';
 
   if (authIsAuthenticated() && AUTH.provider === 'supabase') {
-    storageLabel = bootstrapDiag.sourceLabel === 'Cloud'
-      ? 'Cloud + cache account'
-      : 'Cache account';
-    storageTone = bootstrapDiag.sourceLabel === 'Cloud' ? 'cloud' : 'local';
-    scopeLabel = 'Cache dedicata a questo account';
-    statusDetail = bootstrapDiag.sourceLabel === 'Cloud'
-      ? 'Hai aperto il profilo dal cloud e ora lavori sulla cache del tuo account in questo dispositivo.'
-      : 'Stai lavorando sulla cache del tuo account in questo dispositivo.';
+    storageLabel = 'Profilo account';
+    storageTone = AUTH.bootstrapSource === 'remote' ? 'cloud' : 'local';
+    scopeLabel = 'Profilo salvato';
+    statusDetail = 'Il tuo profilo account e attivo.';
     if (AUTH.isSyncing) {
-      syncDetail = 'Stiamo allineando le ultime modifiche al cloud.';
+      syncDetail = 'Aggiornamento automatico in corso.';
     } else if (dirty) {
-      syncDetail = 'Ci sono modifiche locali da inviare al cloud.';
+      syncDetail = 'Le modifiche verranno salvate automaticamente.';
     } else if (lastSyncedAt) {
-      syncDetail = `Cloud allineato: ${authFormatSyncTime(lastSyncedAt)}.`;
+      syncDetail = `Aggiornato automaticamente: ${authFormatSyncTime(lastSyncedAt)}.`;
     } else {
       syncDetail = hasMeaningfulLocal
-        ? 'Account attivo: il primo sync cloud verra completato appena possibile.'
+        ? 'Account attivo: il primo aggiornamento automatico verra completato appena possibile.'
         : 'Account attivo: aspettiamo solo il primo dato da salvare.';
     }
   } else if (authIsAuthenticated()) {
-    storageLabel = 'Solo locale';
+    storageLabel = 'Profilo account';
     storageTone = 'local';
-    scopeLabel = 'Cache dedicata a questo account';
+    scopeLabel = 'Questo dispositivo';
     statusDetail = 'Questo profilo resta salvato solo su questo dispositivo.';
     syncDetail = authCanUseSupabase()
-      ? 'Per ritrovarlo anche altrove, entra con email e attiva il cloud.'
-      : 'Il cloud non e attivo in questo ambiente.';
+      ? 'Accedi con email per ritrovare il profilo anche dal tuo account.'
+      : 'Il salvataggio account non e disponibile in questo ambiente.';
   } else if (AUTH.localRecoveryKey) {
-    storageLabel = 'Cache account locale';
+    storageLabel = 'Profilo trovato';
     storageTone = 'local';
-    scopeLabel = 'Cache dedicata all ultimo profilo aperto';
-    statusDetail = 'Stiamo usando la copia locale ritrovata su questo dispositivo.';
-    syncDetail = standaloneSessionNote || 'Per riallinearla con il cloud, accedi di nuovo al tuo account.';
+    scopeLabel = 'Questo dispositivo';
+    statusDetail = 'Stiamo usando il profilo trovato su questo dispositivo.';
+    syncDetail = standaloneSessionNote || 'Accedi per ritrovarlo nel tuo account.';
   }
 
   return {
@@ -580,12 +583,12 @@ function authFormatSyncTime(iso) {
 
 function authStatusMeta() {
   if (AUTH.needsEmailConfirmation) return { label: 'Controlla email', cls: 'pending' };
-  if (AUTH.isSyncing) return { label: 'Sync in corso', cls: 'syncing' };
+  if (AUTH.isSyncing) return { label: 'Account', cls: 'connected' };
   if (authIsAuthenticated() && AUTH.provider === 'supabase') {
-    return { label: AUTH.lastSyncedAt ? 'Cloud attivo' : 'Cloud pronto', cls: 'connected' };
+    return { label: 'Account', cls: 'connected' };
   }
-  if (authIsAuthenticated() && AUTH.provider === 'local_mock') return { label: 'Solo locale', cls: 'local' };
-  if (AUTH.localRecoveryKey) return { label: 'Ripresa locale', cls: 'local' };
+  if (authIsAuthenticated() && AUTH.provider === 'local_mock') return { label: 'Account', cls: 'local' };
+  if (AUTH.localRecoveryKey) return { label: 'Profilo', cls: 'local' };
   return { label: 'Guest', cls: 'guest' };
 }
 
@@ -669,7 +672,7 @@ function authGetSupabaseClient() {
 
 async function authSignInViaDirectHttp(email, password) {
   if (!authCanUseSupabase()) {
-    return { ok: false, message: 'Auth cloud non configurato' };
+    return { ok: false, message: 'Servizio di accesso non configurato' };
   }
   try {
     let payload = null;
@@ -747,11 +750,11 @@ async function authSignInViaDirectHttp(email, password) {
           access_token: accessToken,
           refresh_token: refreshToken,
         }),
-        'La sessione cloud non si e allineata in tempo',
+        'L accesso sta impiegando troppo tempo',
         AUTH_ASYNC_TIMEOUT_MS
       );
       if (error) {
-        return { ok: false, message: error.message || 'Sessione cloud non disponibile dopo il login diretto' };
+        return { ok: false, message: error.message || 'Accesso non disponibile in questo momento' };
       }
       return {
         ok: true,
@@ -769,17 +772,17 @@ async function authSignInViaDirectHttp(email, password) {
 
 async function authProbeAuthGateway() {
   if (!authCanUseSupabase()) {
-    return { ok: false, skipped: true, message: 'Auth cloud non configurato' };
+    return { ok: false, skipped: true, message: 'Servizio di accesso non configurato' };
   }
   if (typeof window !== 'undefined' && window.__mfFakeSupabaseState && !window.__mfForceGatewayProbe) {
-    return { ok: true, message: 'Gateway auth fake disponibile' };
+    return { ok: true, message: 'Servizio di accesso disponibile' };
   }
   try {
     if (authCanUseLocalProxy()) {
       return {
         ok: true,
         skipped: true,
-        message: 'Gateway auth delegato al proxy locale',
+        message: 'Servizio di accesso pronto',
       };
     }
     const cfg = authResolveSupabaseConfig();
@@ -792,15 +795,15 @@ async function authProbeAuthGateway() {
         },
         cache: 'no-store',
       }),
-      'Il gateway auth non risponde in tempo',
+      'Il servizio di accesso non risponde in tempo',
       4500
     );
     if ([200, 401, 403].includes(response.status)) {
-      return { ok: true, status: response.status, message: `Gateway auth raggiunto (${response.status})` };
+      return { ok: true, status: response.status, message: `Servizio di accesso raggiunto (${response.status})` };
     }
-    return { ok: false, status: response.status, message: `Gateway auth ha risposto ${response.status}` };
+    return { ok: false, status: response.status, message: `Il servizio di accesso ha risposto ${response.status}` };
   } catch (err) {
-    return { ok: false, message: err?.message || 'Gateway auth non raggiungibile' };
+    return { ok: false, message: err?.message || 'Servizio di accesso non raggiungibile' };
   }
 }
 
@@ -831,7 +834,7 @@ function authSetGuestState(options = {}) {
     authSetBootstrapHint(
       preserveLocalRecovery && AUTH.localRecoveryKey ? 'local_resume' : 'guest',
       preserveLocalRecovery && AUTH.localRecoveryMeta?.name
-        ? `Abbiamo riaperto la copia locale di ${AUTH.localRecoveryMeta.name}.`
+        ? `Abbiamo trovato il profilo di ${AUTH.localRecoveryMeta.name} su questo dispositivo.`
         : ''
     );
   }
@@ -918,8 +921,8 @@ function authMaybeResumeLocalCache() {
   authSetBootstrapHint(
     'local_resume',
     candidate.name
-      ? `Abbiamo riaperto la copia locale di ${candidate.name}.`
-      : 'Abbiamo riaperto l ultima copia locale trovata su questo dispositivo.'
+      ? `Abbiamo trovato il profilo di ${candidate.name} su questo dispositivo.`
+      : 'Abbiamo trovato un profilo su questo dispositivo.'
   );
   return candidate;
 }
@@ -951,7 +954,7 @@ async function authInit() {
     const proxySession = authLoadProxySession();
     if (proxySession?.user?.id) {
       authApplySupabaseUser(proxySession.user);
-      authSetBootstrapHint('account_connected', 'Sessione locale ripresa via proxy.');
+      authSetBootstrapHint('account_connected', 'Profilo pronto.');
       return AUTH;
     }
   }
@@ -965,7 +968,7 @@ async function authInit() {
         {
           attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
           timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
-          timeoutMessage: 'Il cloud sta impiegando troppo tempo a rispondere',
+          timeoutMessage: 'Il servizio di accesso sta impiegando troppo tempo a rispondere',
           retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
         }
       );
@@ -990,8 +993,8 @@ async function authInit() {
     authSetBootstrapHint(
       'local_resume',
       recoverableLocalCache.name
-        ? `Abbiamo riaperto la copia locale di ${recoverableLocalCache.name}.`
-        : 'Abbiamo riaperto l ultima copia locale trovata su questo dispositivo.'
+        ? `Abbiamo trovato il profilo di ${recoverableLocalCache.name} su questo dispositivo.`
+        : 'Abbiamo trovato un profilo su questo dispositivo.'
     );
     return AUTH;
   }
@@ -1004,7 +1007,7 @@ async function authInit() {
         {
           attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
           timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
-          timeoutMessage: 'Il cloud sta impiegando troppo tempo a rispondere',
+          timeoutMessage: 'Il servizio di accesso sta impiegando troppo tempo a rispondere',
           retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
         }
       );
@@ -1019,7 +1022,7 @@ async function authInit() {
     } catch (err) {
       authSetBootstrapHint(
         'error',
-        err?.message || 'Il cloud non ha risposto in tempo. Proviamo a ripartire con la copia locale.'
+        err?.message || 'Non siamo riusciti ad aprire il profilo. Proviamo a usare quello presente su questo dispositivo.'
       );
     }
   }
@@ -1071,7 +1074,7 @@ async function authEnsureRemoteProfile() {
             updated_at: new Date().toISOString(),
           },
         }),
-        'Il cloud sta impiegando troppo tempo a preparare il profilo',
+        'Il profilo sta impiegando troppo tempo a prepararsi',
         AUTH_ASYNC_TIMEOUT_MS
       );
       if (!proxyResult.ok) {
@@ -1094,7 +1097,7 @@ async function authEnsureRemoteProfile() {
       {
         attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
         timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
-        timeoutMessage: 'Il cloud sta impiegando troppo tempo a preparare il profilo',
+        timeoutMessage: 'Il profilo sta impiegando troppo tempo a prepararsi',
         retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
       }
     );
@@ -1118,7 +1121,7 @@ async function authFetchRemoteStateRow() {
         authProxyJson(`/__supabase_proxy/app_state?user_id=${encodeURIComponent(AUTH.user.id)}`, {
           token: authGetProxyAccessToken(),
         }),
-        'Il cloud sta impiegando troppo tempo a recuperare il profilo',
+        'Il profilo sta impiegando troppo tempo ad aprirsi',
         AUTH_ASYNC_TIMEOUT_MS
       );
       if (!proxyResult.ok) return { ok: false, message: proxyResult.payload?.message || proxyResult.payload?.error || 'Non siamo riusciti a recuperare il profilo' };
@@ -1134,7 +1137,7 @@ async function authFetchRemoteStateRow() {
       {
         attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
         timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
-        timeoutMessage: 'Il cloud sta impiegando troppo tempo a recuperare il profilo',
+        timeoutMessage: 'Il profilo sta impiegando troppo tempo ad aprirsi',
         retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
       }
     );
@@ -1687,19 +1690,17 @@ async function signInWithEmail(email, password) {
   if (authCanUseSupabase()) {
     try {
       authStartAttempt('login', cleanEmail);
-      authRecordAttemptStage('auth_gateway', 'pending', 'Verifico il gateway di accesso...');
+      authRecordAttemptStage('auth_gateway', 'pending', 'Verifico il servizio di accesso...');
       const gatewayProbe = await authProbeAuthGateway();
       if (!gatewayProbe.ok) {
-        authRecordAttemptStage('auth_gateway', 'error', gatewayProbe.message || 'Gateway auth non raggiungibile');
+        authRecordAttemptStage('auth_gateway', 'error', gatewayProbe.message || 'Servizio di accesso non raggiungibile');
         const failureHelp = authGatewayFailureHelp();
         return {
           ok: false,
-          message: AUTH.localRecoveryKey
-            ? `${gatewayProbe.message || 'Questo browser non riesce a raggiungere il gateway auth'}. ${failureHelp} La copia locale del profilo resta comunque disponibile su questo dispositivo.`
-            : `${gatewayProbe.message || 'Questo browser non riesce a raggiungere il gateway auth'}. ${failureHelp}`,
+          message: `${authFriendlyAccessIssueMessage(!!AUTH.localRecoveryKey)} ${failureHelp}`,
         };
       }
-      authRecordAttemptStage('auth_gateway', 'success', gatewayProbe.message || 'Gateway auth raggiunto');
+      authRecordAttemptStage('auth_gateway', 'success', gatewayProbe.message || 'Servizio di accesso raggiunto');
       authRecordAttemptStage('sign_in', 'pending', 'Connessione al servizio di accesso...');
       const client = authGetSupabaseClient();
       let data = null;
@@ -1732,18 +1733,16 @@ async function signInWithEmail(email, password) {
           }
         }
         if (!data && !error && authIsTimeoutError(sdkErr)) {
-          authRecordAttemptStage('sign_in_fallback', 'pending', 'SDK lento: provo il login diretto al gateway auth...');
+          authRecordAttemptStage('sign_in_fallback', 'pending', 'Accesso lento: provo una strada alternativa...');
           const fallbackResult = await authSignInViaDirectHttp(cleanEmail, password);
           if (!fallbackResult.ok) {
             authRecordAttemptStage('sign_in_fallback', 'error', fallbackResult.message || 'Login diretto non riuscito');
             return {
               ok: false,
-              message: AUTH.localRecoveryKey
-                ? `${fallbackResult.message || 'Il login cloud non risponde in tempo'}. La copia locale del profilo resta comunque disponibile su questo dispositivo.`
-                : (fallbackResult.message || 'Il login cloud non risponde in tempo'),
+              message: fallbackResult.message || authFriendlyAccessIssueMessage(!!AUTH.localRecoveryKey),
             };
           }
-          authRecordAttemptStage('sign_in_fallback', 'success', 'Gateway auth raggiunto correttamente');
+          authRecordAttemptStage('sign_in_fallback', 'success', 'Servizio di accesso raggiunto correttamente');
           data = {
             user: fallbackResult.user,
             session: fallbackResult.session || null,
@@ -1777,9 +1776,7 @@ async function signInWithEmail(email, password) {
         authRecordAttemptStage('sign_in', 'error', err?.message || 'Timeout di accesso');
         return {
           ok: false,
-          message: AUTH.localRecoveryKey
-            ? 'Il cloud sta rispondendo troppo lentamente anche dopo un nuovo tentativo. La copia locale del profilo resta comunque disponibile su questo dispositivo.'
-            : 'Il cloud sta rispondendo troppo lentamente anche dopo un nuovo tentativo. Riprova tra poco.',
+          message: authFriendlyAccessIssueMessage(!!AUTH.localRecoveryKey),
         };
       }
       authRecordAttemptStage('sign_in', 'error', err?.message || 'Accesso non disponibile');
@@ -1816,6 +1813,132 @@ async function authSendPasswordReset(email) {
     ok: false,
     message: 'Per ora crea un nuovo profilo o usa l accesso che stai gia utilizzando.',
   };
+}
+
+async function authChangePassword(newPassword) {
+  const password = String(newPassword || '');
+  if (!authIsAuthenticated()) {
+    return { ok: false, message: 'Accedi di nuovo per cambiare password.' };
+  }
+  if (!authValidatePassword(password)) {
+    return { ok: false, message: 'La password deve avere almeno 8 caratteri.' };
+  }
+  if (AUTH.provider !== 'supabase' || !authCanUseSupabase()) {
+    return { ok: false, message: 'Cambio password disponibile solo per account collegati.' };
+  }
+  try {
+    if (authCanUseLocalProxy() && authHasProxySession()) {
+      const cfg = authResolveSupabaseConfig();
+      const endpoint = `${String(cfg.url || '').replace(/\/+$/, '')}/auth/v1/user`;
+      const response = await authWithTimeout(
+        fetch(endpoint, {
+          method: 'PUT',
+          headers: {
+            apikey: cfg.anonKey,
+            Authorization: `Bearer ${authGetProxyAccessToken()}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ password }),
+        }),
+        'Il cambio password sta impiegando troppo tempo',
+        AUTH_LOGIN_TIMEOUT_MS
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return { ok: false, message: payload?.msg || payload?.error_description || payload?.error || 'Password non aggiornata.' };
+      }
+      return { ok: true, message: 'Password aggiornata.' };
+    }
+
+    const client = authGetSupabaseClient();
+    const { error } = await authRunWithRetry(
+      () => client.auth.updateUser({ password }),
+      {
+        attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
+        timeoutMs: AUTH_LOGIN_TIMEOUT_MS,
+        timeoutMessage: 'Il cambio password sta impiegando troppo tempo',
+        retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
+      }
+    );
+    if (error) return { ok: false, message: error.message || 'Password non aggiornata.' };
+    return { ok: true, message: 'Password aggiornata.' };
+  } catch (err) {
+    return { ok: false, message: err?.message || 'Password non aggiornata.' };
+  }
+}
+
+function openAccountPasswordChange() {
+  if (AUTH.provider !== 'supabase' || !authCanUseSupabase()) {
+    toast('Cambio password disponibile solo per account collegati.');
+    return;
+  }
+  if (typeof showDayModal !== 'function') {
+    toast('Cambio password non disponibile in questo momento.');
+    return;
+  }
+  showDayModal({
+    icon: '🔐',
+    eyebrow: 'Account',
+    title: 'Cambia password',
+    noButtons: true,
+    modalClass: 'account-password-modal',
+    body: `
+      <form class="account-password-form" onsubmit="event.preventDefault();submitAccountPasswordChange()">
+        <label class="account-password-field">
+          <span>Nuova password</span>
+          <input id="account-new-password" class="profile-account-input" type="password" autocomplete="new-password" placeholder="Almeno 8 caratteri">
+        </label>
+        <label class="account-password-field">
+          <span>Conferma password</span>
+          <input id="account-confirm-password" class="profile-account-input" type="password" autocomplete="new-password" placeholder="Ripeti la password">
+        </label>
+        <div id="account-password-error" class="account-password-error" aria-live="polite"></div>
+        <div class="account-password-actions">
+          <button class="auth-account-btn" type="button" onclick="closeDayModal()">Annulla</button>
+          <button class="auth-account-btn auth-account-btn-primary" type="button" onclick="submitAccountPasswordChange()">Aggiorna password</button>
+        </div>
+      </form>
+    `,
+  });
+  setTimeout(() => document.getElementById('account-new-password')?.focus(), 60);
+}
+
+async function submitAccountPasswordChange() {
+  const passwordEl = document.getElementById('account-new-password');
+  const confirmEl = document.getElementById('account-confirm-password');
+  const errorEl = document.getElementById('account-password-error');
+  const password = String(passwordEl?.value || '');
+  const confirmPassword = String(confirmEl?.value || '');
+  const setError = (message) => {
+    if (errorEl) errorEl.textContent = message || '';
+  };
+  if (!authValidatePassword(password)) {
+    setError('La password deve avere almeno 8 caratteri.');
+    passwordEl?.focus();
+    return;
+  }
+  if (password !== confirmPassword) {
+    setError('Le password non coincidono.');
+    confirmEl?.focus();
+    return;
+  }
+  setError('');
+  const submitBtn = document.querySelector('.account-password-actions .auth-account-btn-primary');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Aggiorno...';
+  }
+  const result = await authChangePassword(password);
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Aggiorna password';
+  }
+  if (!result.ok) {
+    setError(result.message || 'Password non aggiornata.');
+    return;
+  }
+  if (typeof closeDayModal === 'function') closeDayModal();
+  toast('Password aggiornata');
 }
 
 async function signOutUser() {
@@ -1881,8 +2004,8 @@ function confirmSignOutUser() {
   showDayModal({
     icon: '↩️',
     eyebrow: 'Account',
-    title: 'Vuoi davvero uscire?',
-    body: 'Tornerai alla schermata di accesso e potrai rientrare quando vuoi.',
+    title: 'Vuoi uscire?',
+    body: 'Potrai rientrare con la tua email quando vuoi.',
     confirmText: 'Esci',
     cancelText: 'Resta dentro',
     danger: true,
@@ -1965,7 +2088,7 @@ async function authSyncStateToCloud(force = false) {
             updated_at: updatedAt,
           },
         }),
-        'Il cloud sta impiegando troppo tempo ad aggiornare il profilo',
+        'Il profilo sta impiegando troppo tempo ad aggiornarsi',
         AUTH_ASYNC_TIMEOUT_MS
       );
       if (!proxyResult.ok) {
@@ -1999,7 +2122,7 @@ async function authSyncStateToCloud(force = false) {
       {
         attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
         timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
-        timeoutMessage: 'Il cloud sta impiegando troppo tempo ad aggiornare il profilo',
+        timeoutMessage: 'Il profilo sta impiegando troppo tempo ad aggiornarsi',
         retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
       }
     );
@@ -2086,10 +2209,10 @@ async function authSyncNow() {
     if (typeof toast === 'function') {
       toast(
         resolution?.choice === 'remote'
-          ? '✅ Abbiamo aperto la versione cloud'
+          ? '✅ Abbiamo aperto la versione account'
           : resolution?.choice === 'local'
-            ? '✅ Abbiamo tenuto e sincronizzato questa versione'
-            : 'ℹ️ Sync da confermare'
+            ? '✅ Abbiamo tenuto e aggiornato questa versione'
+            : 'ℹ️ Aggiornamento da confermare'
       );
     }
     return;
@@ -2135,13 +2258,8 @@ function renderProfileAccountCard() {
   const cfg = authResolveSupabaseConfig();
   const hasEmbeddedConfig = authHasEmbeddedSupabaseConfig();
   const accountDiag = authGetAccountDiagnostics();
-  const backupMeta = authGetLatestBackupMeta();
-  const backupLabel = backupMeta
-    ? `${authFormatSyncTime(backupMeta.createdAt)} · ${authFormatBackupSource(backupMeta.source)}`
-    : 'La prima copia arriva automaticamente';
-  const status = authStatusMeta();
   const showDevUi = authShowDevelopmentUi();
-  const factGrid = `
+  const factGrid = showDevUi ? `
     <div class="profile-account-facts">
       <div class="profile-account-fact">
         <span class="profile-account-fact-label">Dati</span>
@@ -2159,7 +2277,11 @@ function renderProfileAccountCard() {
         <span class="profile-account-fact-label">Salvataggio</span>
         <strong class="profile-account-fact-value">${htmlEsc(accountDiag.scopeLabel)}</strong>
       </div>
-    </div>`;
+    </div>` : '';
+  const backupMeta = showDevUi ? authGetLatestBackupMeta() : null;
+  const backupLabel = backupMeta
+    ? `${authFormatSyncTime(backupMeta.createdAt)} · ${authFormatBackupSource(backupMeta.source)}`
+    : '';
   const notes = [
     accountDiag.syncDetail,
     accountDiag.sourceDetail,
@@ -2169,14 +2291,14 @@ function renderProfileAccountCard() {
     backupMeta
       ? `Copia di sicurezza locale: ${backupLabel}.`
       : authIsAuthenticated()
-        ? 'La prossima copia di sicurezza locale verra preparata automaticamente.'
-        : 'La prima copia locale parte automaticamente appena inizi a salvare dati.',
+        ? 'La prossima copia di sicurezza verra preparata automaticamente.'
+        : 'La prima copia di sicurezza parte automaticamente appena inizi a salvare dati.',
   ].filter(Boolean);
-  const notesHtml = `
+  const notesHtml = showDevUi ? `
     <div class="profile-account-notes">
       ${notes.map(note => `<div class="profile-account-note">${htmlEsc(note)}</div>`).join('')}
-    </div>`;
-  const attemptDiagHtml = accountDiag.lastAttempt ? `
+    </div>` : '';
+  const attemptDiagHtml = showDevUi && accountDiag.lastAttempt ? `
     <div class="auth-attempt-box auth-attempt-box-inline">
       <div class="auth-attempt-head">Diagnostica ultimo tentativo${accountDiag.lastAttempt.email ? ` · ${htmlEsc(accountDiag.lastAttempt.email)}` : ''}</div>
       ${accountDiag.lastAttempt.lines.map(line => `
@@ -2213,75 +2335,59 @@ function renderProfileAccountCard() {
       <div class="profile-account-actions">
         ${cfg && !hasEmbeddedConfig ? `<button class="auth-account-btn" onclick="authRemoveSupabaseConfig()">Rimuovi configurazione</button>` : ''}
         <button class="auth-account-btn" onclick="authClearLocalAccounts()">Pulisci account locali</button>
+        <button class="auth-account-btn" onclick="authSyncNow()">Sincronizza ora</button>
       </div>
     </div>` : '';
   if (authIsAuthenticated()) {
-    const summary = AUTH.provider === 'supabase'
-      ? 'Hai effettuato l accesso correttamente e il tuo profilo e sincronizzato.'
-      : 'Hai effettuato l accesso correttamente su questo dispositivo.';
-    const statusCopy = AUTH.provider === 'supabase'
-      ? 'Account attivo e dati pronti all uso.'
-      : 'Account attivo su questo dispositivo.';
-    const secondaryAction = AUTH.provider === 'supabase'
-      ? `<button class="auth-account-btn" onclick="authSyncNow()">Aggiorna ora</button>`
-      : authCanUseSupabase()
-        ? `<button class="auth-account-btn" onclick="openAuthEntry()">Collega il cloud</button>`
-        : '';
+    const emailLabel = AUTH.user.email || 'Account attivo';
+    const passwordAction = `<button class="auth-account-btn auth-account-btn-primary" onclick="openAccountPasswordChange()">Cambia password</button>`;
     el.innerHTML = `
       <div class="profile-inline-card profile-account-card">
         <div class="profile-card-head support-mini-head">
           <div class="support-mini-head-copy">
             <div class="support-mini-kicker">Account</div>
             <div class="support-mini-title-row">
-              <div class="support-mini-title">${AUTH.provider === 'supabase' ? 'Account collegato' : 'Account attivo'}</div>
-              <span class="support-mini-state done">${AUTH.provider === 'supabase' ? 'Sincronizzato' : 'Attivo'}</span>
+              <div class="support-mini-title">Il tuo account</div>
             </div>
-            <div class="support-mini-sub">${summary}</div>
+            <div class="support-mini-sub">Il profilo viene salvato automaticamente.</div>
           </div>
         </div>
-        <div class="profile-account-status-row">
-          <span class="profile-account-pill ${status.cls}">${htmlEsc(status.label)}</span>
-          <span class="profile-account-status-copy">${statusCopy}</span>
-        </div>
         <div class="profile-account-body">
-          <div class="profile-account-email">${htmlEsc(AUTH.user.email)}</div>
+          <div class="profile-account-identity">
+            <span class="profile-account-avatar" aria-hidden="true">👤</span>
+            <div class="profile-account-identity-copy">
+              <span class="profile-account-label">Email</span>
+              <strong class="profile-account-email">${htmlEsc(emailLabel)}</strong>
+            </div>
+          </div>
           <div class="profile-account-actions">
-            ${secondaryAction}
+            ${passwordAction}
             <button class="auth-account-btn auth-account-btn-danger" onclick="confirmSignOutUser()">Esci</button>
           </div>
         </div>
+        ${devPanel}
       </div>`;
   } else {
     const hasRecoveredLocalProfile = !!AUTH.localRecoveryKey;
     const title = AUTH.needsEmailConfirmation
       ? 'Controlla la tua email'
       : hasRecoveredLocalProfile
-        ? 'Profilo locale ripreso'
+        ? 'Profilo trovato'
         : accountDiag.standaloneSessionNote
-          ? 'Collega questa web app'
+          ? 'Accedi in questa app'
           : 'Stai usando MarciFit come guest';
-    const badge = AUTH.needsEmailConfirmation
-      ? 'Quasi pronto'
-      : hasRecoveredLocalProfile
-        ? 'Locale'
-        : 'Guest';
     const summary = AUTH.needsEmailConfirmation
       ? 'Apri il link che ti abbiamo inviato e poi rientra qui.'
       : hasRecoveredLocalProfile
-        ? 'Abbiamo riaperto la copia locale del tuo ultimo profilo. Puoi continuare a usarla subito e ricollegare il cloud quando vuoi.'
-        : accountDiag.standaloneSessionNote
-          ? 'Se il profilo era aperto in Safari, qui puo servirti un accesso la prima volta. Dopo l accesso ritrovi la copia cloud.'
-          : 'I dati che vedi ora restano locali finche non scegli di collegare un account.';
-    const statusCopy = AUTH.needsEmailConfirmation
-      ? 'Dopo la conferma ti riportiamo subito dentro.'
-      : accountDiag.statusDetail;
+        ? 'Abbiamo trovato un profilo su questo dispositivo. Accedi per ritrovarlo nel tuo account.'
+        : 'Accedi per gestire il tuo profilo personale.';
     const emailLabel = AUTH.needsEmailConfirmation
       ? 'Conferma in attesa'
       : hasRecoveredLocalProfile
-        ? (AUTH.localRecoveryMeta?.email || AUTH.localRecoveryMeta?.name || 'Ultimo profilo locale')
+        ? (AUTH.localRecoveryMeta?.email || AUTH.localRecoveryMeta?.name || 'Profilo su questo dispositivo')
         : 'Nessun account collegato';
     const connectAction = hasRecoveredLocalProfile
-      ? `<button class="auth-account-btn" onclick="openAuthEntry(true); openAuthMode('login');">Ricollega account</button>`
+      ? `<button class="auth-account-btn" onclick="openAuthEntry(true); openAuthMode('login');">Accedi</button>`
       : `<button class="auth-account-btn" onclick="openAuthEntry()">Accedi o crea profilo</button>`;
     el.innerHTML = `
       <div class="profile-inline-card profile-account-card">
@@ -2290,20 +2396,21 @@ function renderProfileAccountCard() {
             <div class="support-mini-kicker">Account</div>
             <div class="support-mini-title-row">
               <div class="support-mini-title">${title}</div>
-              <span class="support-mini-state ${AUTH.needsEmailConfirmation ? 'pending' : 'idle'}">${badge}</span>
             </div>
             <div class="support-mini-sub">${summary}</div>
           </div>
-        </div>
-        <div class="profile-account-status-row">
-          <span class="profile-account-pill ${status.cls}">${htmlEsc(status.label)}</span>
-          <span class="profile-account-status-copy">${statusCopy}</span>
         </div>
         ${factGrid}
         ${notesHtml}
         ${attemptDiagHtml}
         <div class="profile-account-body">
-          <div class="profile-account-email">${htmlEsc(emailLabel)}</div>
+          <div class="profile-account-identity">
+            <span class="profile-account-avatar" aria-hidden="true">👤</span>
+            <div class="profile-account-identity-copy">
+              <span class="profile-account-label">Account</span>
+              <strong class="profile-account-email">${htmlEsc(emailLabel)}</strong>
+            </div>
+          </div>
           <div class="profile-account-actions">
             ${connectAction}
           </div>

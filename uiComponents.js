@@ -4464,7 +4464,7 @@ function renderStatsActions(data) {
 
 function renderStatsComingSoon() {
   const sub = document.getElementById('stats-sub');
-  if (sub) sub.textContent = 'Stiamo finalizzando trend, recovery e letture davvero utili prima dell’apertura pubblica.';
+  if (sub) sub.textContent = 'Qui arriveranno trend peso, aderenza e misure quando avremo dati sufficienti.';
   const toolbar = document.getElementById('stats-toolbar');
   const summary = document.getElementById('stats-summary');
   const weight = document.getElementById('stats-weight');
@@ -4479,8 +4479,35 @@ function renderStatsComingSoon() {
   if (patterns) patterns.innerHTML = '';
   if (actions) actions.innerHTML = '';
   if (summary) {
-    summary.innerHTML = `<div class="stats-coming-minimal">
-      <span class="stats-coming-pill"><span class="stats-coming-pill-dot"></span>In arrivo</span>
+    const lastWeight = (S.weightLog || [])
+      .filter(entry => Number.isFinite(Number(entry?.val)))
+      .slice(-1)[0] || null;
+    const lastMeasurement = (S.measurements || [])
+      .filter(entry => entry && Object.values(entry).some(value => typeof value === 'number' && Number.isFinite(value)))
+      .slice(-1)[0] || null;
+    const statCards = [
+      lastWeight ? `<div class="stats-coming-data-card">
+        <span>Ultimo peso</span>
+        <strong>${Number(lastWeight.val).toFixed(1)} kg</strong>
+        <em>${htmlEsc(lastWeight.date || 'Ultima rilevazione')}</em>
+      </div>` : '',
+      lastMeasurement ? `<div class="stats-coming-data-card">
+        <span>Ultima misura</span>
+        <strong>${htmlEsc(lastMeasurement.date || 'Registrata')}</strong>
+        <em>Pronta per i prossimi trend</em>
+      </div>` : '',
+    ].filter(Boolean).join('');
+    summary.innerHTML = `<div class="stats-coming-card stats-coming-card-lite">
+      <div class="stats-coming-top">
+        <span class="stats-coming-pill"><span class="stats-coming-pill-dot"></span>In preparazione</span>
+      </div>
+      <div class="stats-coming-body stats-coming-body-lite">
+        <div>
+          <div class="stats-coming-title">Statistiche</div>
+          <div class="stats-coming-text">Qui arriveranno trend peso, aderenza e misure quando avremo dati sufficienti.</div>
+        </div>
+        ${statCards ? `<div class="stats-coming-data-grid">${statCards}</div>` : `<div class="stats-coming-data-empty">Aggiungi peso e misure dal profilo per iniziare a costruire i trend.</div>`}
+      </div>
     </div>`;
   }
 }
@@ -4511,7 +4538,7 @@ function renderProfile() {
 }
 
 const PROFILE_SECTIONS = [
-  { key: 'account', label: 'Account', icon: '👤', desc: 'Accesso, sync e identita del profilo.' },
+  { key: 'account', label: 'Account', icon: '👤', desc: 'Email, password e accesso.' },
   { key: 'anagrafica', label: 'Anagrafica', icon: '📋', desc: 'Dati base, obiettivo e fabbisogno.' },
   { key: 'orari', label: 'Orari pasti', icon: '🕒', desc: 'Finestre orarie dei pasti principali.' },
   { key: 'allenamento', label: 'Giorni di allenamento', icon: '🏋️', desc: 'Settimana Workout/Rest abituale.' },
@@ -4977,12 +5004,13 @@ function renderSuppToday() {
       ? 'Fatta'
       : `${doneCount}/${active.length} presi`;
   const subText = active.length === 0
-    ? 'Crea la routine giornaliera.'
+    ? 'Crea una routine semplice da ritrovare ogni giorno.'
     : pendingCount === 0
-      ? 'Routine chiusa.'
+      ? 'Routine chiusa per oggi.'
       : doneCount === 0
-        ? 'Tocca per segnare.'
-        : `${pendingCount} da segnare.`;
+        ? 'Segna gli integratori presi.'
+        : `${pendingCount} ancora da segnare.`;
+  const listMode = active.length > 4 ? ' is-long' : '';
   const rows = active.length ? active.map(s => {
     const done = checked.includes(s.id);
     const suppIndex = S.supplements.findIndex(item => item.id === s.id);
@@ -5012,22 +5040,30 @@ function renderSuppToday() {
     </button>`;
 
   el.innerHTML = `
-    <div class="support-mini-card support-mini-card-supp">
+    <div class="support-mini-card support-mini-card-supp ${statusCls}${active.length ? '' : ' is-empty'}">
       <div class="supp-today-head support-mini-head">
         <div class="supp-today-head-copy support-mini-head-copy">
           <div class="supp-today-kicker support-mini-kicker">Supporto routine</div>
           <div class="supp-today-title-row support-mini-title-row">
-            <div class="supp-today-title support-mini-title">💊 Routine integratori</div>
+            <div class="supp-today-title support-mini-title"><span class="supp-today-title-icon">💊</span>Integratori</div>
             <span class="supp-today-state support-mini-state ${statusCls}">${statusText}</span>
           </div>
           <div class="supp-today-sub support-mini-sub">${subText}</div>
         </div>
       </div>
-      ${active.length ? `<div class="supp-today-progress"><div class="supp-today-progress-fill ${statusCls}" style="width:${progressPct}%"></div></div>` : ''}
-      <div class="supp-today-row">
-        ${rows}
-        ${addCard}
+      ${active.length ? `<div class="supp-today-progress-shell">
+        <div class="supp-today-progress-label">
+          <span>${doneCount} completati</span>
+          <span>${pendingCount ? `${pendingCount} mancanti` : 'tutto fatto'}</span>
+        </div>
+        <div class="supp-today-progress"><div class="supp-today-progress-fill ${statusCls}" style="width:${progressPct}%"></div></div>
+      </div>` : ''}
+      <div class="supp-today-list-shell${listMode}">
+        <div class="supp-today-row">
+          ${rows}
+        </div>
       </div>
+      ${addCard}
     </div>`;
   el.style.display='block';
 }
