@@ -1838,7 +1838,7 @@ function renderGreeting(type, now) {
   const streakBadge = `<span class="tg-streak tg-streak-${sbs.tier}${streak === 0 ? ' is-zero' : ''}" onmouseenter="showTip('tip-streak',this)" onmouseleave="hideTip('tip-streak')">
     <span class="tg-streak-icon" aria-hidden="true">${sbs.emoji}</span>
     <span class="tg-streak-copy">
-      <span class="tg-streak-label">${streak > 0 ? 'Streak attiva' : 'Streak pronta'}</span>
+      <span class="tg-streak-label">${streak > 0 ? 'Continuita' : 'Continuita pronta'}</span>
       <span class="tg-streak-val">${streak} ${streak === 1 ? 'giorno' : 'giorni'}</span>
     </span>
   </span>`;
@@ -1854,9 +1854,8 @@ function renderGreeting(type, now) {
     }
   }, 0);
 
-  // Chip giorno Workout/Rest
   const isOn = resolvedType === 'on';
-  const chipTxt = isOn ? 'Giorno Workout' : 'Giorno Rest';
+  const dayModeLabel = isOn ? 'Workout' : 'Rest';
   // Badge fase obiettivo rimosso (tracking settimane rimandato a implementazione futura)
   let goalBadge = '';
 
@@ -1881,30 +1880,34 @@ function renderGreeting(type, now) {
       greetingEl.classList.add('has-cheat', isOn ? 'is-on-cheat' : 'is-off-cheat');
     }
   }
-  const cheatBadge = cheat
-    ? `<button class="tg-cheat-chip" onclick="focusTodayCheat()" title="Apri dettaglio sgarro">
-        <span class="tg-cheat-chip-dot"></span>
-        <span class="tg-cheat-chip-text">Sgarro attivo</span>
+  const dateLine = `${isTodayView ? 'Oggi' : 'Giornata selezionata'} · ${DAYS[viewDate.getDay()]} ${viewDate.getDate()} ${MONTHS[viewDate.getMonth()]}`;
+  const cheatLine = cheat
+    ? `<button class="tg-editorial-extra" onclick="focusTodayCheat()" title="Apri dettaglio sgarro">
+        <span class="tg-editorial-extra-dot"></span>
+        <span>Extra attivo</span>
       </button>`
     : '';
-  const greetingBodyBlock = greetingBodyHTML
-    ? `<div class="tg-hero-body">
-        <div class="tg-hero-block tg-hero-block-quote${showDailySummary ? ' has-summary' : ''}">${greetingBodyHTML}</div>
-      </div>`
-    : '';
+  const greetingBodyBlock = '';
 
   document.getElementById('today-greeting').innerHTML = `
     <div class="tg-hero-main">
       <div class="tg-hero-copy">
-        <div class="tg-date-row">
-          <div class="tg-date">${isTodayView ? 'Oggi' : 'Selezionato'} · ${DAYS[viewDate.getDay()]} ${viewDate.getDate()} ${MONTHS[viewDate.getMonth()]} ${viewDate.getFullYear()}</div>
+        <div class="tg-editorial-rail"></div>
+        <div class="tg-editorial-head">
+          <div class="tg-editorial-date">${htmlEsc(dateLine)}</div>
+          <div class="tg-editorial-mode ${isOn ? 'is-on' : 'is-off'}">
+            <span class="tg-editorial-dot"></span>
+            <span>${dayModeLabel}</span>
+          </div>
         </div>
-        <div class="tg-mobile-meta">
-          ${cheatBadge}
+        <div class="tg-compact-main">
+          <div class="tg-hello">${htmlEsc(saluto)}, <em>${htmlEsc(nome)}</em></div>
         </div>
-        <div class="tg-hello">${saluto}, <em>${nome}.</em></div>
-        <div class="tg-subtext">${getGreetingSubtext(h, resolvedType, streak)}</div>
-        <div class="tg-streak-row">${streakBadge}</div>
+        <div class="tg-subtext">${htmlEsc(getGreetingSubtext(h, resolvedType, streak))}</div>
+        <div class="tg-editorial-foot">
+          <div class="tg-streak-row">${streakBadge}</div>
+          ${cheatLine}
+        </div>
       </div>
     </div>
     ${greetingBodyBlock}`;
@@ -2325,8 +2328,6 @@ function renderMacroStrip(type, meals, tgt) {
     { cls:'carb', icon:'🍚', lbl:'Carb',     eaten:eC, tgt:tgt.c, unit:'g' },
     { cls:'fat',  icon:'🧈', lbl:'Grassi',   eaten:eF, tgt:tgt.f, unit:'g' },
   ];
-  const hasLoggedFood = eK > 0 || eP > 0 || eC > 0 || eF > 0;
-
   const macroCards = macros.map(m => {
     const pct = m.tgt > 0 ? Math.min(m.eaten / m.tgt, 1) * 100 : 0;
     const rem = m.tgt - m.eaten;
@@ -2374,7 +2375,7 @@ function renderMacroStrip(type, meals, tgt) {
       </div>
       <div class="ms-kcal-target">${cheat ? `Target aggiornato: <span class="ms-kcal-boost">${tgt.k.toLocaleString('it-IT')} base + ${cheat.extraKcal} sgarro</span>` : 'Il target si aggiorna in tempo reale sulla giornata attiva.'}</div>
     </div>
-    ${hasLoggedFood ? `<div class="ms-macros-row">${macroCards}</div>` : ''}`;
+    <div class="ms-macros-row">${macroCards}</div>`;
 
   return {eK, eP, eC, eF, cheatChanged};
 }
@@ -2455,10 +2456,10 @@ function updateTodayDashboardHeading(now = new Date()) {
     month: 'long',
   });
   const niceLabel = label.charAt(0).toUpperCase() + label.slice(1);
-  if (titleEl) titleEl.textContent = isTodayView ? 'Oggi in breve' : `${niceLabel} in breve`;
+  if (titleEl) titleEl.textContent = isTodayView ? 'Riepilogo' : `Riepilogo ${niceLabel}`;
   if (subEl) subEl.textContent = isTodayView
-    ? 'Il quadro giusto per capire subito il prossimo passo.'
-    : 'Il quadro giusto per leggere questa giornata e capire il prossimo passo.';
+    ? 'Energia, macro e pasti in una lettura rapida.'
+    : 'Energia, macro e pasti della giornata selezionata.';
 }
 
 function getCurrentMealState(type, dateKey) {
@@ -2487,10 +2488,137 @@ function getCurrentMealState(type, dateKey) {
   return nextCandidate ? { ...nextCandidate, kind: 'next' } : { index: -1, kind: 'none' };
 }
 
+function buildTodayPrimaryMealAction(type, mealState, dateKey) {
+  const meals = S.meals?.[type] || [];
+  const dayLog = S.foodLog?.[dateKey] || {};
+  const isTodayView = !S.selDate || S.selDate === localDate();
+  const completion = typeof getDayCompletion === 'function'
+    ? getDayCompletion(dateKey, type)
+    : { done: 0, total: meals.length || 0 };
+  const firstIncompleteIdx = meals.findIndex((_, idx) => !(dayLog[idx] || []).length);
+  let selected = null;
+
+  if (mealState && mealState.kind !== 'none' && mealState.key != null) {
+    selected = { key: mealState.key, isExtra: !!mealState.isExtra, kind: mealState.kind };
+  } else if (firstIncompleteIdx >= 0) {
+    selected = { key: firstIncompleteIdx, isExtra: false, kind: isTodayView ? 'todo' : 'selected' };
+  } else if (meals.length) {
+    selected = { key: Math.max(0, meals.length - 1), isExtra: false, kind: 'done' };
+  }
+
+  if (!selected) return null;
+
+  const extraDef = selected.isExtra ? EXTRA_MEALS[selected.key] : null;
+  const meal = selected.isExtra ? extraDef : (meals[selected.key] || {});
+  const mealName = meal?.name || (selected.isExtra ? 'Pasto extra' : 'Pasto');
+  const mealTime = meal?.time || '';
+  const logItems = dayLog[selected.key] || [];
+  const logged = logItems.reduce((acc, it) => {
+    const g = (Number(it.grams || 0) || 0) / 100;
+    return {
+      kcal: acc.kcal + Math.round((Number(it.kcal100 || 0) || 0) * g),
+      p: Math.round((acc.p + (Number(it.p100 || 0) || 0) * g) * 10) / 10,
+      c: Math.round((acc.c + (Number(it.c100 || 0) || 0) * g) * 10) / 10,
+      f: Math.round((acc.f + (Number(it.f100 || 0) || 0) * g) * 10) / 10,
+    };
+  }, { kcal: 0, p: 0, c: 0, f: 0 });
+  const plan = selected.isExtra
+    ? { kcal: 0, p: 0, c: 0, f: 0 }
+    : (typeof mealMacros === 'function' ? mealMacros(meal) : { kcal: meal?.kcal || 0, p: meal?.p || 0, c: meal?.c || 0, f: meal?.f || 0 });
+  const mealType = typeof getMealTypeFromName === 'function'
+    ? getMealTypeFromName(mealName)
+    : '';
+  const templateMatches = typeof getMealTemplateMatches === 'function'
+    ? getMealTemplateMatches(mealType)
+    : [];
+  const domKey = selected.isExtra ? `extra-${selected.key}` : `${type}-${selected.key}`;
+  const statusLabel = selected.kind === 'now'
+    ? 'Adesso'
+    : selected.kind === 'next'
+      ? 'Prossimo'
+      : selected.kind === 'done'
+        ? 'Completato'
+        : isTodayView ? 'Da fare' : 'Giornata selezionata';
+  const foodCount = logItems.length;
+  const progressPct = plan.kcal > 0 ? Math.min(100, Math.round(logged.kcal / plan.kcal * 100)) : (foodCount ? 100 : 0);
+  const remainingKcal = plan.kcal ? Math.max(0, Math.round(plan.kcal - logged.kcal)) : 0;
+  const summary = foodCount
+    ? `${foodCount} ${foodCount === 1 ? 'alimento' : 'alimenti'} registrati`
+    : 'Nessun alimento registrato';
+  const targetSummary = plan.kcal
+    ? `${logged.kcal} / ${Math.round(plan.kcal)} kcal${remainingKcal ? ` · ${remainingKcal} mancanti` : ''}`
+    : `${logged.kcal} kcal registrate`;
+
+  return {
+    ...selected,
+    domKey,
+    mealName,
+    mealTime,
+    mealType,
+    statusLabel,
+    summary,
+    targetSummary,
+    logged,
+    plan,
+    progressPct,
+    templateCount: templateMatches.length,
+    completion,
+  };
+}
+
 function renderCurrentMealFocus(type, mealState, dateKey, alertModel = null) {
   const el = document.getElementById('current-meal-focus');
   if (!el) return;
-  el.innerHTML = '';
+  const action = buildTodayPrimaryMealAction(type, mealState, dateKey);
+  if (!action) {
+    el.innerHTML = '';
+    el.style.display = 'none';
+    el.className = 'current-meal-focus';
+    return;
+  }
+  el.style.display = '';
+  el.className = `current-meal-focus ${action.kind || 'todo'}`;
+  const templateBtn = action.templateCount
+    ? `<button class="current-meal-secondary" onclick="openMealTemplatePicker('${encInlineArg(dateKey)}','${encInlineArg(action.key)}','${encInlineArg(action.mealType || '')}','${encInlineArg(action.mealName)}');event.stopPropagation()">Template</button>`
+    : `<button class="current-meal-secondary" onclick="goView('piano');event.stopPropagation()">Pasto</button>`;
+  const mealIcon = action.mealType === 'colazione' ? '🥣'
+    : action.mealType === 'pranzo' ? '🍽️'
+      : action.mealType === 'cena' ? '🌙'
+        : action.isExtra ? '🍎' : '🍽️';
+  const metaLine = `${action.mealTime ? `${action.mealTime} · ` : ''}${action.summary}`;
+  const planKcal = Math.round(action.plan.kcal || 0);
+  const kcalLine = planKcal
+    ? `${action.logged.kcal}/${planKcal}`
+    : `${action.logged.kcal}`;
+  el.innerHTML = `
+    <div class="current-meal-primary">
+      <div class="current-meal-primary-top">
+        <div class="current-meal-eyebrow">Log rapido</div>
+        <span class="current-meal-pill ${action.kind}">${action.statusLabel}</span>
+      </div>
+      <div class="current-meal-primary-main">
+        <div class="current-meal-icon">${mealIcon}</div>
+        <div class="current-meal-copy">
+          <div class="current-meal-title">${htmlEsc(action.mealName)}</div>
+          <div class="current-meal-meta">${htmlEsc(metaLine)}</div>
+        </div>
+        <div class="current-meal-kcal">
+          <strong>${htmlEsc(kcalLine)}</strong>
+          <span>kcal</span>
+        </div>
+      </div>
+      <div class="current-meal-meter">
+        <div class="current-meal-meter-bar"><div style="width:${action.progressPct}%"></div></div>
+        <div class="current-meal-meter-foot">${htmlEsc(action.targetSummary)}</div>
+      </div>
+      <div class="current-meal-actions">
+        <button class="current-meal-btn current-meal-btn-main" onclick="toggleLogSearch('${action.domKey}');event.stopPropagation()">
+          <span class="current-meal-plus">+</span>
+          <span>Aggiungi alimento</span>
+        </button>
+        ${templateBtn}
+      </div>
+    </div>`;
 }
 
 // Partial render ? only what changes when log items are added/removed
@@ -2912,13 +3040,10 @@ function renderPiano() {
   const activeFilterLabel = activeMealFilter === 'all'
     ? 'tutti i pasti'
     : (mealMetaMap.get(activeMealFilter)?.label || activeMealFilter);
-  const visibleCountLabel = filteredTemplates.length === 1 ? '1 template visibile' : `${filteredTemplates.length} template visibili`;
-
   listEl.innerHTML = `
     <div class="tmpl-rail-shell">
       <div class="tmpl-rail-head">
         <div class="tmpl-rail-title">Template per ${activeFilterLabel}</div>
-        <span class="piano-template-pill">${visibleCountLabel}</span>
       </div>
       <div class="tmpl-vertical-rail">${filteredTemplates.map(renderTemplateCard).join('')}</div>
     </div>`;

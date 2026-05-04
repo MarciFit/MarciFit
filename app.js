@@ -364,7 +364,7 @@ function toggleSuppAndReveal(id) {
   performAfterReveal(
     `[data-supp-id="${id}"]`,
     () => toggleSupp(id),
-    { className: 'ui-glow', delay: 320, fallbackSelector: '#current-meal-focus .current-meal-focus' }
+    { className: 'ui-glow', delay: 320, fallbackSelector: '#current-meal-focus .current-meal-primary' }
   );
 }
 function revealTodaySupplement(id) {
@@ -439,12 +439,22 @@ let _uiScrollLockDepth = 0;
 let _uiScrollLockY = 0;
 let _greetingTransitionTimer = null;
 
+function clearTransientUiLocks() {
+  const body = document.body;
+  const root = document.documentElement;
+  root?.classList.remove('ui-scroll-locked');
+  body?.classList.remove('ui-scroll-locked', 'food-search-sheet-open');
+  _uiScrollLockDepth = 0;
+  _uiScrollLockY = window.scrollY || window.pageYOffset || 0;
+}
+
 function lockUiScroll() {
   const body = document.body;
+  const root = document.documentElement;
   if (!body) return;
   if (_uiScrollLockDepth === 0) {
     _uiScrollLockY = window.scrollY || window.pageYOffset || 0;
-    body.style.top = `-${_uiScrollLockY}px`;
+    root?.classList.add('ui-scroll-locked');
     body.classList.add('ui-scroll-locked');
   }
   _uiScrollLockDepth += 1;
@@ -452,12 +462,13 @@ function lockUiScroll() {
 
 function unlockUiScroll(force = false) {
   const body = document.body;
+  const root = document.documentElement;
   if (!body) return;
   if (force) _uiScrollLockDepth = 0;
   else _uiScrollLockDepth = Math.max(0, _uiScrollLockDepth - 1);
   if (_uiScrollLockDepth > 0) return;
+  root?.classList.remove('ui-scroll-locked');
   body.classList.remove('ui-scroll-locked');
-  body.style.top = '';
   window.scrollTo(0, _uiScrollLockY || 0);
 }
 
@@ -1878,6 +1889,8 @@ function removeItem(type, mealIdx, itemIdx) {
 }
 let _activeFoodSearchSheet = null;
 let _foodSearchSheetDragged = false;
+let _foodSearchSheetCloseTimer = null;
+let _dayTypeSheetCloseTimer = null;
 
 function resolveMealSearchContext(domKey) {
   const dateKey = S.selDate || localDate();
@@ -1972,33 +1985,48 @@ function toggleLogSearch(domKey, options = {}) {
   }
   _activeFoodSearchSheet = ctx;
   renderFoodSearchSheet(ctx);
+  clearTimeout(_foodSearchSheetCloseTimer);
+  ov.classList.remove('closing');
+  sheet.style.height = '';
+  sheet.style.transition = '';
   sheet.classList.remove('is-expanded');
   sheet.dataset.state = 'compact';
   ov.classList.add('open');
-  document.body.classList.add('food-search-sheet-open');
-  if (!isOpen) lockUiScroll();
-  requestAnimationFrame(() => {
-    const inp = document.getElementById('mlsi-'+domKey);
-    setTimeout(() => inp?.focus(), 90);
-  });
 }
 
 function closeLogSearch(domKey = null) {
   const ov = document.getElementById('food-search-sheet-ov');
   const wasOpen = ov?.classList.contains('open');
+  const sheet = document.getElementById('food-search-sheet');
   const activeDomKey = domKey || _activeFoodSearchSheet?.domKey;
   const res = activeDomKey ? document.getElementById('mlsr-'+activeDomKey) : null;
   if (res) res.innerHTML = '';
   const gram = activeDomKey ? document.getElementById('mlsg-'+activeDomKey) : null;
   if (gram) gram.remove();
   const body = document.getElementById('food-search-sheet-body');
-  if (body) body.innerHTML = '';
-  ov?.classList.remove('open');
-  document.getElementById('food-search-sheet')?.classList.remove('is-expanded');
-  document.body.classList.remove('food-search-sheet-open');
+  if (wasOpen && ov) {
+    clearTimeout(_foodSearchSheetCloseTimer);
+    ov.classList.add('closing');
+    _foodSearchSheetCloseTimer = setTimeout(() => {
+      if (body) body.innerHTML = '';
+      ov.classList.remove('open', 'closing');
+      sheet?.classList.remove('is-expanded');
+      if (sheet) {
+        sheet.style.height = '';
+        sheet.style.transition = '';
+      }
+    }, 240);
+  } else {
+    if (body) body.innerHTML = '';
+    ov?.classList.remove('open', 'closing');
+    sheet?.classList.remove('is-expanded');
+    if (sheet) {
+      sheet.style.height = '';
+      sheet.style.transition = '';
+    }
+  }
   _activeFoodSearchSheet = null;
   _logSearchSel = null;
-  if (wasOpen) unlockUiScroll(true);
 }
 
 function toggleFoodSearchSheetSize() {
@@ -2016,23 +2044,50 @@ function startFoodSearchSheetDrag(event) {
   const startY = event.clientY;
   const sheet = document.getElementById('food-search-sheet');
   if (!sheet) return;
+  const isMobileSheet = window.matchMedia('(max-width: 640px)').matches;
+  const compactHeight = Math.min(window.innerHeight * .62, isMobileSheet ? window.innerHeight * .62 : 620);
+  const expandedHeight = Math.min(window.innerHeight * .92, isMobileSheet ? window.innerHeight * .92 : 820);
+  const minDismissHeight = Math.max(220, compactHeight * .64);
+  const startHeight = sheet.getBoundingClientRect().height;
+  let lastY = startY;
+  let dragged = false;
+  sheet.setPointerCapture?.(event.pointerId);
+  sheet.style.transition = 'none';
+  const onMove = moveEvent => {
+    const dy = moveEvent.clientY - startY;
+    if (Math.abs(dy) < 3 && !dragged) return;
+    dragged = true;
+    _foodSearchSheetDragged = true;
+    lastY = moveEvent.clientY;
+    const nextHeight = Math.max(minDismissHeight, Math.min(expandedHeight, startHeight - dy));
+    sheet.style.height = `${nextHeight}px`;
+    sheet.classList.toggle('is-expanded', nextHeight > (compactHeight + expandedHeight) / 2);
+    sheet.dataset.state = nextHeight > (compactHeight + expandedHeight) / 2 ? 'expanded' : 'compact';
+    moveEvent.preventDefault();
+  };
   const onUp = upEvent => {
     const dy = upEvent.clientY - startY;
-    if (dy < -34) {
-      _foodSearchSheetDragged = true;
+    const currentHeight = sheet.getBoundingClientRect().height;
+    sheet.releasePointerCapture?.(event.pointerId);
+    sheet.style.transition = '';
+    if (dragged && dy > 86 && currentHeight < compactHeight * .84) {
+      closeLogSearch();
+    } else if (dragged && (currentHeight > (compactHeight + expandedHeight) / 2 || lastY < startY - 36)) {
       sheet.classList.add('is-expanded');
       sheet.dataset.state = 'expanded';
-    } else if (dy > 44 && sheet.classList.contains('is-expanded')) {
-      _foodSearchSheetDragged = true;
+      sheet.style.height = `${expandedHeight}px`;
+      setTimeout(() => { if (sheet.classList.contains('is-expanded')) sheet.style.height = ''; }, 460);
+    } else if (dragged) {
       sheet.classList.remove('is-expanded');
       sheet.dataset.state = 'compact';
-    } else if (dy > 70) {
-      _foodSearchSheetDragged = true;
-      closeLogSearch();
+      sheet.style.height = `${compactHeight}px`;
+      setTimeout(() => { if (!sheet.classList.contains('is-expanded')) sheet.style.height = ''; }, 460);
     }
-    if (_foodSearchSheetDragged) setTimeout(() => { _foodSearchSheetDragged = false; }, 180);
+    if (_foodSearchSheetDragged) setTimeout(() => { _foodSearchSheetDragged = false; }, 220);
+    window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
   };
+  window.addEventListener('pointermove', onMove, { passive: false });
   window.addEventListener('pointerup', onUp, { once: true });
 }
 
@@ -2128,7 +2183,7 @@ function refreshMealCard(type, mealIdx) {
     renderTodayLog();
     pulseTodayElement(`#mc-${domKey}`);
     pulseTodayElement('#macro-strip .ms-kcal-card', 'ui-glow');
-    pulseTodayElement('#current-meal-focus .current-meal-focus', 'ui-glow');
+    pulseTodayElement('#current-meal-focus .current-meal-primary', 'ui-glow');
     return;
   }
 
@@ -2150,7 +2205,7 @@ function refreshMealCard(type, mealIdx) {
   const completion = getDayCompletion(dateKey, type);
   const alertModel = splitTodayAlerts(type, dateKey);
   renderCurrentMealFocus(type, mealState, dateKey, alertModel);
-  pulseTodayElement('#current-meal-focus .current-meal-focus', 'ui-glow');
+  pulseTodayElement('#current-meal-focus .current-meal-primary', 'ui-glow');
   if (typeof renderCheatWidget === 'function') renderCheatWidget();
   if (typeof renderTodaySignals === 'function') renderTodaySignals(type, dateKey);
   if (typeof renderDashboardAlertSummary === 'function') renderDashboardAlertSummary(type, dateKey);
@@ -4765,14 +4820,19 @@ function openDayTypeSheet(dateStr, currentType) {
       </button>
     </div>
   `;
+  clearTimeout(_dayTypeSheetCloseTimer);
+  ov.classList.remove('closing');
   ov.classList.add('open');
-  lockUiScroll();
 }
 
 function closeDayTypeSheet() {
   const ov = document.getElementById('day-type-sheet-ov');
-  if (ov) ov.classList.remove('open');
-  unlockUiScroll();
+  if (!ov?.classList.contains('open')) return;
+  clearTimeout(_dayTypeSheetCloseTimer);
+  ov.classList.add('closing');
+  _dayTypeSheetCloseTimer = setTimeout(() => {
+    ov.classList.remove('open', 'closing');
+  }, 240);
 }
 
 function setCalendarDayType(dateStr, type) {
@@ -5013,6 +5073,7 @@ async function initAll() {
     if (typeof authSetBootstrapReady === 'function') authSetBootstrapReady(true);
   }
 }
+clearTransientUiLocks();
 initAll();
 bindEditGramPreview();
 syncTodayGreetingAutoRefresh();

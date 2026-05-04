@@ -2,11 +2,11 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=154">
+<link rel="stylesheet" href="style.css?v=164">
 </head>
 <body>
 <div class="app">
@@ -40,6 +40,7 @@
 
   <!-- Greeting (compact) -->
   <div class="today-greeting" id="today-greeting"></div>
+  <div class="current-meal-focus" id="current-meal-focus"></div>
 
   <div class="today-section-card today-dashboard-card">
     <div class="today-dashboard-head">
@@ -62,25 +63,6 @@
         <button class="dp-info-btn" onmouseenter="showPastiDistTip(this)" onmouseleave="hideTip('tip-pasti-dist')" onclick="showPastiDistTip(this)" title="Info distribuzione calorie">i</button>
       </div>
     </div>
-    <div class="today-dashboard-grid">
-      <div class="today-dashboard-block today-week-card">
-        <div class="today-dashboard-block-head support-mini-head">
-          <div class="support-mini-head-copy">
-            <div class="support-mini-kicker">Settimana</div>
-            <div class="support-mini-title-row">
-              <div class="support-mini-title">Calendario</div>
-            </div>
-          </div>
-        </div>
-        <div class="cal-nav">
-          <button class="cal-nav-btn" id="cal-prev" onclick="calMove(-1)">&#x2039;</button>
-          <span class="cal-nav-title" id="cal-title" onclick="openCalPicker()"></span>
-          <button class="cal-nav-btn" id="cal-next" onclick="calMove(+1)">&#x203A;</button>
-        </div>
-        <div class="week-cal-meta" id="week-cal-meta"></div>
-        <div class="week-cal" id="week-cal"></div>
-      </div>
-    </div>
   </div>
 
   <div class="today-support-panel">
@@ -88,9 +70,9 @@
       <div class="support-mini-head-copy">
         <div class="support-mini-kicker">Oggi</div>
         <div class="support-mini-title-row">
-          <div class="support-mini-title">Routine e note</div>
+          <div class="support-mini-title">Routine rapide</div>
         </div>
-        <div class="support-mini-sub">Acqua, routine e appunti restano vicini alla giornata senza distrarti.</div>
+        <div class="support-mini-sub">Acqua e integratori restano vicini alla giornata senza distrarti.</div>
       </div>
     </div>
     <div class="today-support-layout">
@@ -102,34 +84,26 @@
           <div id="supp-today" style="display:none"></div>
         </div>
       </div>
-      <div class="today-support-secondary">
-        <div class="notes-section notes-section-secondary">
-          <div class="notes-header support-mini-head">
-            <div class="support-mini-head-copy">
-              <div class="support-mini-kicker">Supporto giornata</div>
-              <div class="support-mini-title-row">
-                <span class="support-mini-title">Note del giorno</span>
-                <span class="support-mini-state idle notes-autosave" id="notes-autosave"></span>
-              </div>
-              <div class="support-mini-sub">Scrivi solo cio che vuoi ritrovare con facilita.</div>
-            </div>
-          </div>
-          <div class="notes-input-group">
-            <div class="note-tags">
-              <span class="note-tag" onclick="addNoteTag('#energia_alta')">#energia_alta</span>
-              <span class="note-tag" onclick="addNoteTag('#reflusso')">#reflusso</span>
-              <span class="note-tag" onclick="addNoteTag('#sgarrato')">#sgarrato</span>
-              <span class="note-tag" onclick="addNoteTag('#sonno_breve')">#sonno_breve</span>
-              <span class="note-tag" onclick="addNoteTag('#stanco')">#stanco</span>
-            </div>
-            <textarea class="notes-input" id="notes-input" rows="3"
-              placeholder="Segna energia, fame, allenamento o qualcosa da ricordare..."
-              oninput="onNoteInput(this)"></textarea>
-          </div>
-          <div class="notes-prev" id="notes-prev"></div>
+    </div>
+  </div>
+
+  <div class="today-dashboard-block today-week-card today-week-secondary is-collapsed">
+    <button class="today-week-toggle" type="button" onclick="this.closest('.today-week-secondary').classList.toggle('is-collapsed')" aria-label="Espandi o comprimi calendario settimana">
+      <div class="support-mini-head-copy">
+        <div class="support-mini-kicker">Settimana</div>
+        <div class="support-mini-title-row">
+          <div class="support-mini-title">Settimana</div>
         </div>
       </div>
+      <span class="today-week-toggle-icon">&#x203A;</span>
+    </button>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="cal-prev" onclick="calMove(-1)">&#x2039;</button>
+      <span class="cal-nav-title" id="cal-title" onclick="openCalPicker()"></span>
+      <button class="cal-nav-btn" id="cal-next" onclick="calMove(+1)">&#x203A;</button>
     </div>
+    <div class="week-cal-meta" id="week-cal-meta"></div>
+    <div class="week-cal" id="week-cal"></div>
   </div>
 
 </div>
@@ -455,9 +429,9 @@ window.MARCI_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 <script src="mealTaxonomy.js?v=1"></script>
 <script src="templateEngine.js?v=2"></script>
 <script src="mealHelperEngine.js?v=1"></script>
-<script src="uiComponents.js?v=126"></script>
+<script src="uiComponents.js?v=130"></script>
 <script src="bootstrapTools.js?v=7"></script>
-<script src="app.js?v=105"></script>
+<script src="app.js?v=106"></script>
 <script src="barcodeTools.js?v=18"></script>
 <script>lucide.createIcons();</script>
 </body>
