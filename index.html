@@ -6,7 +6,7 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=171">
+<link rel="stylesheet" href="style.css?v=175">
 </head>
 <body>
 <div class="app">
@@ -38,9 +38,26 @@
 <!-- VIEW: TODAY -->
 <div class="view active" id="view-today">
 
-  <!-- Greeting (compact) -->
-  <div class="today-greeting" id="today-greeting"></div>
   <div class="current-meal-focus" id="current-meal-focus"></div>
+
+  <div class="today-dashboard-block today-week-card today-week-secondary is-collapsed">
+    <button class="today-week-toggle" type="button" onclick="this.closest('.today-week-secondary').classList.toggle('is-collapsed')" aria-label="Espandi o comprimi calendario settimana">
+      <div class="support-mini-head-copy">
+        <div class="support-mini-kicker">Settimana</div>
+        <div class="support-mini-title-row">
+          <div class="support-mini-title">Settimana</div>
+        </div>
+      </div>
+      <span class="today-week-toggle-icon">&#x203A;</span>
+    </button>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="cal-prev" onclick="calMove(-1)">&#x2039;</button>
+      <span class="cal-nav-title" id="cal-title" onclick="openCalPicker()"></span>
+      <button class="cal-nav-btn" id="cal-next" onclick="calMove(+1)">&#x203A;</button>
+    </div>
+    <div class="week-cal-meta" id="week-cal-meta"></div>
+    <div class="week-cal" id="week-cal"></div>
+  </div>
 
   <div class="today-section-card today-dashboard-card">
     <div class="today-dashboard-head">
@@ -63,25 +80,6 @@
         <button class="dp-info-btn" onmouseenter="showPastiDistTip(this)" onmouseleave="hideTip('tip-pasti-dist')" onclick="showPastiDistTip(this)" title="Info distribuzione calorie">i</button>
       </div>
     </div>
-  </div>
-
-  <div class="today-dashboard-block today-week-card today-week-secondary is-collapsed">
-    <button class="today-week-toggle" type="button" onclick="this.closest('.today-week-secondary').classList.toggle('is-collapsed')" aria-label="Espandi o comprimi calendario settimana">
-      <div class="support-mini-head-copy">
-        <div class="support-mini-kicker">Settimana</div>
-        <div class="support-mini-title-row">
-          <div class="support-mini-title">Settimana</div>
-        </div>
-      </div>
-      <span class="today-week-toggle-icon">&#x203A;</span>
-    </button>
-    <div class="cal-nav">
-      <button class="cal-nav-btn" id="cal-prev" onclick="calMove(-1)">&#x2039;</button>
-      <span class="cal-nav-title" id="cal-title" onclick="openCalPicker()"></span>
-      <button class="cal-nav-btn" id="cal-next" onclick="calMove(+1)">&#x203A;</button>
-    </div>
-    <div class="week-cal-meta" id="week-cal-meta"></div>
-    <div class="week-cal" id="week-cal"></div>
   </div>
 
   <div class="today-support-panel">
@@ -113,18 +111,54 @@
   <div class="prog-head piano-head">
     <div class="piano-head-row">
       <div class="prog-title">Pasti</div>
-      <button class="piano-template-open" onclick="setPianoSubView('templates')" aria-label="Apri template" title="Template">
-        <i data-lucide="layout-list" class="piano-template-open-icon"></i>
-        <span>Template</span>
-      </button>
+      <div class="piano-head-actions">
+        <button class="piano-template-open piano-database-open" onclick="setPianoSubView('customFoods')" aria-label="Apri database alimenti" title="Database alimenti">
+          <i data-lucide="database" class="piano-template-open-icon"></i>
+          <span>Database</span>
+        </button>
+        <button class="piano-template-open" onclick="setPianoSubView('templates')" aria-label="Apri template" title="Template">
+          <i data-lucide="layout-list" class="piano-template-open-icon"></i>
+          <span>Template</span>
+        </button>
+      </div>
     </div>
     <div class="prog-sub">Compila i pasti della giornata selezionata. Aggiungi alimenti, controlla calorie e macro, e richiama i template quando ti servono.</div>
+  </div>
+
+  <div class="today-dashboard-block today-week-card today-week-secondary piano-week-card is-collapsed">
+    <button class="today-week-toggle" type="button" onclick="this.closest('.today-week-card')?.classList.toggle('is-collapsed')" aria-label="Espandi o comprimi settimana">
+      <span>Settimana</span>
+      <span class="today-week-toggle-icon">›</span>
+    </button>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="piano-cal-prev" onclick="calMove(-1)">‹</button>
+      <span class="cal-nav-title" id="piano-cal-title" onclick="openCalPicker()" title="Scegli mese e anno"></span>
+      <button class="cal-nav-btn" id="piano-cal-next" onclick="calMove(+1)">›</button>
+    </div>
+    <div class="week-cal-meta" id="piano-week-cal-meta"></div>
+    <div class="week-cal" id="piano-week-cal"></div>
   </div>
 
   <div id="current-meal-focus" class="piano-meals-only"></div>
 
   <div class="piano-section piano-section-meals">
     <div class="meals-list" id="meals-today"></div>
+  </div>
+
+  <div class="piano-section piano-section-library piano-custom-foods-page">
+    <div class="piano-template-page-head">
+      <button class="piano-template-back" onclick="setPianoSubView('meals')" aria-label="Torna ai pasti" title="Torna ai pasti">
+        <i data-lucide="arrow-left" class="piano-template-back-icon"></i>
+      </button>
+      <div class="piano-section-copy">
+        <span class="support-mini-kicker">Database personale</span>
+        <div class="support-mini-title-row">
+          <span class="support-mini-title">Database alimenti</span>
+        </div>
+        <span class="support-mini-sub">Cibi creati manualmente e riutilizzati nelle ricerche.</span>
+      </div>
+    </div>
+    <div id="custom-food-list"></div>
   </div>
 
   <div class="piano-section piano-section-library piano-template-page">
@@ -425,13 +459,13 @@ window.MARCI_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 <script src="debugTools.js?v=5"></script>
 <script src="authSync.js?v=21"></script>
 <script src="storage.js?v=42"></script>
-<script src="nutritionLogic.js?v=57"></script>
+<script src="nutritionLogic.js?v=59"></script>
 <script src="mealTaxonomy.js?v=1"></script>
 <script src="templateEngine.js?v=2"></script>
 <script src="mealHelperEngine.js?v=1"></script>
-<script src="uiComponents.js?v=133"></script>
+<script src="uiComponents.js?v=136"></script>
 <script src="bootstrapTools.js?v=7"></script>
-<script src="app.js?v=108"></script>
+<script src="app.js?v=111"></script>
 <script src="barcodeTools.js?v=18"></script>
 <script>lucide.createIcons();</script>
 </body>

@@ -28,6 +28,59 @@
   --ease-spring:cubic-bezier(.18,.9,.24,1.18);
 }
 
+/* Final home hierarchy pass */
+#today-signal-row:empty,
+#today-alerts-summary:empty{display:none!important}
+.today-dashboard-card{
+  border-color:#d9caba!important;
+  box-shadow:0 22px 44px rgba(23,20,14,.085), inset 0 1px 0 rgba(255,255,255,.86)!important;
+}
+.today-dashboard-card .today-recap-title{
+  font-size:28px!important;
+  line-height:1.05!important;
+  font-weight:900!important;
+  letter-spacing:-.025em!important;
+}
+.today-dashboard-card > .macro-strip .ms-kcal-card{
+  padding:18px 19px 17px!important;
+  border-radius:22px!important;
+}
+.today-dashboard-card > .macro-strip .ms-kcal-kicker{font-size:13px!important}
+.today-dashboard-card > .macro-strip .ms-kcal-target-chip{
+  min-height:30px!important;
+  padding:5px 12px!important;
+  font-size:13px!important;
+}
+.today-dashboard-card > .macro-strip .ms-kcal-val{font-size:44px!important}
+.today-dashboard-card > .macro-strip .ms-kcal-unit{font-size:17px!important}
+.today-dashboard-card > .macro-strip .ms-kcal-rem{font-size:18px!important}
+.today-dashboard-card > .macro-strip .ms-kcal-bar{height:10px!important}
+.today-dashboard-card > .macro-strip .ms-macros-row{gap:11px!important}
+.today-dashboard-card > .macro-strip .ms-macro-card{
+  padding:15px 14px 14px!important;
+  border-radius:20px!important;
+}
+.today-dashboard-card > .macro-strip .ms-macro-icon{font-size:18px!important}
+.today-dashboard-card > .macro-strip .ms-macro-lbl{font-size:14px!important}
+.today-dashboard-card > .macro-strip .ms-macro-val{font-size:29px!important}
+.today-dashboard-card > .macro-strip .ms-macro-rem{font-size:13px!important}
+.today-dashboard-card .dp-compact-label{font-size:18px!important}
+.today-week-secondary{
+  margin-top:18px!important;
+  margin-bottom:14px!important;
+}
+@media (max-width: 640px){
+  .today-dashboard-card{padding:20px 14px 17px!important}
+  .today-dashboard-card .today-recap-title{font-size:25px!important}
+  .today-dashboard-card > .macro-strip .ms-kcal-card{padding:16px 14px 15px!important}
+  .today-dashboard-card > .macro-strip .ms-kcal-val{font-size:38px!important}
+  .today-dashboard-card > .macro-strip .ms-kcal-rem{font-size:15px!important}
+  .today-dashboard-card > .macro-strip .ms-macro-card{padding:13px 10px 12px!important}
+  .today-dashboard-card > .macro-strip .ms-macro-lbl{font-size:12.5px!important}
+  .today-dashboard-card > .macro-strip .ms-macro-val{font-size:25px!important}
+  .today-dashboard-card .dp-compact-label{font-size:16px!important}
+}
+
 /* RESET */
 *{box-sizing:border-box;margin:0;padding:0}
 html{
@@ -536,6 +589,13 @@ select:focus-visible{
   justify-content:space-between;
   gap:12px;
 }
+.piano-head-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
 .piano-head .prog-title{
   font-family:'Manrope',sans-serif;
   font-size:clamp(28px,3vw,36px);
@@ -569,11 +629,17 @@ select:focus-visible{
 }
 .piano-template-open-icon{width:14px;height:14px;stroke-width:2.2;color:var(--on)}
 .piano-template-open:hover{border-color:#bfd8c7;background:#f7fcf8;color:var(--on)}
-.piano-template-page{display:none}
+.piano-template-page,
+.piano-custom-foods-page{display:none}
 #view-piano.is-template-subview .piano-head,
+#view-piano.is-custom-foods-subview .piano-head,
+#view-piano.is-custom-foods-subview .piano-week-card,
+#view-piano.is-custom-foods-subview .piano-meals-only,
+#view-piano.is-custom-foods-subview .piano-section-meals,
 #view-piano.is-template-subview .piano-meals-only,
 #view-piano.is-template-subview .piano-section-meals{display:none}
 #view-piano.is-template-subview .piano-template-page{display:block}
+#view-piano.is-custom-foods-subview .piano-custom-foods-page{display:block}
 .piano-template-page-head{
   display:flex;
   align-items:flex-start;
@@ -1498,6 +1564,7 @@ select:focus-visible{
   backdrop-filter:blur(5px);
   overscroll-behavior:contain;
   touch-action:none;
+  --keyboard-offset:0px;
 }
 .food-search-sheet-ov.open{display:flex;animation:fadeIn var(--motion-med) ease both}
 .food-search-sheet-ov.closing{display:flex;animation:fadeOut var(--motion-med) ease both}
@@ -1521,6 +1588,9 @@ select:focus-visible{
   touch-action:auto;
 }
 .food-search-sheet-ov.closing .food-search-sheet{transform:translateY(102%);opacity:.96}
+.food-search-sheet-ov.keyboard-open:not(.closing) .food-search-sheet{
+  transform:translateY(calc(-1 * var(--keyboard-offset, 0px)));
+}
 .food-search-sheet.is-expanded{height:min(92vh,820px)}
 @keyframes foodSheetUp{from{transform:translateY(102%);opacity:.84}to{transform:translateY(0);opacity:1}}
 .food-search-sheet-handle{
@@ -1544,6 +1614,9 @@ select:focus-visible{
   overflow:auto;flex:1;
   overscroll-behavior:contain;
   touch-action:pan-y;
+}
+.food-search-sheet-ov.keyboard-open .food-search-sheet-body{
+  padding-bottom:calc(28px + env(safe-area-inset-bottom));
 }
 .food-search-sheet-head{
   position:sticky;top:0;z-index:20;
@@ -3670,8 +3743,72 @@ select:focus-visible{
   touch-action:manipulation;
 }
 .wc-day + .wc-day{border-left-color:#e4dbcf}
-	.wc-day:hover{background:rgba(255,255,255,.7);border-color:#d1c5b7;transform:translateY(-1px)}
-	.wc-day:active{transform:translateY(0) scale(.985)}
+.wc-day:hover{background:rgba(255,255,255,.7);border-color:#d1c5b7;transform:translateY(-1px)}
+.wc-day:active{transform:translateY(0) scale(.985)}
+
+/* Home priority reset: no greeting, week first, summary dominant */
+#today-signal-row:empty,
+#today-alerts-summary:empty{display:none}
+.today-dashboard-card{
+  border-color:#d9caba;
+  box-shadow:0 22px 44px rgba(23,20,14,.085), inset 0 1px 0 rgba(255,255,255,.86);
+}
+.today-dashboard-card .today-recap-title{
+  font-size:28px;
+  line-height:1.05;
+  font-weight:900;
+  letter-spacing:-.025em;
+}
+.today-dashboard-card > .macro-strip .ms-kcal-card{
+  padding:18px 19px 17px;
+  border-radius:22px;
+}
+.today-dashboard-card > .macro-strip .ms-kcal-kicker{
+  font-size:13px;
+}
+.today-dashboard-card > .macro-strip .ms-kcal-target-chip{
+  min-height:30px;
+  padding:5px 12px;
+  font-size:13px;
+}
+.today-dashboard-card > .macro-strip .ms-kcal-val{
+  font-size:44px;
+}
+.today-dashboard-card > .macro-strip .ms-kcal-unit{
+  font-size:17px;
+}
+.today-dashboard-card > .macro-strip .ms-kcal-rem{
+  font-size:18px;
+}
+.today-dashboard-card > .macro-strip .ms-kcal-bar{
+  height:10px;
+}
+.today-dashboard-card > .macro-strip .ms-macros-row{
+  gap:11px;
+}
+.today-dashboard-card > .macro-strip .ms-macro-card{
+  padding:15px 14px 14px;
+  border-radius:20px;
+}
+.today-dashboard-card > .macro-strip .ms-macro-icon{
+  font-size:18px;
+}
+.today-dashboard-card > .macro-strip .ms-macro-lbl{
+  font-size:14px;
+}
+.today-dashboard-card > .macro-strip .ms-macro-val{
+  font-size:29px;
+}
+.today-dashboard-card > .macro-strip .ms-macro-rem{
+  font-size:13px;
+}
+.today-dashboard-card .dp-compact-label{
+  font-size:18px;
+}
+.today-week-secondary{
+  margin-top:18px;
+  margin-bottom:14px;
+}
 .wc-day.wc-on{
   background:
     radial-gradient(120% 100% at 0% 0%, rgba(204,235,217,.92) 0%, rgba(204,235,217,0) 46%),
@@ -4978,6 +5115,126 @@ select:focus-visible{
   font-family:'Manrope',sans-serif;font-size:10px;font-weight:800;
   background:var(--on-l);border:1px solid var(--on-b);border-radius:999px;
   padding:7px 14px;cursor:pointer;color:var(--on);flex:0 0 auto;min-width:96px;
+}
+
+/* Manual foods database */
+.custom-food-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.custom-food-card{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:12px;
+  align-items:center;
+  padding:14px;
+  border:1px solid #e2d8ca;
+  border-radius:18px;
+  background:rgba(255,255,255,.86);
+  box-shadow:0 12px 26px rgba(23,20,14,.04), inset 0 1px 0 rgba(255,255,255,.82);
+}
+.custom-food-card.is-editing{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  background:linear-gradient(180deg,#f8fbff 0%,#f1f6ff 100%);
+  border-color:#c8d9f0;
+}
+.custom-food-main{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  min-width:0;
+}
+.custom-food-top,
+.custom-food-edit-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.custom-food-edit-head{
+  justify-content:space-between;
+}
+.custom-food-badge{
+  display:inline-flex;
+  align-items:center;
+  min-height:22px;
+  padding:0 9px;
+  border-radius:999px;
+  border:1px solid #cfe5d7;
+  background:#f1faf4;
+  color:#17653f;
+  font-size:10px;
+  font-weight:850;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.custom-food-kcal{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  font-weight:800;
+  color:#8f5f0b;
+}
+.custom-food-name{
+  font-size:17px;
+  font-weight:850;
+  color:var(--ink);
+  line-height:1.15;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.custom-food-macros{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  font-weight:750;
+  color:#6a6258;
+}
+.custom-food-actions{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+}
+.custom-food-form{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:9px;
+}
+.custom-food-field{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  font-size:9px;
+  font-weight:850;
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  color:#7386a0;
+}
+.custom-food-field-name{
+  grid-column:1/-1;
+}
+.custom-food-field input{
+  width:100%;
+  box-sizing:border-box;
+  border:1.5px solid #d5dfec;
+  border-radius:11px;
+  background:rgba(255,255,255,.94);
+  color:var(--ink);
+  font-family:'Manrope',sans-serif;
+  font-size:14px;
+  padding:10px 9px;
+  outline:none;
+}
+.custom-food-field input:focus{
+  border-color:#5b82b8;
+  box-shadow:0 0 0 3px rgba(91,130,184,.10);
 }
 .tmpl-btn-load:hover{background:#d8f1df}
 
@@ -10597,5 +10854,133 @@ select:focus-visible{
     justify-content:center;
     min-height:38px;
     border-radius:14px;
+  }
+}
+
+/* Home recap balance + shared week calendar in Pasti */
+@media(max-width:720px){
+  .today-dashboard-card{
+    padding:15px 13px 14px!important;
+    border-radius:22px!important;
+  }
+  .today-dashboard-card .today-recap-title{
+    margin-bottom:11px!important;
+    font-size:23px!important;
+    line-height:1.08!important;
+  }
+  .today-dashboard-card > .macro-strip{
+    gap:10px!important;
+    overflow:hidden!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-kcal-card{
+    padding:13px 12px 12px!important;
+    border-radius:17px!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-kcal-kicker{
+    font-size:11px!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-kcal-target-chip{
+    min-height:24px!important;
+    padding:3px 9px!important;
+    font-size:11px!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-kcal-val{
+    font-size:34px!important;
+    line-height:.95!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-kcal-unit{
+    font-size:13px!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-kcal-rem{
+    font-size:14px!important;
+    line-height:1.2!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-kcal-bar{
+    height:7px!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-macros-row{
+    display:grid!important;
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:8px!important;
+    width:100%!important;
+    overflow:hidden!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-card{
+    min-width:0!important;
+    width:100%!important;
+    overflow:hidden!important;
+    padding:11px 8px 10px!important;
+    border-radius:16px!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-top{
+    min-width:0!important;
+    gap:4px!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-icon{
+    flex:0 0 auto!important;
+    font-size:14px!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-lbl{
+    min-width:0!important;
+    font-size:11px!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-val{
+    font-size:22px!important;
+    line-height:1!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-unit{
+    font-size:10px!important;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-rem{
+    font-size:11.5px!important;
+    line-height:1.15!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+  .today-dashboard-card .dp-compact{
+    padding:9px 10px!important;
+    gap:9px!important;
+  }
+  .today-dashboard-card .dp-compact-label{
+    font-size:14px!important;
+  }
+  .piano-week-card{
+    margin:0 0 16px!important;
+  }
+  #view-piano.is-template-subview .piano-week-card{
+    display:none!important;
+  }
+}
+
+/* Supplements selected state + manual food sheet page */
+@media(max-width:720px){
+  .today-support-panel .support-mini-card-supp .supp-today-item.is-done .supp-today-btn,
+  .today-support-panel .support-mini-card-supp .supp-today-btn.done{
+    background:linear-gradient(180deg,#f2fbf5 0%,#e4f5ea 100%)!important;
+    border-color:#9fd4b1!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.82),0 8px 18px rgba(26,107,63,.10)!important;
+  }
+  .today-support-panel .support-mini-card-supp .supp-today-item.is-done .supp-today-name,
+  .today-support-panel .support-mini-card-supp .supp-today-btn.done .supp-today-name{
+    color:#14532d!important;
+  }
+  .today-support-panel .support-mini-card-supp .supp-today-item.is-done .supp-today-check,
+  .today-support-panel .support-mini-card-supp .supp-today-btn.done .supp-today-check{
+    background:#1f7a46!important;
+    border-color:#1f7a46!important;
+    color:#fff!important;
+  }
+  .manual-food-sheet-page{
+    padding:12px 2px 4px;
+  }
+  .manual-food-sheet-page .mf-form-sheet{
+    display:flex!important;
+    margin:0;
+    border-radius:20px;
+    background:linear-gradient(180deg,#f8fbff 0%,#f1f6ff 100%);
   }
 }

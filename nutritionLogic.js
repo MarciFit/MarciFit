@@ -1903,23 +1903,25 @@ async function fetchOFF(q, signal, queryCtx) {
 // UI ricerca alimenti (dropdown + gram picker)
 // ─────────────────────────────────────────────────────────────────────────────
 
+function _manualFoodEsc(value) {
+  if (typeof htmlEsc === 'function') return htmlEsc(value || '');
+  return String(value || '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[ch]));
+}
+
 // HTML del form "Aggiungi manualmente" — sempre disponibile in fondo ai risultati
-function _manualFormHTML(uid) {
-  return `<div class="mf-toggle" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.classList.toggle('mf-open')">
-      <span class="mf-toggle-icon">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      </span>
-      <span class="mf-toggle-copy">
-        <span class="mf-toggle-title">Aggiungi manualmente</span>
-        <span class="mf-toggle-sub">Crea un alimento personalizzato per questo pasto</span>
-      </span>
-    </div>
-    <div class="mf-form" style="display:none" id="mff-${uid}">
-      <div class="mf-form-head">
+function _manualFormBodyHTML(initialName = '') {
+  const safeInitialName = _manualFoodEsc(initialName.trim());
+  return `<div class="mf-form-head">
         <div class="mf-form-title">Nuovo alimento personalizzato</div>
         <div class="mf-form-sub">Inserisci i valori nutrizionali per 100g e lo aggiungiamo subito al pasto.</div>
       </div>
-      <input class="mf-name" type="text" placeholder="Nome alimento (es. Pasticciotto leccese)" autocomplete="off" style="font-size:16px">
+      <input class="mf-name" type="text" placeholder="Nome alimento (es. Pasticciotto leccese)" autocomplete="off" value="${safeInitialName}" style="font-size:16px">
       <div class="mf-row4">
         <label class="mf-lbl">Kcal<input class="mf-kcal" type="number" min="0" placeholder="0" inputmode="decimal" style="font-size:16px"></label>
         <label class="mf-lbl">Prot<input class="mf-p"    type="number" min="0" placeholder="0" inputmode="decimal" style="font-size:16px"></label>
@@ -1927,13 +1929,25 @@ function _manualFormHTML(uid) {
         <label class="mf-lbl">Grassi<input class="mf-g"    type="number" min="0" placeholder="0" inputmode="decimal" style="font-size:16px"></label>
       </div>
       <div class="mf-hint">Valori per 100g</div>
-      <button class="mf-save-btn">Salva e aggiungi</button>
+      <button class="mf-save-btn">Salva e aggiungi</button>`;
+}
+
+function _manualFormHTML(uid, initialName = '') {
+  return `<button type="button" class="mf-toggle" data-manual-initial="${_manualFoodEsc(initialName.trim())}">
+      <span class="mf-toggle-icon">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </span>
+      <span class="mf-toggle-copy">
+        <span class="mf-toggle-title">Aggiungi manualmente</span>
+        <span class="mf-toggle-sub">Crea un alimento personalizzato per questo pasto</span>
+      </span>
+    </button>
+    <div class="mf-form" style="display:none" id="mff-${uid}">
+      ${_manualFormBodyHTML(initialName)}
     </div>`;
 }
 
-// Bind del form manuale — riutilizzabile sia con risultati che senza
-function _bindManualForm(resEl, onSelectFn) {
-  const form = resEl.querySelector('.mf-form');
+function _bindManualFoodSave(form, onSelectFn) {
   if (!form) return;
   form.querySelector('.mf-save-btn').addEventListener('click', () => {
     const name = form.querySelector('.mf-name').value.trim();
@@ -1954,9 +1968,49 @@ function _bindManualForm(resEl, onSelectFn) {
   });
 }
 
-function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus) {
+function showManualFoodFormPage(resEl, onSelectFn, initialName = '') {
+  const sheetBody = resEl.closest?.('#food-search-sheet-body');
+  if (!sheetBody) return false;
+  sheetBody.innerHTML = `
+    <div class="food-search-sheet-picker-head">
+      <button class="food-search-sheet-back" onclick="returnFoodSearchToResults();event.stopPropagation()" title="Torna ai risultati" aria-label="Torna ai risultati">‹</button>
+      <div class="food-search-sheet-picker-copy">
+        <div class="mc-log-search-kicker">Alimento manuale</div>
+        <div class="mc-log-search-title">Nuovo alimento</div>
+      </div>
+      <button class="mc-log-search-close" onclick="closeLogSearch();event.stopPropagation()" title="Chiudi ricerca" aria-label="Chiudi ricerca">×</button>
+    </div>
+    <div class="manual-food-sheet-page">
+      <div class="mf-form mf-form-sheet" id="mff-sheet-manual">
+        ${_manualFormBodyHTML(initialName)}
+      </div>
+    </div>`;
+  const form = sheetBody.querySelector('.mf-form');
+  _bindManualFoodSave(form, onSelectFn);
+  sheetBody.scrollTop = 0;
+  setTimeout(() => form?.querySelector('.mf-name')?.focus(), 40);
+  return true;
+}
+
+// Bind del form manuale — riutilizzabile sia con risultati che senza
+function _bindManualForm(resEl, onSelectFn) {
+  const toggle = resEl.querySelector('.mf-toggle');
+  const form = resEl.querySelector('.mf-form');
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      const initialName = toggle.dataset.manualInitial || form?.querySelector('.mf-name')?.value || '';
+      if (String(resEl.id || '').startsWith('mlsr-') && showManualFoodFormPage(resEl, onSelectFn, initialName)) return;
+      if (!form) return;
+      form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+      toggle.classList.toggle('mf-open', form.style.display !== 'none');
+    });
+  }
+  _bindManualFoodSave(form, onSelectFn);
+}
+
+function renderFoodDropdown(results, resEl, onSelectFn, extraHTML, apiStatus, options = {}) {
   const uid = resEl.id || ('mf' + Date.now());
-  const manualHtml = _manualFormHTML(uid);
+  const manualHtml = _manualFormHTML(uid, options.initialManualName || '');
   const VISIBLE_RESULTS = 6;
 
   let alertsHtml = '';
@@ -2242,7 +2296,7 @@ function onLogFoodSearch(input, dateKey, mealIdx, domKey) {
             refreshMealCard(dayType, mealIdx);
           }, { mealIdx, dateKey });
         },
-        null, apiStatus
+        null, apiStatus, { initialManualName: q }
       );
     }, { contextKey: `meal-log:${domKey}` });
   }, 200);
@@ -2272,7 +2326,7 @@ function onTmplFoodSearch(input) {
             renderTmplFormItems();
           });
         },
-        null, apiStatus
+        null, apiStatus, { initialManualName: q }
       );
     }, { contextKey: 'template-form' });
   }, 200);
@@ -2306,7 +2360,7 @@ function onFoodSearch(input, type, mealIdx, domKey) {
             renderPiano();
           });
         },
-        null, apiStatus
+        null, apiStatus, { initialManualName: q }
       );
     }, { contextKey: `piano:${domKey}` });
   }, 200);

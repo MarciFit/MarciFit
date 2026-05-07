@@ -1762,6 +1762,8 @@ function renderGreetingAlerts(type, dateKey) {
 }
 
 function renderGreeting(type, now) {
+  const greetingEl = document.getElementById('today-greeting');
+  if (!greetingEl) return;
   const DAYS   = ['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
   const MONTHS = ['gennaio','febbraio','marzo','aprile','maggio','giugno',
                   'luglio','agosto','settembre','ottobre','novembre','dicembre'];
@@ -1871,7 +1873,6 @@ function renderGreeting(type, now) {
     console.error('Greeting daily summary fallback', err);
   }
 
-  const greetingEl = document.getElementById('today-greeting');
   if (greetingEl) {
     greetingEl.dataset.dayState = resolvedType;
     greetingEl.classList.remove('is-on', 'is-off', 'has-cheat', 'is-on-cheat', 'is-off-cheat');
@@ -1916,6 +1917,8 @@ function renderGreeting(type, now) {
 function renderTodaySignals(type, dateKey) {
   const el = document.getElementById('today-signal-row');
   if (!el) return;
+  el.innerHTML = '';
+  return;
   const scheduledType = getScheduledDayType(dateKey);
   const trackedType = getTrackedDayType(dateKey, type);
   const dayModeLabel = value => value === 'on' ? 'Workout' : 'Rest';
@@ -2106,6 +2109,10 @@ function renderWeekCal(now) {
   const DOW_NAMES = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
   const MONTHS_SHORT = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
   const ON_SET = new Set(S.onDays);
+  const targets = [
+    { title: 'cal-title', prev: 'cal-prev', next: 'cal-next', meta: 'week-cal-meta', grid: 'week-cal' },
+    { title: 'piano-cal-title', prev: 'piano-cal-prev', next: 'piano-cal-next', meta: 'piano-week-cal-meta', grid: 'piano-week-cal' },
+  ];
 
   // Monday of *current real* week
   const todayDow = now.getDay();
@@ -2124,18 +2131,6 @@ function renderWeekCal(now) {
   const titleStr = monday.getMonth() === sun.getMonth()
     ? `${monday.getDate()}–${sun.getDate()} ${mM} ${sun.getFullYear()}`
     : `${monday.getDate()} ${mM} – ${sun.getDate()} ${sM} ${sun.getFullYear()}`;
-  const titleEl = document.getElementById('cal-title');
-  if (titleEl) {
-    titleEl.textContent = titleStr;
-    titleEl.title = 'Scegli mese e anno';
-  }
-
-  // Prev/next buttons always enabled (no week limit)
-  const prevBtn = document.getElementById('cal-prev');
-  const nextBtn = document.getElementById('cal-next');
-  if (prevBtn) prevBtn.classList.remove('disabled');
-  if (nextBtn) nextBtn.classList.remove('disabled');
-
   const todayStr = localDate(now);
   // init selDate to today if not set
   if (!S.selDate) S.selDate = todayStr;
@@ -2216,12 +2211,7 @@ function renderWeekCal(now) {
     };
   });
 
-  const weekMetaEl = document.getElementById('week-cal-meta');
-  if (weekMetaEl) {
-    weekMetaEl.innerHTML = '';
-  }
-
-  document.getElementById('week-cal').innerHTML = dayModels.map(day => {
+  const daysHtml = dayModels.map(day => {
     const typeRail = `<div class="wc-done ${day.visualOn ? 'workout' : 'rest'}" title="${day.typeLabel}"></div>`;
     const eventDots = [
       day.hasOverride ? `<span class="wc-marker wc-marker-override" title="${day.overrideTitle}"></span>` : '',
@@ -2238,7 +2228,26 @@ function renderWeekCal(now) {
       </div>
     </div>`;
   }).join('');
-  if (typeof attachWeekCalendarSwipe === 'function') attachWeekCalendarSwipe();
+
+  targets.forEach(target => {
+    const gridEl = document.getElementById(target.grid);
+    if (!gridEl) return;
+    const titleEl = document.getElementById(target.title);
+    if (titleEl) {
+      titleEl.textContent = titleStr;
+      titleEl.title = 'Scegli mese e anno';
+    }
+    // Prev/next buttons always enabled (no week limit)
+    const prevBtn = document.getElementById(target.prev);
+    const nextBtn = document.getElementById(target.next);
+    if (prevBtn) prevBtn.classList.remove('disabled');
+    if (nextBtn) nextBtn.classList.remove('disabled');
+
+    const weekMetaEl = document.getElementById(target.meta);
+    if (weekMetaEl) weekMetaEl.innerHTML = '';
+    gridEl.innerHTML = daysHtml;
+    if (typeof attachWeekCalendarSwipe === 'function') attachWeekCalendarSwipe(gridEl);
+  });
 }
 function renderMacroStrip(type, meals, tgt) {
   const dateKey = S.selDate || localDate();
@@ -2924,18 +2933,89 @@ function getTemplateMealMetaMap() {
   return map;
 }
 
+function renderCustomFoodsDatabasePage(activeEditIndex = -1) {
+  const listEl = document.getElementById('custom-food-list');
+  if (!listEl) return;
+  const foods = Array.isArray(S.customFoods) ? S.customFoods : [];
+  if (!foods.length) {
+    listEl.innerHTML = `<div class="piano-template-section piano-template-section-compact">
+      <div class="tmpl-empty-state">Non hai ancora alimenti manuali. Quando ne crei uno dal bottom sheet, lo ritrovi qui.</div>
+    </div>`;
+    return;
+  }
+  const fmtNum = value => {
+    const n = Number(value || 0);
+    return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
+  };
+  listEl.innerHTML = `<div class="custom-food-list">
+    ${foods.map((food, index) => {
+      const isEditing = activeEditIndex === index;
+      const name = htmlEsc(food.name || 'Alimento manuale');
+      const kcal = Math.round(Number(food.kcal100 || 0));
+      const p = fmtNum(food.p100);
+      const c = fmtNum(food.c100);
+      const f = fmtNum(food.f100);
+      if (isEditing) {
+        return `<div class="custom-food-card is-editing">
+          <div class="custom-food-edit-head">
+            <span class="custom-food-badge">Personale</span>
+            <strong>Modifica alimento</strong>
+          </div>
+          <div class="custom-food-form">
+            <label class="custom-food-field custom-food-field-name">Nome<input id="cf-name-${index}" type="text" value="${name}" autocomplete="off"></label>
+            <label class="custom-food-field">Kcal / 100g<input id="cf-kcal-${index}" type="number" min="0" step="1" value="${kcal}"></label>
+            <label class="custom-food-field">Prot / 100g<input id="cf-p-${index}" type="number" min="0" step="0.1" value="${p}"></label>
+            <label class="custom-food-field">Carb / 100g<input id="cf-c-${index}" type="number" min="0" step="0.1" value="${c}"></label>
+            <label class="custom-food-field">Grassi / 100g<input id="cf-f-${index}" type="number" min="0" step="0.1" value="${f}"></label>
+          </div>
+          <div class="custom-food-actions">
+            <button class="tmpl-btn-sec" onclick="cancelEditCustomFood()">Annulla</button>
+            <button class="tmpl-btn-load" onclick="saveCustomFood(${index})">Salva</button>
+          </div>
+        </div>`;
+      }
+      return `<div class="custom-food-card">
+        <div class="custom-food-main">
+          <div class="custom-food-top">
+            <span class="custom-food-badge">Personale</span>
+            <span class="custom-food-kcal">${kcal} kcal/100g</span>
+          </div>
+          <div class="custom-food-name">${name}</div>
+          <div class="custom-food-macros">
+            <span>P ${p}g</span>
+            <span>C ${c}g</span>
+            <span>G ${f}g</span>
+          </div>
+        </div>
+        <div class="custom-food-actions">
+          <button class="tmpl-btn-sec tmpl-btn-icon" onclick="editCustomFood(${index})" title="Modifica alimento" aria-label="Modifica alimento">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="tmpl-btn-sec tmpl-btn-icon" onclick="deleteCustomFood(${index})" title="Elimina alimento" aria-label="Elimina alimento">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+          </button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
 function renderPiano() {
   if (!S.templates) S.templates = [];
+  if (typeof renderWeekCal === 'function') renderWeekCal(new Date());
   renderTodayLog();
   const pianoUi = typeof ensurePianoUiState === 'function'
     ? ensurePianoUiState()
-    : { activeMealFilter: 'all', templateSort: 'useful_now', helperExpanded: true, activeSubView: 'meals' };
-  const activeSubView = pianoUi.activeSubView === 'templates' ? 'templates' : 'meals';
+    : { activeMealFilter: 'all', templateSort: 'useful_now', helperExpanded: true, activeSubView: 'meals', editCustomFoodIndex: -1 };
+  const activeSubView = ['templates', 'customFoods'].includes(pianoUi.activeSubView) ? pianoUi.activeSubView : 'meals';
   const pianoView = document.getElementById('view-piano');
   if (pianoView) {
     pianoView.classList.toggle('is-template-subview', activeSubView === 'templates');
-    pianoView.classList.toggle('is-meals-subview', activeSubView !== 'templates');
+    pianoView.classList.toggle('is-custom-foods-subview', activeSubView === 'customFoods');
+    pianoView.classList.toggle('is-meals-subview', activeSubView === 'meals');
   }
+  renderCustomFoodsDatabasePage(activeSubView === 'customFoods' ? pianoUi.editCustomFoodIndex : -1);
+  if (activeSubView === 'customFoods') return;
   const activeMealFilter = pianoUi.activeMealFilter || 'all';
   const mealTypeCounts = typeof getTemplateCountsByMealType === 'function'
     ? getTemplateCountsByMealType(S.templates || [])

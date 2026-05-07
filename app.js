@@ -920,6 +920,7 @@ function refreshTodayDerivedViews({ greeting = true, calendar = true, stats = tr
     if (greeting) renderGreeting(S.day, new Date());
     if (calendar) renderWeekCal(new Date());
   }
+  if (calendar && active === 'view-piano') renderWeekCal(new Date());
   if (stats && active === 'view-stats') renderStats();
 }
 function toggleExtraMeal(key) {
@@ -1104,16 +1105,86 @@ function ensurePianoUiState() {
   if (typeof S.pianoUi.activeMealFilter !== 'string') S.pianoUi.activeMealFilter = 'all';
   if (typeof S.pianoUi.templateSort !== 'string') S.pianoUi.templateSort = 'useful_now';
   if (typeof S.pianoUi.helperExpanded !== 'boolean') S.pianoUi.helperExpanded = true;
-  if (!['meals', 'templates'].includes(S.pianoUi.activeSubView)) S.pianoUi.activeSubView = 'meals';
+  if (!['meals', 'templates', 'customFoods'].includes(S.pianoUi.activeSubView)) S.pianoUi.activeSubView = 'meals';
+  if (!Number.isInteger(S.pianoUi.editCustomFoodIndex)) S.pianoUi.editCustomFoodIndex = -1;
   return S.pianoUi;
 }
 
 function setPianoSubView(view, { render = true } = {}) {
   const ui = ensurePianoUiState();
-  ui.activeSubView = view === 'templates' ? 'templates' : 'meals';
-  if (ui.activeSubView === 'meals') closeTemplateForm();
+  ui.activeSubView = view === 'templates' || view === 'customFoods' ? view : 'meals';
+  ui.editCustomFoodIndex = -1;
+  if (ui.activeSubView !== 'templates') closeTemplateForm();
   save();
   if (render) renderPiano();
+}
+
+function editCustomFood(index) {
+  const ui = ensurePianoUiState();
+  ui.activeSubView = 'customFoods';
+  ui.editCustomFoodIndex = Number(index);
+  save();
+  renderPiano();
+}
+
+function cancelEditCustomFood() {
+  const ui = ensurePianoUiState();
+  ui.editCustomFoodIndex = -1;
+  save();
+  renderPiano();
+}
+
+function saveCustomFood(index) {
+  if (!S.customFoods || !S.customFoods[index]) return;
+  const name = (document.getElementById(`cf-name-${index}`)?.value || '').trim();
+  const kcal100 = parseFloat(document.getElementById(`cf-kcal-${index}`)?.value || '0');
+  const p100 = parseFloat(document.getElementById(`cf-p-${index}`)?.value || '0');
+  const c100 = parseFloat(document.getElementById(`cf-c-${index}`)?.value || '0');
+  const f100 = parseFloat(document.getElementById(`cf-f-${index}`)?.value || '0');
+  if (!name) { toast('❌ Inserisci il nome'); return; }
+  if (!kcal100 || kcal100 <= 0) { toast('❌ Inserisci le kcal'); return; }
+  S.customFoods[index] = {
+    ...S.customFoods[index],
+    name,
+    brand: S.customFoods[index].brand || '📝 Personale',
+    kcal100: Math.round(kcal100),
+    p100: Number.isFinite(p100) ? p100 : 0,
+    c100: Number.isFinite(c100) ? c100 : 0,
+    f100: Number.isFinite(f100) ? f100 : 0,
+  };
+  ensurePianoUiState().editCustomFoodIndex = -1;
+  save();
+  renderPiano();
+  toast('✅ Alimento aggiornato');
+}
+
+function deleteCustomFood(index) {
+  if (!S.customFoods || !S.customFoods[index]) return;
+  const food = S.customFoods[index];
+  showDayModal({
+    icon: '🗑️',
+    eyebrow: 'Database personale',
+    title: 'Eliminare questo alimento?',
+    danger: true,
+    confirmText: 'Elimina alimento',
+    cancelText: 'Tieni alimento',
+    body: `
+      <div class="template-delete-summary">
+        <div class="template-delete-name">${htmlEsc(food.name || 'Alimento')}</div>
+        <div class="template-delete-pill-row">
+          <span class="template-delete-pill">Personale</span>
+          <span class="template-delete-pill">${Math.round(Number(food.kcal100 || 0))} kcal/100g</span>
+        </div>
+        <div class="template-delete-copy">Eliminare questo alimento dal database personale? I pasti gia registrati non verranno modificati.</div>
+      </div>`,
+    onConfirm: () => {
+      S.customFoods.splice(index, 1);
+      ensurePianoUiState().editCustomFoodIndex = -1;
+      save();
+      renderPiano();
+      toast('✅ Alimento eliminato');
+    }
+  });
 }
 
 function setPianoMealFilter(mealType) {
@@ -1905,6 +1976,37 @@ function removeItem(type, mealIdx, itemIdx) {
 let _activeFoodSearchSheet = null;
 let _foodSearchSheetDragged = false;
 let _foodSearchSheetCloseTimer = null;
+let _foodSearchKeyboardActive = false;
+
+function getFoodSearchKeyboardOffset() {
+  if (!window.visualViewport) return 0;
+  const viewport = window.visualViewport;
+  const rawOffset = window.innerHeight - viewport.height - viewport.offsetTop;
+  return Math.max(0, Math.round(rawOffset));
+}
+
+function isFoodSearchInputFocused() {
+  const active = document.activeElement;
+  return !!active?.closest?.('#food-search-sheet') && active.matches?.('input, textarea, select');
+}
+
+function updateFoodSearchKeyboardLift() {
+  const ov = document.getElementById('food-search-sheet-ov');
+  if (!ov) return;
+  const keyboardOffset = getFoodSearchKeyboardOffset();
+  const shouldLift = ov.classList.contains('open') && isFoodSearchInputFocused() && keyboardOffset > 72;
+  _foodSearchKeyboardActive = shouldLift;
+  ov.style.setProperty('--keyboard-offset', shouldLift ? `${keyboardOffset}px` : '0px');
+  ov.classList.toggle('keyboard-open', shouldLift);
+}
+
+function resetFoodSearchKeyboardLift() {
+  const ov = document.getElementById('food-search-sheet-ov');
+  if (!ov) return;
+  _foodSearchKeyboardActive = false;
+  ov.style.setProperty('--keyboard-offset', '0px');
+  ov.classList.remove('keyboard-open');
+}
 let _dayTypeSheetCloseTimer = null;
 
 function resolveMealSearchContext(domKey) {
@@ -2007,11 +2109,7 @@ function toggleLogSearch(domKey, options = {}) {
   sheet.classList.remove('is-expanded');
   sheet.dataset.state = 'compact';
   ov.classList.add('open');
-  requestAnimationFrame(() => {
-    sheet.classList.add('ui-press-pop');
-    setTimeout(() => sheet.classList.remove('ui-press-pop'), 360);
-  });
-  if (ctx.domKey) pulseTodayElement('#current-meal-focus .current-meal-primary', 'ui-glow');
+  updateFoodSearchKeyboardLift();
 }
 
 function closeLogSearch(domKey = null) {
@@ -2035,6 +2133,7 @@ function closeLogSearch(domKey = null) {
         sheet.style.height = '';
         sheet.style.transition = '';
       }
+      resetFoodSearchKeyboardLift();
     }, 240);
   } else {
     if (body) body.innerHTML = '';
@@ -2044,6 +2143,7 @@ function closeLogSearch(domKey = null) {
       sheet.style.height = '';
       sheet.style.transition = '';
     }
+    resetFoodSearchKeyboardLift();
   }
   _activeFoodSearchSheet = null;
   _logSearchSel = null;
@@ -2844,7 +2944,8 @@ function onFfSearch(inp) {
           sr.style.display = 'none';
         },
         null,
-        apiStatus
+        apiStatus,
+        { initialManualName: q }
       );
       sr.style.display = 'block';
     }, { contextKey: 'favorite-foods' });
@@ -4665,9 +4766,8 @@ function attachTodaySwipe() {
   _todaySwipeBound = true;
 }
 
-function attachWeekCalendarSwipe() {
-  const el = document.getElementById('week-cal');
-  if (!el || _weekCalSwipeBound) return;
+function attachWeekCalendarSwipe(el = document.getElementById('week-cal')) {
+  if (!el || el.dataset.swipeBound === '1') return;
   attachWeekDayLongPress(el);
   if (window.matchMedia?.('(max-width: 720px)').matches) return;
   el.addEventListener('touchstart', evt => {
@@ -4684,7 +4784,7 @@ function attachWeekCalendarSwipe() {
     if (Math.abs(deltaX) < 36 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
     calMove(deltaX < 0 ? 1 : -1);
   }, { passive: true });
-  _weekCalSwipeBound = true;
+  el.dataset.swipeBound = '1';
 }
 
 function attachWeekDayLongPress(el = document.getElementById('week-cal')) {
@@ -4732,6 +4832,7 @@ function calGoToday() {
   S.selDate = localDate();
   save();
   renderToday();
+  if (document.querySelector('.view.active')?.id === 'view-piano') renderPiano();
 }
 
 function openCalPicker() {
@@ -4831,6 +4932,7 @@ function pickerGoToday() {
   save();
   closeCalPicker();
   renderToday();
+  if (document.querySelector('.view.active')?.id === 'view-piano') renderPiano();
 }
 
 function calSelectDay(dateStr, dayType) {
@@ -4852,6 +4954,7 @@ function calSelectDay(dateStr, dayType) {
   }
   save();
   renderToday();
+  if (document.querySelector('.view.active')?.id === 'view-piano') renderPiano();
   renderNotes();
 }
 
@@ -5151,7 +5254,9 @@ document.addEventListener('visibilitychange', syncTodayGreetingAutoRefresh);
     window.visualViewport.addEventListener('resize', () => {
       const kbOpen = window.visualViewport.height < window.innerHeight - 100;
       document.body.classList.toggle('kb-open', kbOpen);
+      updateFoodSearchKeyboardLift();
     });
+    window.visualViewport.addEventListener('scroll', updateFoodSearchKeyboardLift);
   } else {
     // Fallback per browser senza visualViewport
     const INPUT_SEL = 'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="range"]), textarea, select';
@@ -5168,4 +5273,14 @@ document.addEventListener('visibilitychange', syncTodayGreetingAutoRefresh);
       }
     });
   }
+  document.addEventListener('focusin', e => {
+    if (e.target?.closest?.('#food-search-sheet')) {
+      setTimeout(updateFoodSearchKeyboardLift, 60);
+    }
+  });
+  document.addEventListener('focusout', e => {
+    if (e.target?.closest?.('#food-search-sheet')) {
+      setTimeout(updateFoodSearchKeyboardLift, 120);
+    }
+  });
 })();
