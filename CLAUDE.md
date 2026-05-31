@@ -2,7 +2,7 @@
 
 Documento operativo per sessioni con Claude/Codex. Va mantenuto breve, aggiornato e utile per entrare nel progetto senza rileggere tutto il codice.
 
-Ultimo aggiornamento: 2026-05-03
+Ultimo aggiornamento: 2026-05-09
 
 ## Snapshot Progetto
 
@@ -15,21 +15,35 @@ MarciFit e una web app personale per nutrizione, tracking giornaliero e progress
 | File entry | `index.html` |
 | State globale | `const S` in `app.js` |
 | Persistenza | `storage.js`, key principale `piano_federico_v2` |
-| Test rapidi | `node --check app.js uiComponents.js`, smoke npm |
+| Test rapidi | `node --check app.js ui/*.js`, smoke npm |
 
-Asset version correnti in `index.html`:
+Asset principali caricati da `index.html`:
 
-- `style.css?v=150`
+- `styles/base.css?v=1`
+- `styles/today.css?v=1`
+- `styles/piano.css?v=1`
+- `styles/stats.css?v=1`
+- `styles/modals.css?v=1`
+- `styles/design-upgrades.css?v=1`
+- `styles/mobile.css?v=1`
+- `styles/today-overrides.css?v=1`
+- `styles/forms-profile.css?v=1`
+- `styles/favorites-modals.css?v=1`
+- `styles/profile.css?v=1`
 - `debugTools.js?v=5`
-- `authSync.js?v=17`
+- `authSync.js?v=23`
 - `storage.js?v=42`
-- `nutritionLogic.js?v=57`
+- `nutritionLogic.js?v=59`
 - `mealTaxonomy.js?v=1`
 - `templateEngine.js?v=2`
 - `mealHelperEngine.js?v=1`
-- `uiComponents.js?v=122`
+- `ui/sharedUi.js?v=1`
+- `ui/todayView.js?v=1`
+- `ui/pianoView.js?v=1`
+- `ui/statsView.js?v=1`
+- `ui/profileView.js?v=1`
 - `bootstrapTools.js?v=7`
-- `app.js?v=101`
+- `app.js?v=111`
 - `barcodeTools.js?v=18`
 
 Incrementare il query param quando si modifica un asset, soprattutto in preview `file://` o browser con cache aggressiva.
@@ -56,7 +70,8 @@ Markup principale in `index.html`:
 | --- | --- |
 | `index.html` | Shell DOM, nav, container view, modal globali, script include |
 | `app.js` | Stato `S`, handler, navigazione, modali, food sheet, acqua, integratori, profilo, calendario |
-| `uiComponents.js` | Rendering HTML delle view/card, alert, macro strip, meal card, profilo, stats, acqua/integratori |
+| `ui/*.js` | Rendering HTML separato per helper condivisi, Today, Pasti, Stats e Profilo |
+| `styles/*.css` | CSS separato per base, view principali, overlay, mobile e override finali |
 | `nutritionLogic.js` | Calcolo TDEE/macro, database alimenti, ricerca food, ranking, gram picker |
 | `storage.js` | Save/load locale, import/export, applicazione stato validato |
 | `debugTools.js` | Debug flag, fetch wrapper, validazione import |
@@ -78,18 +93,18 @@ Markup principale in `index.html`:
 
 ### Oggi
 
-- `renderToday()` in `uiComponents.js`: greeting, calendario, dashboard, note, acqua, integratori.
-- `renderTodayLog()` in `uiComponents.js`: aggiorna macro strip, progress pasti, alert e meal card. Anche se il nome e legacy, ora popola `#meals-today` dentro `Piano`.
-- `renderMacroStrip()` in `uiComponents.js`: energia/macro nella dashboard.
-- `splitTodayAlerts()` e `renderTodayAlertHTML()` in `uiComponents.js`: alert attivi e support panel.
-- `renderWater()` / `renderSuppToday()` / `renderCheatWidget()` in `uiComponents.js`: routine e supporto giornaliero.
+- `renderToday()` in `ui/todayView.js`: greeting, calendario, dashboard, note, acqua, integratori.
+- `renderTodayLog()` in `ui/todayView.js`: aggiorna macro strip, progress pasti, alert e meal card. Anche se il nome e legacy, ora popola `#meals-today` dentro `Piano`.
+- `renderMacroStrip()` in `ui/todayView.js`: energia/macro nella dashboard.
+- `splitTodayAlerts()` e `renderTodayAlertHTML()` in `ui/todayView.js`: alert attivi e support panel.
+- `renderWater()` / `renderSuppToday()` / `renderCheatWidget()` in `ui/todayView.js`: routine e supporto giornaliero.
 
 ### Piano e pasti
 
-- `renderPiano()` in `uiComponents.js`: render meal card del giorno selezionato + template library.
-- `mealCardHTML()` in `uiComponents.js`: HTML della meal card principale.
-- `extraMealCardHTML()` in `uiComponents.js`: merenda/spuntino extra per data.
-- `mealTemplateButtonHTML()` in `uiComponents.js`: CTA `Aggiungi template` sulle meal card.
+- `renderPiano()` in `ui/pianoView.js`: render meal card del giorno selezionato + template library.
+- `mealCardHTML()` in `ui/sharedUi.js`: HTML della meal card principale.
+- `extraMealCardHTML()` in `ui/sharedUi.js`: merenda/spuntino extra per data.
+- `mealTemplateButtonHTML()` in `ui/sharedUi.js`: CTA `Aggiungi template` sulle meal card.
 - `refreshMealCard(type, mealIdx)` in `app.js`: refresh parziale dopo log/edit/remove.
 - `loadTemplateToLog()` / `loadTemplateToMeal()` in `app.js`: applicazione template.
 
@@ -104,10 +119,10 @@ Markup principale in `index.html`:
 
 ### Profilo e fabbisogno
 
-- `renderProfile()` / `renderProfileMenu()` in `uiComponents.js`: menu profilo e sezioni.
-- `renderAnagrafica()` in `uiComponents.js`: card `Fabbisogno`, `Dati base`, `Attivita`, `Target`.
+- `renderProfile()` / `renderProfileMenu()` in `ui/profileView.js`: menu profilo e sezioni.
+- `renderAnagrafica()` in `ui/profileView.js`: card `Fabbisogno`, `Dati base`, `Attivita`, `Target`.
 - `buildFabbisognoPreviewHTML()` in `app.js`: preview fabbisogno, target Workout/Rest e righe tecniche.
-- `showFabBmrTip()` / `showFabPalTip()` / `showFabTdeeTip()` / `showFabGoalTip()` in `uiComponents.js`: spiegazioni in modal, non tooltip hover.
+- `showFabBmrTip()` / `showFabPalTip()` / `showFabTdeeTip()` / `showFabGoalTip()` in `ui/profileView.js`: spiegazioni in modal, non tooltip hover.
 - `_updateFabbisognoPreview()` e `persistAnagraficaDraft()` in `app.js`: live preview e autosave.
 - `computeNutrition(ana, goal)` in `nutritionLogic.js`: motore BMR + NEAT + EAT + TEF, macro Workout/Rest.
 
@@ -147,7 +162,7 @@ Non introdurre nuove migrazioni se si puo mantenere backward compatibility trami
 ## Design System
 
 - Font: `Lora` per brand/titoli editoriali, `Manrope` per UI, `JetBrains Mono` per numeri.
-- Colori principali in `style.css`: `--on` verde, `--off` ambra/marrone, `--ink`, `--muted`, `--surface-border`.
+- Colori principali in `styles/base.css`: `--on` verde, `--off` ambra/marrone, `--ink`, `--muted`, `--surface-border`.
 - Mobile-first: bottom nav fissa, brand bar sticky, safe area iOS.
 - Niente card dentro card quando non necessario; preferire sezioni piene e gerarchie semplici.
 - Animazioni leggere: progress bar, glow/pop brevi, rispetto di `prefers-reduced-motion`.
@@ -171,7 +186,11 @@ npm run preview:stats
 
 # Check sintassi veloci
 node --check app.js
-node --check uiComponents.js
+node --check ui/sharedUi.js
+node --check ui/todayView.js
+node --check ui/pianoView.js
+node --check ui/statsView.js
+node --check ui/profileView.js
 node --check nutritionLogic.js
 ```
 
@@ -206,4 +225,3 @@ Note:
 - Learning/scienza: gli spunti scientifici sono stati rimossi da Oggi; eventuale nuova sezione dedicata futura.
 - Lista spesa: possibile estensione naturale di template + meal plan.
 - Alert tolerances: soglie ancora in parte hardcoded; valutare configurazione profilo solo se serve davvero.
-

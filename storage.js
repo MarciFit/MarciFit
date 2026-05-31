@@ -4,11 +4,118 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LS_KEY = 'piano_federico_v2';
+const LS_MIRROR_SUFFIX = '__mirror';
+const LS_SNAPSHOT_SUFFIX = '__snapshots';
+const LS_REGISTRY_KEY = 'marcifit_local_registry_v1';
+const LS_MAX_SNAPSHOTS = 8;
 let _saveTimer;
 
 function currentStorageKey() {
   if (typeof authGetAppStorageKey === 'function') return authGetAppStorageKey(LS_KEY);
   return LS_KEY;
+}
+
+function storageMirrorKey(key = currentStorageKey()) {
+  return `${key}${LS_MIRROR_SUFFIX}`;
+}
+
+function storageSnapshotsKey(key = currentStorageKey()) {
+  return `${key}${LS_SNAPSHOT_SUFFIX}`;
+}
+
+function storageReadJson(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    const validation = validateImportedState(parsed, { relaxed: true });
+    if (!validation.ok) return null;
+    return {
+      raw,
+      state: validation.normalizedState || parsed,
+      bytes: raw.length,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function storageReadSnapshots(key = currentStorageKey()) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storageSnapshotsKey(key)) || '[]');
+    return Array.isArray(parsed) ? parsed.filter(entry => entry && typeof entry.raw === 'string') : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function storageWriteSnapshots(key, raw, meta = {}) {
+  try {
+    const previous = storageReadSnapshots(key);
+    if (previous[0]?.raw === raw) return;
+    const next = [{
+      raw,
+      savedAt: meta.savedAt || new Date().toISOString(),
+      bytes: raw.length,
+      source: meta.source || 'auto',
+    }, ...previous].slice(0, LS_MAX_SNAPSHOTS);
+    localStorage.setItem(storageSnapshotsKey(key), JSON.stringify(next));
+  } catch (e) {
+    try {
+      const compact = storageReadSnapshots(key).slice(0, 2);
+      localStorage.setItem(storageSnapshotsKey(key), JSON.stringify(compact));
+    } catch (_) {}
+    mfWarn('storage', 'snapshot write skipped', { name: e?.name, message: e?.message });
+  }
+}
+
+function storageRememberKey(key = currentStorageKey(), raw = '') {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LS_REGISTRY_KEY) || '[]');
+    const registry = Array.isArray(parsed) ? parsed : [];
+    const withoutCurrent = registry.filter(entry => entry?.key !== key);
+    const next = [{
+      key,
+      updatedAt: new Date().toISOString(),
+      bytes: raw.length || Number(withoutCurrent[0]?.bytes || 0),
+    }, ...withoutCurrent].slice(0, 12);
+    localStorage.setItem(LS_REGISTRY_KEY, JSON.stringify(next));
+  } catch (_) {}
+}
+
+function storageCandidateRaws(key = currentStorageKey()) {
+  const candidates = [];
+  const add = (source, raw, savedAt = null) => {
+    if (typeof raw === 'string' && raw.trim()) candidates.push({ source, raw, savedAt });
+  };
+  try { add('primary', localStorage.getItem(key)); } catch (_) {}
+  try { add('mirror', localStorage.getItem(storageMirrorKey(key))); } catch (_) {}
+  storageReadSnapshots(key).forEach((entry, index) => add(`snapshot_${index + 1}`, entry.raw, entry.savedAt || null));
+  return candidates;
+}
+
+function storageFindBestLocalState(key = currentStorageKey()) {
+  const valid = [];
+  storageCandidateRaws(key).forEach(candidate => {
+    const parsed = storageReadJson(candidate.raw);
+    if (!parsed) return;
+    valid.push({ ...candidate, ...parsed });
+  });
+  if (!valid.length) return null;
+  valid.sort((a, b) => {
+    const aTime = Date.parse(a.state?._localSavedAt || a.savedAt || 0) || 0;
+    const bTime = Date.parse(b.state?._localSavedAt || b.savedAt || 0) || 0;
+    if (bTime !== aTime) return bTime - aTime;
+    return b.bytes - a.bytes;
+  });
+  return valid[0];
+}
+
+function storageCommitRaw(key, raw, options = {}) {
+  const savedAt = options.preserveMetaTimestamp ? (S?._localSavedAt || new Date().toISOString()) : new Date().toISOString();
+  localStorage.setItem(key, raw);
+  localStorage.setItem(storageMirrorKey(key), raw);
+  storageWriteSnapshots(key, raw, { savedAt, source: options.source || 'save' });
+  storageRememberKey(key, raw);
 }
 
 const USER_STATE_KEYS = [
@@ -38,8 +145,19 @@ function applyValidatedState(saved) {
 // Salva lo stato su localStorage
 function save(options = {}) {
   try {
+    const storageKey = currentStorageKey();
+    if (!options.preserveMetaTimestamp) S._localSavedAt = new Date().toISOString();
+    S._localSchema = 2;
     const raw = JSON.stringify(S);
-    localStorage.setItem(currentStorageKey(), raw);
+    try {
+      storageCommitRaw(storageKey, raw, options);
+    } catch (primaryError) {
+      try { localStorage.removeItem(storageSnapshotsKey(storageKey)); } catch (_) {}
+      localStorage.setItem(storageKey, raw);
+      localStorage.setItem(storageMirrorKey(storageKey), raw);
+      storageRememberKey(storageKey, raw);
+      mfWarn('storage', 'save recovered after pruning snapshots', { name: primaryError?.name, message: primaryError?.message });
+    }
     if (typeof authOnLocalStateSaved === 'function') authOnLocalStateSaved(raw, options);
     mfDebug('storage', 'save ok', { bytes: raw.length });
   } catch(e) {
@@ -58,23 +176,30 @@ function loadSaved() {
   _resetStorageLoadStatus();
   try {
     const storageKey = currentStorageKey();
-    const resolved = localStorage.getItem(storageKey);
-    if (!resolved) {
+    const candidates = storageCandidateRaws(storageKey);
+    const best = storageFindBestLocalState(storageKey);
+    if (!best) {
+      if (candidates.length) {
+        _storageStatus.hadSavedState = true;
+        _setStorageLoadError('no_valid_local_copy', 'Le copie locali presenti non sono leggibili.');
+        mfError('storage', 'load validation failed for all local copies', { candidates: candidates.map(c => c.source) });
+      }
       mfDebug('storage', 'load skipped: no saved state');
       return false;
     }
     _storageStatus.hadSavedState = true;
-    const saved = JSON.parse(resolved);
-    const validation = validateImportedState(saved, { relaxed: true });
-    if (!validation.ok) {
-      _setStorageLoadError(validation.code, validation.detail);
-      mfError('storage', 'load validation failed', validation);
-      return false;
+    applyValidatedState(best.state);
+    if (best.source !== 'primary') {
+      if (typeof _setStorageRecoveredFrom === 'function') _setStorageRecoveredFrom(best.source, `Dati recuperati da ${best.source}.`);
+      try {
+        storageCommitRaw(storageKey, JSON.stringify(best.state), { source: 'recovery', preserveMetaTimestamp: true });
+      } catch (e) {
+        mfWarn('storage', 'recovery re-commit skipped', { name: e?.name, message: e?.message });
+      }
+      mfWarn('storage', 'load recovered from backup', { source: best.source, bytes: best.bytes });
     }
 
-    applyValidatedState(validation.normalizedState || saved);
-
-    mfDebug('storage', 'load ok', { keys: Object.keys(saved).length, bytes: resolved.length });
+    mfDebug('storage', 'load ok', { keys: Object.keys(best.state).length, bytes: best.bytes, source: best.source });
     return true;
   } catch(e) {
     _setStorageLoadError('json_parse_failed', e?.message || 'JSON non valido');
@@ -95,7 +220,10 @@ function clearStorage() {
     onConfirm: async () => {
       mfWarn('storage', 'clear storage requested');
       if (typeof authMarkExplicitReset === 'function') authMarkExplicitReset();
-      localStorage.removeItem(currentStorageKey());
+      const storageKey = currentStorageKey();
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem(storageMirrorKey(storageKey));
+      localStorage.removeItem(storageSnapshotsKey(storageKey));
       if (typeof bootstrapAppStateFromCurrentStorage === 'function') {
         bootstrapAppStateFromCurrentStorage({ resetState: true });
         if (typeof refreshAppAfterBootstrap === 'function') {
@@ -104,13 +232,6 @@ function clearStorage() {
         if (!S.onboardingCompleted) {
           if (S.authEntryCompleted && typeof openWelcomeOnboarding === 'function') openWelcomeOnboarding();
           else if (typeof openAuthEntry === 'function') openAuthEntry(false);
-        }
-        if (typeof authIsAuthenticated === 'function' && authIsAuthenticated() && typeof authSyncStateToCloud === 'function') {
-          const syncResult = await authSyncStateToCloud(true);
-          if (!syncResult?.ok && !syncResult?.skipped) {
-            toast(`⚠️ ${syncResult.message || 'Aggiornamento del profilo non riuscito'}`);
-            return;
-          }
         }
         toast('🧹 Profilo azzerato');
         return;
@@ -125,7 +246,11 @@ function clearStorage() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function exportJSON() {
-  const raw = JSON.stringify(S, null, 2);
+  const raw = JSON.stringify({
+    ...S,
+    _exportedAt: new Date().toISOString(),
+    _exportSource: 'MarciFit locale',
+  }, null, 2);
   dl(new Blob([raw], { type: 'application/json' }), buildExportFilename('json'));
   mfDebug('storage', 'export json ok', { bytes: raw.length });
   toast('✅ Copia pronta');
@@ -184,13 +309,6 @@ function onLoad(e) {
       applyValidatedState(parsed);
       reinitializeImportedState();
       save();
-      if (typeof authEnsureRemoteProfile === 'function') await authEnsureRemoteProfile();
-      if (typeof authSyncStateToCloud === 'function') {
-        const syncResult = await authSyncStateToCloud(true);
-        if (!syncResult?.ok && !syncResult?.skipped) {
-          throw new Error(syncResult?.message || 'Aggiornamento del profilo non riuscito');
-        }
-      }
       _storageStatus.lastImportError = null;
       mfDebug('storage', 'import json ok', { keys: Object.keys(parsed || {}).length });
       toast('✅ Dati importati');

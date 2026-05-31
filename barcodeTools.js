@@ -730,13 +730,14 @@ function _focusBarcodeTextFallback() {
   setTimeout(() => {
     const card = document.getElementById(`mc-${domKey}`);
     card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const search = document.getElementById('mls-' + domKey);
-    if (search && search.style.display === 'none') search.style.display = 'block';
-    const input = document.getElementById('mlsi-' + domKey);
-    if (input) {
-      input.focus();
-      input.select?.();
-    }
+    if (typeof toggleLogSearch === 'function') toggleLogSearch(domKey, { forceOpen: true });
+    requestAnimationFrame(() => {
+      const input = document.getElementById('mlsi-' + domKey);
+      if (input) {
+        input.focus();
+        input.select?.();
+      }
+    });
   }, 140);
 }
 

@@ -70,6 +70,8 @@ class PreviewHandler(SimpleHTTPRequestHandler):
 
     def _proxy_request(self, url, *, method='GET', body=None, headers=None):
         req_headers = {'apikey': SUPABASE_ANON_KEY, 'Accept': 'application/json'}
+        if body is not None:
+            req_headers['Content-Type'] = 'application/json'
         if headers:
             req_headers.update(headers)
         command = [
@@ -122,7 +124,6 @@ class PreviewHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path.startswith('/__auth_proxy') or parsed.path.startswith('/__supabase_proxy'):
             self.send_response(204)
-            self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
             self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
             self.end_headers()
@@ -134,6 +135,7 @@ class PreviewHandler(SimpleHTTPRequestHandler):
         self.send_header('Pragma', 'no-cache')
         self.send_header('Expires', '0')
         self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Private-Network', 'true')
         super().end_headers()
 
     def do_GET(self):
@@ -186,6 +188,14 @@ class PreviewHandler(SimpleHTTPRequestHandler):
             query = parsed.query or 'grant_type=password'
             status, payload = self._proxy_request(
                 f'{SUPABASE_URL}/auth/v1/token?{query}',
+                method='POST',
+                body=self._read_json_body(),
+            )
+            self._send_json(status, payload)
+            return
+        if parsed.path == '/__auth_proxy/signup':
+            status, payload = self._proxy_request(
+                f'{SUPABASE_URL}/auth/v1/signup',
                 method='POST',
                 body=self._read_json_body(),
             )

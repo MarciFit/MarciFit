@@ -438,6 +438,7 @@ let _modalConfirmFn = null;
 let _modalCloseTimer = null;
 let _uiScrollLockDepth = 0;
 let _uiScrollLockY = 0;
+let _uiScrollLockBodyStyles = null;
 let _greetingTransitionTimer = null;
 
 function clearTransientUiLocks() {
@@ -445,7 +446,12 @@ function clearTransientUiLocks() {
   const root = document.documentElement;
   root?.classList.remove('ui-scroll-locked');
   body?.classList.remove('ui-scroll-locked', 'food-search-sheet-open');
+  if (body && _uiScrollLockBodyStyles) {
+    Object.assign(body.style, _uiScrollLockBodyStyles);
+  }
+  root?.style.removeProperty('--ui-scrollbar-compensation');
   _uiScrollLockDepth = 0;
+  _uiScrollLockBodyStyles = null;
   _uiScrollLockY = window.scrollY || window.pageYOffset || 0;
 }
 
@@ -455,8 +461,29 @@ function lockUiScroll() {
   if (!body) return;
   if (_uiScrollLockDepth === 0) {
     _uiScrollLockY = window.scrollY || window.pageYOffset || 0;
+    const scrollbarCompensation = Math.max(0, window.innerWidth - root.clientWidth);
+    _uiScrollLockBodyStyles = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+      paddingRight: body.style.paddingRight,
+    };
+    root?.style.setProperty('--ui-scrollbar-compensation', `${scrollbarCompensation}px`);
     root?.classList.add('ui-scroll-locked');
     body.classList.add('ui-scroll-locked');
+    body.style.position = 'fixed';
+    body.style.top = `-${_uiScrollLockY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+    if (scrollbarCompensation > 0) {
+      const currentPadding = parseFloat(getComputedStyle(body).paddingRight) || 0;
+      body.style.paddingRight = `${currentPadding + scrollbarCompensation}px`;
+    }
   }
   _uiScrollLockDepth += 1;
 }
@@ -470,6 +497,11 @@ function unlockUiScroll(force = false) {
   if (_uiScrollLockDepth > 0) return;
   root?.classList.remove('ui-scroll-locked');
   body.classList.remove('ui-scroll-locked');
+  if (_uiScrollLockBodyStyles) {
+    Object.assign(body.style, _uiScrollLockBodyStyles);
+  }
+  root?.style.removeProperty('--ui-scrollbar-compensation');
+  _uiScrollLockBodyStyles = null;
   window.scrollTo(0, _uiScrollLockY || 0);
 }
 
@@ -632,12 +664,13 @@ function showDayModal({icon, title, body, onConfirm, danger = false, noButtons =
   bodyEl.style.marginBottom = noButtons ? '0' : '20px';
   _modalConfirmFn = onConfirm;
   const ov = document.getElementById('day-modal-ov');
+  const wasOpen = ov && ov.style.display !== 'none';
   clearTimeout(_modalCloseTimer);
   ov.classList.remove('closing');
   ov.classList.add('open');
   ov.style.zIndex = '980';
   ov.style.display = 'flex';
-  lockUiScroll();
+  if (!wasOpen) lockUiScroll();
   confirmBtn.onclick = () => {
     const fn = _modalConfirmFn; // capture before closeDayModal nulls it
     closeDayModal();
@@ -683,19 +716,16 @@ function askAuthStateConflictChoice(conflict) {
   return new Promise(resolve => {
     const localTime = htmlEsc(formatAuthConflictTime(conflict.localUpdatedAt));
     const remoteTime = htmlEsc(formatAuthConflictTime(conflict.remoteUpdatedAt));
-    const contextLabel = typeof authGetBootstrapDiagnostics === 'function'
-      ? authGetBootstrapDiagnostics().contextLabel
-      : 'Questo dispositivo';
     showDayModal({
       icon: '🔄',
       eyebrow: 'Profilo',
-      title: 'Abbiamo trovato due versioni del tuo profilo',
+      title: 'Scegli quale profilo aprire',
       body: `
-        <div class="sync-choice-lead">Abbiamo trovato due versioni del tuo profilo. Scegli quale aprire adesso.</div>
+        <div class="sync-choice-lead">Abbiamo trovato due versioni del tuo profilo. Scegli quella che contiene i dati giusti.</div>
         <div class="sync-choice-stack">
           <div class="sync-choice-item">
             <div class="sync-choice-item-top">
-              <span class="sync-choice-chip">${htmlEsc(contextLabel)}</span>
+              <span class="sync-choice-chip">Questo dispositivo</span>
               ${getAuthConflictBadge(conflict, 'local')}
               ${getAuthConflictPresenceChip(conflict, 'local')}
             </div>
@@ -705,17 +735,17 @@ function askAuthStateConflictChoice(conflict) {
           <div class="sync-choice-sep">oppure</div>
           <div class="sync-choice-item">
             <div class="sync-choice-item-top">
-              <span class="sync-choice-chip">Versione account</span>
+              <span class="sync-choice-chip">Backup online</span>
               ${getAuthConflictBadge(conflict, 'remote')}
               ${getAuthConflictPresenceChip(conflict, 'remote')}
             </div>
             <div class="sync-choice-time">${remoteTime}</div>
-            <div class="sync-choice-copy">Apri la versione salvata nel tuo account.</div>
+            <div class="sync-choice-copy">Apri la versione salvata online.</div>
           </div>
         </div>
-        <div class="sync-choice-foot">Scegli la versione che contiene i dati giusti. Poi MarciFit terra tutto aggiornato automaticamente.</div>
+        <div class="sync-choice-foot">Dopo la scelta, MarciFit terra il profilo aggiornato automaticamente.</div>
       `,
-      confirmText: 'Usa versione account',
+      confirmText: 'Usa backup online',
       cancelText: 'Usa questa versione',
       onConfirm: () => resolve('remote'),
       modalClass: 'day-modal-detail day-modal-sync-choice',
@@ -735,7 +765,6 @@ function closeDayModal() {
   _modalConfirmFn = null;
   if (!ov || ov.style.display === 'none') {
     if (card) card.className = 'day-modal-card';
-    unlockUiScroll();
     return;
   }
   clearTimeout(_modalCloseTimer);
@@ -2096,6 +2125,7 @@ function toggleLogSearch(domKey, options = {}) {
   const sheet = document.getElementById('food-search-sheet');
   if (!ov || !sheet) return;
   const isOpen = ov.classList.contains('open');
+  const isVisible = isOpen || ov.classList.contains('closing');
   if (isOpen && _activeFoodSearchSheet?.domKey === domKey && !options.forceOpen) {
     closeLogSearch();
     return;
@@ -2109,6 +2139,7 @@ function toggleLogSearch(domKey, options = {}) {
   sheet.classList.remove('is-expanded');
   sheet.dataset.state = 'compact';
   ov.classList.add('open');
+  if (!isVisible) lockUiScroll();
   updateFoodSearchKeyboardLift();
 }
 
@@ -2134,6 +2165,7 @@ function closeLogSearch(domKey = null) {
         sheet.style.transition = '';
       }
       resetFoodSearchKeyboardLift();
+      unlockUiScroll();
     }, 240);
   } else {
     if (body) body.innerHTML = '';
@@ -2144,6 +2176,7 @@ function closeLogSearch(domKey = null) {
       sheet.style.transition = '';
     }
     resetFoodSearchKeyboardLift();
+    if (wasOpen) unlockUiScroll();
   }
   _activeFoodSearchSheet = null;
   _logSearchSel = null;
@@ -2282,6 +2315,9 @@ async function applyMealTemplateFromPicker(tmplArg, dateArg, mealIdxArg) {
   if (typeof mealIdx === 'number') refreshMealCard(dayType, mealIdx);
   else renderTodayLog();
   renderMacroStrip(dayType, S.meals[dayType], S.macro[dayType]);
+  if (document.getElementById('food-search-sheet-ov')?.classList.contains('open')) {
+    closeLogSearch();
+  }
   toast(`✅ ${t.name} caricato`);
 }
 
@@ -2834,25 +2870,31 @@ function openMacroDetail(macroKey) {
     buildSection(extraDefs[xKey] || xKey, dayLog[xKey] || []);
   });
 
-  let rows = sections.map(section => `
+  let rows = sections.map(section => {
+    const sectionPct = totalMacro > 0 ? Math.max(2, Math.min(100, (section.mealTotal / totalMacro) * 100)) : 0;
+    return `
     <div class="md-meal-block">
       <div class="md-meal-head">
-        <div class="md-meal-name">${htmlEsc(section.mealName)}</div>
+        <div class="md-meal-copy">
+          <div class="md-meal-kicker">Pasto</div>
+          <div class="md-meal-name">${htmlEsc(section.mealName)}</div>
+        </div>
         <div class="md-meal-total">${formatMacroDetailMetric(section.mealTotal, meta.unit)}</div>
       </div>
+      <div class="md-meal-meter" aria-hidden="true"><span style="width:${sectionPct}%"></span></div>
       <div class="md-food-list">
         ${section.foodRows.map(row => `
           <div class="md-food-row">
             <div class="md-food-copy">
               <span class="md-food-name">${htmlEsc(row.name)}</span>
-              <span class="md-food-meta">${formatMacroDetailMetric(row.grams, 'g')} loggati</span>
+              <span class="md-food-meta">${formatMacroDetailMetric(row.grams, 'g')}</span>
             </div>
             <span class="md-food-val">${formatMacroDetailMetric(row.value, meta.unit)}</span>
           </div>
         `).join('')}
       </div>
     </div>
-  `).join('');
+  `; }).join('');
 
   if (!rows) rows = `<div class="md-empty">Nessun alimento loggato oggi per questo riepilogo.</div>`;
 
@@ -2863,19 +2905,30 @@ function openMacroDetail(macroKey) {
     : rem < 0
       ? `${formatMacroDetailMetric(Math.abs(rem), meta.unit)} in più`
       : 'Obiettivo raggiunto';
+  const statusTxt = rem < 0
+    ? 'In più'
+    : rem === 0
+      ? 'In linea'
+      : remCls === 'warn'
+        ? 'Quasi in linea'
+        : 'Mancanti';
 
   showDayModal({
     icon: meta.icon,
     title: meta.lbl,
     body: `<div class="md-shell ${macroKey}">
-        <div class="md-summary">
-          <div class="md-summary-copy">
-            <div class="md-summary-kicker">Totale oggi</div>
-            <div class="md-total-row">
-              <span class="md-total">${formatMacroDetailMetric(totalMacro, meta.unit)}</span>
+        <div class="md-hero">
+          <div class="md-hero-main">
+            <div class="md-hero-icon" aria-hidden="true">${meta.icon}</div>
+            <div class="md-summary-copy">
+              <div class="md-summary-kicker">Totale oggi</div>
+              <div class="md-total-row">
+                <span class="md-total">${formatMacroDetailMetric(totalMacro, meta.unit)}</span>
+              </div>
             </div>
           </div>
           <div class="md-balance ${remCls}">
+            <span class="md-status-chip ${remCls}">${statusTxt}</span>
             <span class="md-balance-lbl">${meta.targetLabel}</span>
             <span class="md-balance-val">${formatMacroDetailMetric(meta.tgt || 0, meta.unit)}</span>
             ${meta.targetNote ? `<span class="md-balance-note">${meta.targetNote}</span>` : ''}
@@ -2892,7 +2945,7 @@ function openMacroDetail(macroKey) {
       </div>`,
     noButtons: true,
     eyebrow: 'Recap alimenti',
-    modalClass: 'day-modal-detail'
+    modalClass: `day-modal-detail macro-detail-modal macro-detail-${macroKey}`
   });
 }
 
@@ -3811,10 +3864,12 @@ function getWelcomePreview(data = getWelcomeDraft()) {
 function renderAuthEntry() {
   const el = document.getElementById('auth-entry');
   if (!el) return;
+  const wasVisible = el.style.display !== 'none' && !!el.innerHTML;
   const forceOpen = !!_authEntryState?.forceOpen;
   if (!forceOpen && (S.authEntryCompleted || S.onboardingCompleted)) {
     el.style.display = 'none';
     el.innerHTML = '';
+    if (wasVisible) unlockUiScroll();
     return;
   }
   if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
@@ -3843,12 +3898,12 @@ function renderAuthEntry() {
     body = `
       <div class="auth-entry-kicker">Ingresso</div>
       <div class="auth-entry-title">Scegli come entrare in MarciFit</div>
-      <div class="auth-entry-sub">Entra come preferisci. Se hai gia un profilo, dopo l accesso proviamo a riaprirlo qui.</div>
+      <div class="auth-entry-sub">Entra come preferisci. I dati restano salvati su questo dispositivo.</div>
       <div class="auth-entry-stack">
         <div class="auth-entry-hero">
           <div class="auth-entry-hero-badge">Pronto in meno di 2 minuti</div>
           <div class="auth-entry-hero-title">Parti bene oggi, ritrovati bene domani</div>
-          <div class="auth-entry-hero-copy">Allenamento, pasti e progressi restano in ordine fin dal primo minuto, anche quando torni su un altro ingresso della web app.</div>
+          <div class="auth-entry-hero-copy">Allenamento, pasti e progressi restano in ordine fin dal primo minuto, con copie locali automatiche per recuperarli meglio.</div>
         </div>
         <div class="auth-entry-benefits">
           <span class="auth-entry-benefit">✨ Partenza rapida</span>
@@ -3861,7 +3916,7 @@ function renderAuthEntry() {
             <span class="auth-entry-choice-tag">Consigliato</span>
           </div>
           <div class="auth-entry-choice-title">Crea account</div>
-          <div class="auth-entry-choice-body">Per tenere tutto in ordine e ritrovare piu facilmente il tuo percorso.</div>
+          <div class="auth-entry-choice-body">Per tenere tutto in ordine in un profilo locale separato.</div>
         </button>
         <button class="auth-entry-choice secondary" onclick="openAuthMode('login')" ${isPending ? 'disabled' : ''}>
           <div class="auth-entry-choice-top">
@@ -3869,7 +3924,7 @@ function renderAuthEntry() {
             <span class="auth-entry-choice-tag">Rientra</span>
           </div>
           <div class="auth-entry-choice-title">Accedi</div>
-          <div class="auth-entry-choice-body">Se hai gia un profilo, riparti subito da dove avevi lasciato.</div>
+          <div class="auth-entry-choice-body">Se hai gia un profilo su questo dispositivo, riparti da dove avevi lasciato.</div>
         </button>
         <button class="auth-entry-choice guest" onclick="continueAsGuest()" ${isPending ? 'disabled' : ''}>
           <div class="auth-entry-choice-top">
@@ -3904,7 +3959,7 @@ function renderAuthEntry() {
     body = `
       <div class="auth-entry-kicker">Accedi</div>
       <div class="auth-entry-title">Rientra nel tuo profilo</div>
-      <div class="auth-entry-sub">Rientra e riparti dal profilo del tuo account. Se troviamo copie diverse, ti aiutiamo noi a scegliere.</div>
+      <div class="auth-entry-sub">Rientra nel profilo locale salvato su questo dispositivo.</div>
       <div class="auth-entry-form">
         <div class="auth-entry-field">
           <label class="auth-entry-label">Email</label>
@@ -3915,7 +3970,7 @@ function renderAuthEntry() {
           <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.password)}" oninput="setAuthField('password', this.value)" placeholder="La tua password" ${isPending ? 'disabled' : ''}>
         </div>
         ${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? `<button class="auth-entry-inline-link" type="button" onclick="requestPasswordReset()" ${isPending ? 'disabled' : ''}>Password dimenticata?</button>` : ''}
-        <div class="auth-entry-callout">Se troviamo due versioni del profilo, ti aiutiamo a scegliere quella giusta prima di continuare.</div>
+        <div class="auth-entry-callout">Se troviamo dati gia presenti qui, li riapriamo senza usare servizi esterni.</div>
       </div>`;
   }
 
@@ -3937,7 +3992,7 @@ function renderAuthEntry() {
       </div>
       ${mode === 'gateway' ? `<div class="auth-entry-note">Puoi iniziare subito e completare il resto con calma.</div>` : ''}
     </div>`;
-  lockUiScroll();
+  if (!wasVisible) lockUiScroll();
 }
 
 function openAuthEntry(forceOpen = true) {
@@ -3953,7 +4008,7 @@ function closeAuthEntry() {
     el.innerHTML = '';
   }
   if (_authEntryState) _authEntryState.forceOpen = false;
-  unlockUiScroll(true);
+  unlockUiScroll();
 }
 
 function openAuthMode(mode) {
@@ -4089,13 +4144,35 @@ async function finalizeAuthEntrySuccess(successMessage, options = {}) {
   toast(successMessage);
 }
 
+async function authBootstrapAfterAuth(result, options = {}) {
+  const { syncToCloud = false, successMessage = '✅ Bentornato' } = options;
+  if (result?.code === 'local_recovery') {
+    if (typeof authRecordAttemptStage === 'function') {
+      authRecordAttemptStage('bootstrap', 'success', 'Profilo aperto');
+    }
+    const { hadSaved } = bootstrapAppStateFromCurrentStorage({ resetState: true });
+    S.authEntryCompleted = true;
+    if (typeof authHasMeaningfulState === 'function' && authHasMeaningfulState(S)) {
+      S.onboardingCompleted = true;
+    }
+    save({ skipCloudSync: true, preserveMetaTimestamp: hadSaved });
+    refreshAppAfterBootstrap({ closeAuthOverlay: true });
+    if (typeof renderAuthNav === 'function') renderAuthNav();
+    if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
+    toast(successMessage || '✅ Profilo aperto su questo dispositivo');
+    return { ok: true, source: 'local_cache' };
+  }
+  await finalizeAuthEntrySuccess(successMessage, { syncToCloud });
+  return { ok: true, source: result?.source || 'account' };
+}
+
 async function submitAuthPlaceholder(mode) {
   if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
   if (_authEntryState.pending) return;
   _authEntryState.pending = true;
   _authEntryState.pendingMessage = mode === 'signup'
-    ? 'Stiamo creando il tuo profilo e collegando i dati presenti qui.'
-    : 'Stiamo aprendo il tuo profilo e controllando eventuali copie salvate.';
+    ? 'Sto creando il tuo profilo.'
+    : 'Sto aprendo il tuo profilo.';
   renderAuthEntry();
   try {
     const email = String(_authEntryState?.email || '').trim();
@@ -4108,39 +4185,52 @@ async function submitAuthPlaceholder(mode) {
         toast('⚠️ Le password non coincidono');
         return;
       }
-      const result = typeof signUpWithEmail === 'function'
-        ? await signUpWithEmail(email, password)
-        : { ok: false, message: 'Auth non disponibile' };
+      const result = typeof authRunSignupFlow === 'function'
+        ? await authRunSignupFlow({ email, password, confirmPassword })
+        : typeof signUpWithEmail === 'function'
+          ? await signUpWithEmail(email, password)
+          : { ok: false, code: 'unknown_error', message: 'Auth non disponibile' };
+      const userMessage = typeof authUserMessage === 'function'
+        ? authUserMessage(result)
+        : (result.message || 'Non riesco a completare l accesso. Riprova tra poco');
       if (!result.ok) {
-        toast(`⚠️ ${result.message}`);
+        toast(`⚠️ ${userMessage}`);
         return;
       }
-      if (result.pendingConfirmation) {
+      if (result.pendingConfirmation || result.code === 'pending_confirmation') {
         if (typeof renderAuthNav === 'function') renderAuthNav();
         if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
-        toast(`✉️ ${result.message}`);
+        toast(`✉️ ${userMessage}`);
         openAuthMode('login');
         return;
       }
       S.authEntryCompleted = true;
       save();
-      await finalizeAuthEntrySuccess('✅ Profilo creato', { syncToCloud: true });
+      await authBootstrapAfterAuth(result, { syncToCloud: true, successMessage: '✅ Profilo creato' });
       return;
     }
-    const result = typeof signInWithEmail === 'function'
-      ? await signInWithEmail(email, password)
-      : { ok: false, message: 'Auth non disponibile' };
+    const result = typeof authRunLoginFlow === 'function'
+      ? await authRunLoginFlow({ email, password })
+      : typeof signInWithEmail === 'function'
+        ? await signInWithEmail(email, password)
+        : { ok: false, message: 'Auth non disponibile' };
+    const userMessage = typeof authUserMessage === 'function'
+      ? authUserMessage(result)
+      : (result.message || 'Non riesco a completare l accesso. Riprova tra poco');
     if (!result.ok) {
-      toast(`⚠️ ${result.message}`);
+      toast(`⚠️ ${userMessage}`);
       return;
     }
-    await finalizeAuthEntrySuccess('✅ Bentornato');
+    await authBootstrapAfterAuth(result, {
+      syncToCloud: false,
+      successMessage: result.code === 'local_recovery' ? '✅ Profilo aperto su questo dispositivo' : '✅ Bentornato',
+    });
   } catch (err) {
     console.error('Auth submit failed', err);
     if (typeof authRecordAttemptStage === 'function') {
-      authRecordAttemptStage('bootstrap', 'error', err?.message || 'Accesso non riuscito');
+      authRecordAttemptStage('bootstrap', 'error', 'Accesso non riuscito');
     }
-    toast(`⚠️ ${err?.message || 'Accesso non riuscito'}`);
+    toast('⚠️ Non riesco a completare l accesso. Riprova tra poco');
   } finally {
     if (_authEntryState) {
       _authEntryState.pending = false;
@@ -4153,8 +4243,11 @@ async function submitAuthPlaceholder(mode) {
 function renderWelcomeOnboarding() {
   const el = document.getElementById('welcome-onboarding');
   if (!el) return;
+  const wasVisible = el.style.display !== 'none' && !!el.innerHTML;
   if (S.onboardingCompleted || !S.authEntryCompleted) {
     el.style.display = 'none';
+    el.innerHTML = '';
+    if (wasVisible) unlockUiScroll();
     return;
   }
   if (!_welcomeState) _welcomeState = { step: 0, data: getWelcomeDraft() };
@@ -4450,7 +4543,7 @@ function renderWelcomeOnboarding() {
     </div>`;
   if (step === 1) syncWelcomeBaseFieldErrors();
   _welcomeState.direction = 'forward';
-  lockUiScroll();
+  if (!wasVisible) lockUiScroll();
 }
 
 function backToAuthEntry() {
@@ -4470,7 +4563,7 @@ function closeWelcomeOnboarding() {
     el.style.display = 'none';
     el.innerHTML = '';
   }
-  unlockUiScroll(true);
+  unlockUiScroll();
 }
 
 function welcomeSetField(key, value, rerender = false) {
@@ -4988,9 +5081,11 @@ function openDayTypeSheet(dateStr, currentType) {
       </button>
     </div>
   `;
+  const wasOpen = ov.classList.contains('open') || ov.classList.contains('closing');
   clearTimeout(_dayTypeSheetCloseTimer);
   ov.classList.remove('closing');
   ov.classList.add('open');
+  if (!wasOpen) lockUiScroll();
 }
 
 function closeDayTypeSheet() {
@@ -5000,6 +5095,7 @@ function closeDayTypeSheet() {
   ov.classList.add('closing');
   _dayTypeSheetCloseTimer = setTimeout(() => {
     ov.classList.remove('open', 'closing');
+    unlockUiScroll();
   }, 240);
 }
 

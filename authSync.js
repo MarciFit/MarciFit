@@ -1,9 +1,11 @@
-// authSync.js — auth/session layer with optional Supabase provider and local fallback
+// authSync.js — profili locali e compatibilita con vecchie cache account
 
 const AUTH_USERS_KEY = 'marcifit_auth_users_v1';
 const AUTH_SESSION_KEY = 'marcifit_auth_session_v1';
 const AUTH_SUPABASE_CONFIG_KEY = 'marcifit_supabase_config_v1';
 const AUTH_PROXY_SESSION_KEY = 'marcifit_auth_proxy_session_v1';
+const AUTH_LOCAL_PROXY_ORIGIN_KEY = 'marcifit_local_proxy_origin_v1';
+const AUTH_DEFAULT_LOCAL_PROXY_ORIGIN = 'http://127.0.0.1:8793';
 const AUTH_STATE_META_KEY = 'marcifit_state_meta_v1';
 const AUTH_STATE_BACKUP_KEY = 'marcifit_state_backup_v1';
 const AUTH_SYNC_DELAY_MS = 900;
@@ -74,6 +76,100 @@ function authIsTimeoutError(err) {
     || err?.name === 'TimeoutError'
     || message.includes('timed out')
     || message.includes('timeout');
+}
+
+function authIsInvalidCredentialsMessage(message = '') {
+  const normalized = String(message || '').toLowerCase();
+  return normalized.includes('invalid login')
+    || normalized.includes('invalid credentials')
+    || normalized.includes('email not confirmed')
+    || normalized.includes('invalid grant')
+    || normalized.includes('password')
+    || normalized.includes('credenzial');
+}
+
+function authCreateFlowResult({
+  ok = false,
+  code = 'unknown_error',
+  stage = 'idle',
+  source = 'sdk',
+  user = null,
+  session = null,
+  recovery = null,
+  message = '',
+  retryable = false,
+  diagnostics = [],
+  extra = {},
+} = {}) {
+  return {
+    ok: !!ok,
+    code,
+    stage,
+    source,
+    user,
+    session,
+    recovery,
+    message: message || '',
+    retryable: !!retryable,
+    diagnostics: Array.isArray(diagnostics) ? diagnostics : [],
+    ...extra,
+  };
+}
+
+function authUserMessage(result = {}) {
+  switch (result.code) {
+    case 'success':
+      return result.message || 'Bentornato';
+    case 'signup_success':
+      return result.message || 'Profilo creato';
+    case 'pending_confirmation':
+      return result.message || 'Ti abbiamo inviato un link. Aprilo e poi torna qui per entrare.';
+    case 'invalid_email':
+      return 'Inserisci un email valida';
+    case 'weak_password':
+      return 'La password deve avere almeno 8 caratteri';
+    case 'password_mismatch':
+      return 'Le password non coincidono';
+    case 'email_exists':
+      return 'Esiste gia un account con questa email';
+    case 'invalid_credentials':
+      return 'Email o password non corretti';
+    case 'local_recovery':
+      return 'Profilo aperto su questo dispositivo';
+    case 'network_unavailable':
+      return 'Non riesco a completare l accesso. Riprova tra poco';
+    case 'conflict':
+      return 'Scegli quale versione del profilo usare';
+    default:
+      return result.message && !/failed to fetch|supabase|proxy|gateway|token|remote state/i.test(result.message)
+        ? result.message
+        : 'Non riesco a completare l accesso. Riprova tra poco';
+  }
+}
+
+function authRecoverLocalProfile(reason = 'network_unavailable') {
+  const candidate = authMaybeResumeLocalCache();
+  if (!candidate) {
+    return authCreateFlowResult({
+      ok: false,
+      code: 'network_unavailable',
+      stage: 'local_bootstrap',
+      source: 'local_cache',
+      retryable: true,
+      message: authUserMessage({ code: 'network_unavailable' }),
+      diagnostics: [{ reason }],
+    });
+  }
+  return authCreateFlowResult({
+    ok: true,
+    code: 'local_recovery',
+    stage: 'local_bootstrap',
+    source: 'local_cache',
+    recovery: candidate,
+    retryable: true,
+    message: authUserMessage({ code: 'local_recovery' }),
+    diagnostics: [{ reason }],
+  });
 }
 
 async function authRunWithRetry(factory, {
@@ -215,7 +311,7 @@ function authIsAuthenticated() {
 }
 
 function authProviderLabel() {
-  return AUTH.provider === 'supabase' ? 'Supabase' : 'Locale mock';
+  return 'Locale';
 }
 
 function authDetectClientContext() {
@@ -260,7 +356,7 @@ function authDescribeBootstrapSource(source = AUTH.bootstrapSource) {
     case 'local':
       return 'Profilo salvato';
     case 'local_resume':
-      return 'Profilo trovato';
+      return 'Cache locale ripresa';
     case 'local_reset':
       return 'Profilo ripristinato';
     case 'empty':
@@ -395,8 +491,7 @@ function authReadActiveLocalState() {
 }
 
 function authGetStandaloneSessionNote() {
-  if (authIsAuthenticated() || AUTH.clientContext !== 'standalone' || !authCanUseSupabase()) return '';
-  return 'Se in Safari eri gia dentro, qui puo servirti un accesso la prima volta: la web app Home mantiene una sessione separata.';
+  return '';
 }
 
 function authGatewayFailureHelp() {
@@ -427,7 +522,7 @@ function authGetAccountDiagnostics() {
   let storageLabel = 'Profilo ospite';
   let storageTone = 'guest';
   let statusDetail = 'Stai usando i dati salvati solo su questo dispositivo.';
-  let syncDetail = standaloneSessionNote || 'Accedi per ritrovare il profilo anche dal tuo account.';
+  let syncDetail = 'I dati restano su questo dispositivo, con copie automatiche locali.';
   let scopeLabel = 'Questo dispositivo';
 
   if (authIsAuthenticated() && AUTH.provider === 'supabase') {
@@ -451,15 +546,13 @@ function authGetAccountDiagnostics() {
     storageTone = 'local';
     scopeLabel = 'Questo dispositivo';
     statusDetail = 'Questo profilo resta salvato solo su questo dispositivo.';
-    syncDetail = authCanUseSupabase()
-      ? 'Accedi con email per ritrovare il profilo anche dal tuo account.'
-      : 'Il salvataggio account non e disponibile in questo ambiente.';
+    syncDetail = 'Salvataggio locale automatico, mirror e snapshot di recupero attivi.';
   } else if (AUTH.localRecoveryKey) {
-    storageLabel = 'Profilo trovato';
+    storageLabel = 'Cache account locale';
     storageTone = 'local';
     scopeLabel = 'Questo dispositivo';
     statusDetail = 'Stiamo usando il profilo trovato su questo dispositivo.';
-    syncDetail = standaloneSessionNote || 'Accedi per ritrovarlo nel tuo account.';
+    syncDetail = 'Profilo recuperato da una cache locale di questo dispositivo.';
   }
 
   return {
@@ -599,10 +692,6 @@ function authRefreshUi() {
 
 function authSetBootstrapReady(isReady) {
   AUTH.bootstrapReady = !!isReady;
-  if (AUTH.bootstrapReady) {
-    const meta = authReadStateMeta();
-    if (meta.dirty) authQueueStateSync(1200);
-  }
 }
 
 function authResolveSupabaseConfig() {
@@ -625,19 +714,30 @@ function authHasEmbeddedSupabaseConfig() {
 }
 
 function authCanUseSupabase() {
-  const cfg = authResolveSupabaseConfig();
-  return !!(cfg?.url && cfg?.anonKey && window.supabase?.createClient);
+  return false;
 }
 
 function authCanUseLocalProxy() {
+  return false;
+}
+
+function authGetLocalProxyOrigin() {
   try {
-    const { protocol, hostname } = window.location || {};
-    if (!protocol || !hostname) return false;
-    if (!protocol.startsWith('http')) return false;
-    return ['localhost', '127.0.0.1'].includes(hostname);
-  } catch (_) {
-    return false;
-  }
+    const { protocol, hostname, origin } = window.location || {};
+    if (protocol?.startsWith('http') && ['localhost', '127.0.0.1'].includes(hostname)) return origin || '';
+    const configured = String(window.MARCI_LOCAL_PROXY_ORIGIN || localStorage.getItem(AUTH_LOCAL_PROXY_ORIGIN_KEY) || '').trim();
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configured)) return configured.replace(/\/$/, '');
+    if (protocol === 'file:') return AUTH_DEFAULT_LOCAL_PROXY_ORIGIN;
+  } catch (_) {}
+  return '';
+}
+
+function authBuildLocalProxyUrl(path) {
+  const cleanPath = String(path || '');
+  if (/^https?:\/\//i.test(cleanPath)) return cleanPath;
+  const origin = authGetLocalProxyOrigin();
+  if (!origin) return cleanPath;
+  return `${origin}${cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`}`;
 }
 
 function authHasProxySession() {
@@ -653,7 +753,7 @@ async function authProxyJson(path, { method = 'GET', body = null, token = '' } =
   const headers = {};
   if (body != null) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(path, {
+  const response = await fetch(authBuildLocalProxyUrl(path), {
     method,
     headers,
     body: body != null ? JSON.stringify(body) : undefined,
@@ -770,6 +870,85 @@ async function authSignInViaDirectHttp(email, password) {
   }
 }
 
+async function authSignUpViaDirectHttp(email, password) {
+  if (!authCanUseSupabase()) {
+    return { ok: false, message: 'Servizio di accesso non configurato' };
+  }
+  try {
+    let payload = null;
+    if (authCanUseLocalProxy()) {
+      const proxyResult = await authWithTimeout(
+        authProxyJson('/__auth_proxy/signup', {
+          method: 'POST',
+          body: {
+            email,
+            password,
+            data: { name: String(email || '').split('@')[0] || '' },
+          },
+        }),
+        'La registrazione sta impiegando troppo tempo',
+        AUTH_LOGIN_TIMEOUT_MS
+      );
+      if (!proxyResult.ok) {
+        const proxyPayload = proxyResult.payload || {};
+        return {
+          ok: false,
+          message: proxyPayload?.msg || proxyPayload?.error_description || proxyPayload?.error || `Auth signup ${proxyResult.status}`,
+          payload: proxyPayload,
+        };
+      }
+      payload = proxyResult.payload || {};
+    } else {
+      const cfg = authResolveSupabaseConfig();
+      const endpoint = `${String(cfg.url || '').replace(/\/+$/, '')}/auth/v1/signup`;
+      const response = await authWithTimeout(
+        fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            apikey: cfg.anonKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            password,
+            data: { name: String(email || '').split('@')[0] || '' },
+          }),
+        }),
+        'La registrazione sta impiegando troppo tempo',
+        AUTH_LOGIN_TIMEOUT_MS
+      );
+      payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {
+          ok: false,
+          message: payload?.msg || payload?.error_description || payload?.error || `Auth signup ${response.status}`,
+          payload,
+        };
+      }
+    }
+
+    const user = payload?.user || null;
+    const accessToken = payload?.access_token || payload?.session?.access_token || '';
+    const refreshToken = payload?.refresh_token || payload?.session?.refresh_token || '';
+    if (!user?.id) {
+      return { ok: false, pendingConfirmation: true, message: 'Controlla la tua email per completare l accesso', payload };
+    }
+    if (accessToken && refreshToken) {
+      authSaveProxySession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        user,
+        updated_at: new Date().toISOString(),
+      });
+      authApplySupabaseUser(user);
+      return { ok: true, user, session: { access_token: accessToken, refresh_token: refreshToken } };
+    }
+    return { ok: true, pendingConfirmation: true, user, message: 'Ti abbiamo inviato un link. Aprilo e poi torna qui per entrare.' };
+  } catch (err) {
+    return { ok: false, message: err?.message || 'Registrazione non disponibile in questo momento' };
+  }
+}
+
 async function authProbeAuthGateway() {
   if (!authCanUseSupabase()) {
     return { ok: false, skipped: true, message: 'Servizio di accesso non configurato' };
@@ -808,11 +987,7 @@ async function authProbeAuthGateway() {
 }
 
 function authConfigureSupabase(url, anonKey) {
-  const cfg = { url: String(url || '').trim(), anonKey: String(anonKey || '').trim() };
-  if (!cfg.url || !cfg.anonKey) return false;
-  localStorage.setItem(AUTH_SUPABASE_CONFIG_KEY, JSON.stringify(cfg));
-  _supabaseClient = null;
-  return true;
+  return false;
 }
 
 function authClearSupabaseConfig() {
@@ -823,7 +998,7 @@ function authClearSupabaseConfig() {
 function authSetGuestState(options = {}) {
   const { preserveLocalRecovery = false, preserveBootstrapHint = false } = options;
   AUTH.status = 'guest';
-  AUTH.provider = authCanUseSupabase() ? 'supabase' : 'local_mock';
+  AUTH.provider = 'local_mock';
   AUTH.user = null;
   AUTH.sessionReady = true;
   AUTH.isSyncing = false;
@@ -1644,10 +1819,117 @@ function signInLocal(email, password) {
 }
 
 async function signUpWithEmail(email, password) {
+  const result = await authRunSignupFlow({ email, password });
+  return {
+    ...result,
+    message: authUserMessage(result),
+  };
+}
+
+async function authRunSignupFlow({ email, password, confirmPassword = null } = {}) {
   const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!authValidateEmail(cleanEmail)) {
+    return authCreateFlowResult({
+      ok: false,
+      code: 'invalid_email',
+      stage: 'preflight',
+      source: authCanUseSupabase() ? 'proxy' : 'local_mock',
+    });
+  }
+  if (!authValidatePassword(password)) {
+    return authCreateFlowResult({
+      ok: false,
+      code: 'weak_password',
+      stage: 'preflight',
+      source: authCanUseSupabase() ? 'proxy' : 'local_mock',
+    });
+  }
+  if (confirmPassword != null && String(password) !== String(confirmPassword)) {
+    return authCreateFlowResult({
+      ok: false,
+      code: 'password_mismatch',
+      stage: 'preflight',
+      source: authCanUseSupabase() ? 'proxy' : 'local_mock',
+    });
+  }
   if (authCanUseSupabase()) {
+    if (authCanUseLocalProxy()) {
+      try {
+        authStartAttempt('signup', cleanEmail);
+        authRecordAttemptStage('auth_gateway', 'pending', 'Preparazione accesso...');
+        authRecordAttemptStage('sign_in', 'pending', 'Creazione profilo...');
+        const proxyResult = await authSignUpViaDirectHttp(cleanEmail, password);
+        if (!proxyResult.ok) {
+          if (proxyResult.pendingConfirmation) {
+            return authCreateFlowResult({
+              ok: true,
+              code: 'pending_confirmation',
+              stage: 'credential_exchange',
+              source: 'proxy',
+              extra: { pendingConfirmation: true },
+            });
+          }
+          const code = proxyResult.message?.toLowerCase().includes('already')
+            ? 'email_exists'
+            : authShouldRetryTransientError({ message: proxyResult.message })
+              ? 'network_unavailable'
+              : 'unknown_error';
+          authRecordAttemptStage('sign_in', 'error', authUserMessage({ code }));
+          return authCreateFlowResult({
+            ok: false,
+            code,
+            stage: 'credential_exchange',
+            source: 'proxy',
+            retryable: code === 'network_unavailable',
+            diagnostics: [{ message: proxyResult.message || '' }],
+          });
+        }
+        if (proxyResult.pendingConfirmation) {
+          AUTH.status = 'guest';
+          AUTH.provider = 'supabase';
+          AUTH.user = null;
+          AUTH.sessionReady = true;
+          AUTH.needsEmailConfirmation = true;
+          authSetBootstrapHint('awaiting_email', 'Controlla la tua email per confermare l accesso.');
+          return authCreateFlowResult({
+            ok: true,
+            code: 'pending_confirmation',
+            stage: 'credential_exchange',
+            source: 'proxy',
+            extra: { pendingConfirmation: true },
+          });
+        }
+        authSeedAccountStateFromGuest(proxyResult.user.id, { markDirty: true });
+        authSetBootstrapHint('account_connected', 'Account creato. Stiamo preparando il tuo profilo.');
+        const profileResult = await authEnsureRemoteProfile();
+        authRecordAttemptStage('done', 'success', 'Profilo pronto');
+        return authCreateFlowResult({
+          ok: true,
+          code: 'signup_success',
+          stage: profileResult?.ok === false ? 'sync_pending' : 'remote_profile',
+          source: 'proxy',
+          user: AUTH.user,
+          session: proxyResult.session || null,
+          retryable: profileResult?.ok === false,
+          diagnostics: profileResult?.ok === false ? [{ message: profileResult.message || '' }] : [],
+        });
+      } catch (proxyErr) {
+        authRecordAttemptStage('sign_in', 'error', authUserMessage({ code: 'network_unavailable' }));
+        return authCreateFlowResult({
+          ok: false,
+          code: 'network_unavailable',
+          stage: 'credential_exchange',
+          source: 'proxy',
+          retryable: true,
+          diagnostics: [{ message: proxyErr?.message || '' }],
+        });
+      }
+    }
     try {
+      authStartAttempt('signup', cleanEmail);
+      authRecordAttemptStage('auth_gateway', 'pending', 'Preparazione accesso...');
       const client = authGetSupabaseClient();
+      authRecordAttemptStage('sign_in', 'pending', 'Creazione profilo...');
       const { data, error } = await authWithTimeout(
         client.auth.signUp({
           email: cleanEmail,
@@ -1657,15 +1939,42 @@ async function signUpWithEmail(email, password) {
         'La registrazione sta impiegando troppo tempo',
         AUTH_LOGIN_TIMEOUT_MS
       );
-      if (error) return { ok: false, message: error.message || 'Registrazione non riuscita' };
+      if (error) {
+        const code = authIsInvalidCredentialsMessage(error.message) ? 'invalid_credentials' : 'unknown_error';
+        authRecordAttemptStage('sign_in', 'error', authUserMessage({ code }));
+        return authCreateFlowResult({
+          ok: false,
+          code,
+          stage: 'credential_exchange',
+          source: 'sdk',
+          retryable: code !== 'invalid_credentials',
+          diagnostics: [{ message: error.message || '' }],
+        });
+      }
       const user = data?.user;
-      if (!user) return { ok: false, message: 'Controlla la tua email per completare l accesso' };
+      if (!user) {
+        return authCreateFlowResult({
+          ok: true,
+          code: 'pending_confirmation',
+          stage: 'credential_exchange',
+          source: 'sdk',
+          extra: { pendingConfirmation: true },
+        });
+      }
       if (data?.session?.user) {
         authApplySupabaseUser(data.session.user);
         authSeedAccountStateFromGuest(data.session.user.id, { markDirty: true });
         authSetBootstrapHint('account_connected', 'Account creato. Stiamo preparando il tuo profilo.');
         await authEnsureRemoteProfile();
-        return { ok: true, user: AUTH.user };
+        authRecordAttemptStage('done', 'success', 'Profilo pronto');
+        return authCreateFlowResult({
+          ok: true,
+          code: 'signup_success',
+          stage: 'sync_pending',
+          source: 'sdk',
+          user: AUTH.user,
+          session: data.session || null,
+        });
       }
       AUTH.status = 'guest';
       AUTH.provider = 'supabase';
@@ -1673,117 +1982,268 @@ async function signUpWithEmail(email, password) {
       AUTH.sessionReady = true;
       AUTH.needsEmailConfirmation = true;
       authSetBootstrapHint('awaiting_email', 'Controlla la tua email per confermare l accesso.');
-      return {
+      return authCreateFlowResult({
         ok: true,
-        pendingConfirmation: true,
-        message: 'Ti abbiamo inviato un link. Aprilo e poi torna qui per entrare.',
-      };
+        code: 'pending_confirmation',
+        stage: 'credential_exchange',
+        source: 'sdk',
+        extra: { pendingConfirmation: true },
+      });
     } catch (err) {
-      return { ok: false, message: err?.message || 'Accesso non disponibile in questo momento' };
+      authRecordAttemptStage('sign_in', 'error', authUserMessage({ code: 'network_unavailable' }));
+      return authCreateFlowResult({
+        ok: false,
+        code: authShouldRetryTransientError(err) ? 'network_unavailable' : 'unknown_error',
+        stage: 'credential_exchange',
+        source: 'sdk',
+        retryable: authShouldRetryTransientError(err),
+        diagnostics: [{ message: err?.message || '' }],
+      });
     }
   }
-  return signUpLocal(cleanEmail, password);
+  const localResult = signUpLocal(cleanEmail, password);
+  if (!localResult.ok) {
+    const code = localResult.message?.includes('Esiste') ? 'email_exists' : 'unknown_error';
+    return authCreateFlowResult({
+      ok: false,
+      code,
+      stage: 'credential_exchange',
+      source: 'local_mock',
+      message: authUserMessage({ code }) || localResult.message,
+    });
+  }
+  return authCreateFlowResult({
+    ok: true,
+    code: 'signup_success',
+    stage: 'session_ready',
+    source: 'local_mock',
+    user: AUTH.user,
+  });
 }
 
 async function signInWithEmail(email, password) {
+  const result = await authRunLoginFlow({ email, password });
+  return {
+    ...result,
+    message: authUserMessage(result),
+  };
+}
+
+async function authRunLoginFlow({ email, password } = {}) {
   const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!authValidateEmail(cleanEmail)) {
+    return authCreateFlowResult({
+      ok: false,
+      code: 'invalid_email',
+      stage: 'preflight',
+      source: authCanUseSupabase() ? 'proxy' : 'local_mock',
+    });
+  }
+  if (!password) {
+    return authCreateFlowResult({
+      ok: false,
+      code: 'invalid_credentials',
+      stage: 'preflight',
+      source: authCanUseSupabase() ? 'proxy' : 'local_mock',
+    });
+  }
   if (authCanUseSupabase()) {
-    try {
-      authStartAttempt('login', cleanEmail);
-      authRecordAttemptStage('auth_gateway', 'pending', 'Verifico il servizio di accesso...');
-      const gatewayProbe = await authProbeAuthGateway();
-      if (!gatewayProbe.ok) {
-        authRecordAttemptStage('auth_gateway', 'error', gatewayProbe.message || 'Servizio di accesso non raggiungibile');
-        const failureHelp = authGatewayFailureHelp();
+    authStartAttempt('login', cleanEmail);
+    authRecordAttemptStage('auth_gateway', 'pending', 'Preparazione accesso...');
+
+    if (authCanUseLocalProxy()) {
+      try {
+        authRecordAttemptStage('sign_in', 'pending', 'Accesso in corso...');
+        const proxyResult = await authSignInViaDirectHttp(cleanEmail, password);
+        if (!proxyResult.ok) {
+          const code = authIsInvalidCredentialsMessage(proxyResult.message)
+            ? 'invalid_credentials'
+            : authShouldRetryTransientError({ message: proxyResult.message })
+              ? 'network_unavailable'
+              : 'unknown_error';
+          if (code === 'network_unavailable') {
+            const recoveryResult = authRecoverLocalProfile('proxy_login_failed');
+            if (recoveryResult.ok) return recoveryResult;
+          }
+          authRecordAttemptStage('sign_in', 'error', authUserMessage({ code }));
+          return authCreateFlowResult({
+            ok: false,
+            code,
+            stage: 'credential_exchange',
+            source: 'proxy',
+            retryable: code !== 'invalid_credentials',
+            diagnostics: [{ message: proxyResult.message || '' }],
+          });
+        }
+        authRecordAttemptStage('sign_in', 'success', 'Accesso riuscito');
+        authSeedAccountStateFromGuest(proxyResult.user.id, { markDirty: true });
+        authSetBootstrapHint('account_connected', 'Bentornato. Stiamo aprendo il tuo profilo.');
+        const profileResult = await authEnsureRemoteProfile();
+        const storageKey = authGetAppStorageKey(authCurrentBaseStorageKey());
+        const localRaw = localStorage.getItem(storageKey);
+        const localState = authParseRemoteState(localRaw);
+        if (!authHasMeaningfulState(localState)) authClearLocalStateMeta();
+        return authCreateFlowResult({
+          ok: true,
+          code: 'success',
+          stage: profileResult?.ok === false ? 'sync_pending' : 'remote_profile',
+          source: 'proxy',
+          user: AUTH.user,
+          session: proxyResult.session || null,
+          retryable: profileResult?.ok === false,
+          diagnostics: profileResult?.ok === false ? [{ message: profileResult.message || '' }] : [],
+        });
+      } catch (proxyErr) {
+        const recoveryResult = authRecoverLocalProfile('proxy_exception');
+        if (recoveryResult.ok) return recoveryResult;
+        authRecordAttemptStage('sign_in', 'error', authUserMessage({ code: 'network_unavailable' }));
         return {
-          ok: false,
-          message: `${authFriendlyAccessIssueMessage(!!AUTH.localRecoveryKey)} ${failureHelp}`,
+          ...authCreateFlowResult({
+            ok: false,
+            code: 'network_unavailable',
+            stage: 'credential_exchange',
+            source: 'proxy',
+            retryable: true,
+            diagnostics: [{ message: proxyErr?.message || '' }],
+          }),
         };
       }
-      authRecordAttemptStage('auth_gateway', 'success', gatewayProbe.message || 'Servizio di accesso raggiunto');
-      authRecordAttemptStage('sign_in', 'pending', 'Connessione al servizio di accesso...');
+    }
+
+    try {
+      const gatewayProbe = await authProbeAuthGateway();
+      if (!gatewayProbe.ok) {
+        const recoveryResult = authRecoverLocalProfile('gateway_probe_failed');
+        if (recoveryResult.ok) return recoveryResult;
+        authRecordAttemptStage('auth_gateway', 'error', authUserMessage({ code: 'network_unavailable' }));
+        return authCreateFlowResult({
+          ok: false,
+          code: 'network_unavailable',
+          stage: 'preflight',
+          source: 'sdk',
+          retryable: true,
+          diagnostics: [{ message: gatewayProbe.message || '' }],
+        });
+      }
+      authRecordAttemptStage('auth_gateway', 'success', 'Accesso pronto');
+      authRecordAttemptStage('sign_in', 'pending', 'Accesso in corso...');
       const client = authGetSupabaseClient();
       let data = null;
       let error = null;
       try {
         ({ data, error } = await authWithTimeout(
-          client.auth.signInWithPassword({
-            email: cleanEmail,
-            password,
-          }),
+          client.auth.signInWithPassword({ email: cleanEmail, password }),
           'L accesso sta impiegando troppo tempo',
           AUTH_LOGIN_TIMEOUT_MS
         ));
       } catch (sdkErr) {
         if (!authShouldRetryTransientError(sdkErr)) throw sdkErr;
         if (!authIsTimeoutError(sdkErr)) {
-          authRecordAttemptStage('sign_in', 'pending', 'Rete instabile: riprovo una volta...');
+          authRecordAttemptStage('sign_in', 'pending', 'Accesso in corso...');
           try {
             ({ data, error } = await authWithTimeout(
-              client.auth.signInWithPassword({
-                email: cleanEmail,
-                password,
-              }),
+              client.auth.signInWithPassword({ email: cleanEmail, password }),
               'L accesso sta impiegando troppo tempo',
               AUTH_LOGIN_TIMEOUT_MS
             ));
           } catch (retryErr) {
-            if (!authIsTimeoutError(retryErr)) throw retryErr;
+            if (!authShouldRetryTransientError(retryErr)) throw retryErr;
             sdkErr = retryErr;
           }
         }
-        if (!data && !error && authIsTimeoutError(sdkErr)) {
-          authRecordAttemptStage('sign_in_fallback', 'pending', 'Accesso lento: provo una strada alternativa...');
+        authRecordAttemptStage('sign_in_fallback', 'pending', 'Accesso in corso...');
+        if (!data && !error) {
           const fallbackResult = await authSignInViaDirectHttp(cleanEmail, password);
           if (!fallbackResult.ok) {
-            authRecordAttemptStage('sign_in_fallback', 'error', fallbackResult.message || 'Login diretto non riuscito');
-            return {
+            const recoveryResult = authRecoverLocalProfile('sdk_and_direct_failed');
+            if (recoveryResult.ok) return recoveryResult;
+            return authCreateFlowResult({
               ok: false,
-              message: fallbackResult.message || authFriendlyAccessIssueMessage(!!AUTH.localRecoveryKey),
-            };
+              code: 'network_unavailable',
+              stage: 'credential_exchange',
+              source: 'sdk',
+              retryable: true,
+              diagnostics: [{ message: fallbackResult.message || sdkErr?.message || '' }],
+            });
           }
-          authRecordAttemptStage('sign_in_fallback', 'success', 'Servizio di accesso raggiunto correttamente');
-          data = {
-            user: fallbackResult.user,
-            session: fallbackResult.session || null,
-          };
+          data = { user: fallbackResult.user, session: fallbackResult.session || null };
           error = null;
         }
       }
       if (error) {
-        authRecordAttemptStage('sign_in', 'error', error.message || 'Credenziali non valide o login non riuscito');
-        return { ok: false, message: error.message || 'Accesso non riuscito' };
+        const code = authIsInvalidCredentialsMessage(error.message) ? 'invalid_credentials' : 'unknown_error';
+        authRecordAttemptStage('sign_in', 'error', authUserMessage({ code }));
+        return authCreateFlowResult({
+          ok: false,
+          code,
+          stage: 'credential_exchange',
+          source: 'sdk',
+          retryable: code !== 'invalid_credentials',
+          diagnostics: [{ message: error.message || '' }],
+        });
       }
       const user = data?.user;
       if (!user) {
-        authRecordAttemptStage('sign_in', 'error', 'Sessione non restituita dal provider');
-        return { ok: false, message: 'Accesso non riuscito' };
+        authRecordAttemptStage('sign_in', 'error', authUserMessage({ code: 'unknown_error' }));
+        return authCreateFlowResult({
+          ok: false,
+          code: 'unknown_error',
+          stage: 'session_ready',
+          source: 'sdk',
+          retryable: true,
+        });
       }
       authRecordAttemptStage('sign_in', 'success', 'Accesso riuscito');
       authApplySupabaseUser(user);
       authSeedAccountStateFromGuest(user.id, { markDirty: true });
       authSetBootstrapHint('account_connected', 'Bentornato. Stiamo aprendo il tuo profilo.');
-      await authEnsureRemoteProfile();
+      const profileResult = await authEnsureRemoteProfile();
       const storageKey = authGetAppStorageKey(authCurrentBaseStorageKey());
       const localRaw = localStorage.getItem(storageKey);
       const localState = authParseRemoteState(localRaw);
-      if (!authHasMeaningfulState(localState)) {
-        authClearLocalStateMeta();
-      }
-      return { ok: true, user: AUTH.user };
+      if (!authHasMeaningfulState(localState)) authClearLocalStateMeta();
+      return authCreateFlowResult({
+        ok: true,
+        code: 'success',
+        stage: profileResult?.ok === false ? 'sync_pending' : 'remote_profile',
+        source: 'sdk',
+        user: AUTH.user,
+        session: data.session || null,
+        retryable: profileResult?.ok === false,
+        diagnostics: profileResult?.ok === false ? [{ message: profileResult.message || '' }] : [],
+      });
     } catch (err) {
-      if (authShouldRetryTransientError(err)) {
-        authRecordAttemptStage('sign_in', 'error', err?.message || 'Timeout di accesso');
-        return {
-          ok: false,
-          message: authFriendlyAccessIssueMessage(!!AUTH.localRecoveryKey),
-        };
-      }
-      authRecordAttemptStage('sign_in', 'error', err?.message || 'Accesso non disponibile');
-      return { ok: false, message: err?.message || 'Accesso non disponibile in questo momento' };
+      const recoveryResult = authRecoverLocalProfile('sdk_exception');
+      if (authShouldRetryTransientError(err) && recoveryResult.ok) return recoveryResult;
+      const code = authShouldRetryTransientError(err) ? 'network_unavailable' : 'unknown_error';
+      authRecordAttemptStage('sign_in', 'error', authUserMessage({ code }));
+      return authCreateFlowResult({
+        ok: false,
+        code,
+        stage: 'credential_exchange',
+        source: 'sdk',
+        retryable: code === 'network_unavailable',
+        diagnostics: [{ message: err?.message || '' }],
+      });
     }
   }
-  return signInLocal(cleanEmail, password);
+  const localResult = signInLocal(cleanEmail, password);
+  if (!localResult.ok) {
+    return authCreateFlowResult({
+      ok: false,
+      code: 'invalid_credentials',
+      stage: 'credential_exchange',
+      source: 'local_mock',
+      diagnostics: [{ message: localResult.message || '' }],
+    });
+  }
+  return authCreateFlowResult({
+    ok: true,
+    code: 'success',
+    stage: 'session_ready',
+    source: 'local_mock',
+    user: AUTH.user,
+  });
 }
 
 async function authSendPasswordReset(email) {
@@ -2312,30 +2772,12 @@ function renderProfileAccountCard() {
   const devPanel = showDevUi ? `
     <div class="profile-account-config">
       <div class="profile-account-config-title">Strumenti sviluppo</div>
-      <div class="profile-account-config-sub">Setup, diagnostica e controlli interni restano qui fuori dalla UI prodotto.</div>
+      <div class="profile-account-config-sub">Diagnostica e controlli interni restano qui fuori dalla UI prodotto.</div>
       <div class="profile-account-note">Contesto: ${htmlEsc(accountDiag.contextLabel)} · ingresso: ${htmlEsc(accountDiag.sourceLabel)}</div>
       ${accountDiag.sourceDetail ? `<div class="profile-account-note">${htmlEsc(accountDiag.sourceDetail)}</div>` : ''}
-      ${cfg || hasEmbeddedConfig ? `
-        <div class="profile-account-note">${hasEmbeddedConfig ? 'Accesso email integrato nel build corrente.' : 'Accesso email configurato manualmente.'}</div>
-      ` : `
-        <div class="profile-account-config-grid">
-          <label class="profile-account-config-field">
-            <span>Project URL</span>
-            <input id="supabase-url-input" class="profile-account-input" type="url" placeholder="https://xxxxx.supabase.co">
-          </label>
-          <label class="profile-account-config-field">
-            <span>Anon key</span>
-            <input id="supabase-anon-input" class="profile-account-input" type="password" placeholder="eyJhbGciOi...">
-          </label>
-        </div>
-        <div class="profile-account-actions">
-          <button class="auth-account-btn" onclick="authSubmitSupabaseConfig()">Salva configurazione</button>
-        </div>
-      `}
+      <div class="profile-account-note">Modalita locale: nessun servizio cloud viene usato per salvare il profilo.</div>
       <div class="profile-account-actions">
-        ${cfg && !hasEmbeddedConfig ? `<button class="auth-account-btn" onclick="authRemoveSupabaseConfig()">Rimuovi configurazione</button>` : ''}
         <button class="auth-account-btn" onclick="authClearLocalAccounts()">Pulisci account locali</button>
-        <button class="auth-account-btn" onclick="authSyncNow()">Sincronizza ora</button>
       </div>
     </div>` : '';
   if (authIsAuthenticated()) {
@@ -2379,8 +2821,8 @@ function renderProfileAccountCard() {
     const summary = AUTH.needsEmailConfirmation
       ? 'Apri il link che ti abbiamo inviato e poi rientra qui.'
       : hasRecoveredLocalProfile
-        ? 'Abbiamo trovato un profilo su questo dispositivo. Accedi per ritrovarlo nel tuo account.'
-        : 'Accedi per gestire il tuo profilo personale.';
+        ? 'Abbiamo trovato un profilo su questo dispositivo.'
+        : 'Crea un profilo locale per separare meglio i dati su questo dispositivo.';
     const emailLabel = AUTH.needsEmailConfirmation
       ? 'Conferma in attesa'
       : hasRecoveredLocalProfile
@@ -2388,7 +2830,7 @@ function renderProfileAccountCard() {
         : 'Nessun account collegato';
     const connectAction = hasRecoveredLocalProfile
       ? `<button class="auth-account-btn" onclick="openAuthEntry(true); openAuthMode('login');">Accedi</button>`
-      : `<button class="auth-account-btn" onclick="openAuthEntry()">Accedi o crea profilo</button>`;
+      : `<button class="auth-account-btn" onclick="openAuthEntry()">Crea o apri profilo</button>`;
     el.innerHTML = `
       <div class="profile-inline-card profile-account-card">
         <div class="profile-card-head support-mini-head">

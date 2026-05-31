@@ -5,6 +5,7 @@ const _storageStatus = {
   hadSavedState: false,
   loadError: null,
   lastImportError: null,
+  recoveredFrom: null,
 };
 const VALID_PROFESSION_KEYS = ['desk_sedentary', 'desk_light', 'standing', 'physical_light', 'physical_heavy'];
 const VALID_WORKOUT_FREQ_KEYS = ['0', '1-2', '3-4', '5-6', '7+'];
@@ -74,15 +75,20 @@ async function mfFetch(url, options, meta = {}) {
 function _resetStorageLoadStatus() {
   _storageStatus.hadSavedState = false;
   _storageStatus.loadError = null;
+  _storageStatus.recoveredFrom = null;
 }
 function _setStorageLoadError(code, detail = '') {
   _storageStatus.loadError = { code, detail };
+}
+function _setStorageRecoveredFrom(source, detail = '') {
+  _storageStatus.recoveredFrom = { source, detail };
 }
 function getStorageStatus() {
   return {
     hadSavedState: _storageStatus.hadSavedState,
     loadError: _storageStatus.loadError ? { ..._storageStatus.loadError } : null,
     lastImportError: _storageStatus.lastImportError ? { ..._storageStatus.lastImportError } : null,
+    recoveredFrom: _storageStatus.recoveredFrom ? { ..._storageStatus.recoveredFrom } : null,
   };
 }
 function getStorageDebugSnapshot() {

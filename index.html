@@ -6,7 +6,17 @@
 <title>MarciFit</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="style.css?v=175">
+<link rel="stylesheet" href="styles/base.css?v=3">
+<link rel="stylesheet" href="styles/today.css?v=1">
+<link rel="stylesheet" href="styles/piano.css?v=1">
+<link rel="stylesheet" href="styles/stats.css?v=1">
+<link rel="stylesheet" href="styles/modals.css?v=1">
+<link rel="stylesheet" href="styles/design-upgrades.css?v=1">
+<link rel="stylesheet" href="styles/mobile.css?v=2">
+<link rel="stylesheet" href="styles/today-overrides.css?v=1">
+<link rel="stylesheet" href="styles/forms-profile.css?v=1">
+<link rel="stylesheet" href="styles/favorites-modals.css?v=3">
+<link rel="stylesheet" href="styles/profile.css?v=1">
 </head>
 <body>
 <div class="app">
@@ -77,7 +87,7 @@
       </div>
       <div class="dp-bar"><div class="dp-fill" id="dp-fill" style="width:0%"></div></div>
       <div class="dp-compact-actions">
-        <button class="dp-info-btn" onmouseenter="showPastiDistTip(this)" onmouseleave="hideTip('tip-pasti-dist')" onclick="showPastiDistTip(this)" title="Info distribuzione calorie">i</button>
+        <button class="dp-info-btn" onclick="showPastiDistInfoModal()" title="Info progress pasti" aria-label="Info progress pasti">i</button>
       </div>
     </div>
   </div>
@@ -451,21 +461,20 @@
 <div id="welcome-onboarding" class="welcome-ov" style="display:none"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.7.4/dist/quagga.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script>
-window.MARCI_SUPABASE_URL = 'https://rlwwzdfcvdouytelqxdf.supabase.co';
-window.MARCI_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsd3d6ZGZjdmRvdXl0ZWxxeGRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDExNTgsImV4cCI6MjA4OTc3NzE1OH0.0iguqJgjBHp34OnthGTJnaFX-T4xfd5a3eSEJDmm5UM';
-</script>
 <script src="debugTools.js?v=5"></script>
-<script src="authSync.js?v=21"></script>
-<script src="storage.js?v=42"></script>
+<script src="authSync.js?v=26"></script>
+<script src="storage.js?v=43"></script>
 <script src="nutritionLogic.js?v=59"></script>
 <script src="mealTaxonomy.js?v=1"></script>
 <script src="templateEngine.js?v=2"></script>
 <script src="mealHelperEngine.js?v=1"></script>
-<script src="uiComponents.js?v=136"></script>
+<script src="ui/sharedUi.js?v=1"></script>
+<script src="ui/todayView.js?v=1"></script>
+<script src="ui/pianoView.js?v=1"></script>
+<script src="ui/statsView.js?v=1"></script>
+<script src="ui/profileView.js?v=2"></script>
 <script src="bootstrapTools.js?v=7"></script>
-<script src="app.js?v=111"></script>
+<script src="app.js?v=113"></script>
 <script src="barcodeTools.js?v=18"></script>
 <script>lucide.createIcons();</script>
 </body>
