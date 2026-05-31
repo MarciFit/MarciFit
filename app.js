@@ -23,10 +23,10 @@ window.addEventListener('unhandledrejection', event => {
   appendGlobalErrorOverlay(message, '', 0, 0, reason instanceof Error ? reason : null);
 });
 let _toastTimer;
-function toast(msg) {
+function marciFitToast(msg) {
   const text = String(msg || '');
   const label = document.getElementById('tm');
-  const box = document.getElementById('toast');
+  const box = document.getElementById('toast-box');
   if (!label || !box) {
     console.info('[MarciFit:toast]', text);
     return;
@@ -35,6 +35,16 @@ function toast(msg) {
   label.textContent = text;
   box.classList.add('show');
   _toastTimer = setTimeout(() => box.classList.remove('show'), 2400);
+}
+var toast = marciFitToast;
+try {
+  Object.defineProperty(window, 'toast', {
+    value: marciFitToast,
+    configurable: true,
+    writable: true,
+  });
+} catch (_) {
+  window.toast = marciFitToast;
 }
 // ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ? 
 // STATE ? single source of truth
