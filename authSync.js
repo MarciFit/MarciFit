@@ -307,7 +307,7 @@ function authValidatePassword(password) {
 }
 
 function authIsAuthenticated() {
-  return AUTH.status === 'authenticated' && !!AUTH.user?.id;
+  return false;
 }
 
 function authProviderLabel() {
@@ -515,45 +515,14 @@ function authGetAccountDiagnostics() {
   const hasMeaningfulLocal = authHasMeaningfulState(localState);
   const bootstrapDiag = authGetBootstrapDiagnostics();
   const lastAttempt = authGetLastAttemptDiagnostics();
-  const lastSyncedAt = AUTH.lastSyncedAt || meta.lastSyncedAt || null;
-  const dirty = !!meta.dirty;
-  const standaloneSessionNote = authGetStandaloneSessionNote();
-
-  let storageLabel = 'Profilo ospite';
-  let storageTone = 'guest';
-  let statusDetail = 'Stai usando i dati salvati solo su questo dispositivo.';
-  let syncDetail = 'I dati restano su questo dispositivo, con copie automatiche locali.';
-  let scopeLabel = 'Questo dispositivo';
-
-  if (authIsAuthenticated() && AUTH.provider === 'supabase') {
-    storageLabel = 'Profilo account';
-    storageTone = AUTH.bootstrapSource === 'remote' ? 'cloud' : 'local';
-    scopeLabel = 'Profilo salvato';
-    statusDetail = 'Il tuo profilo account e attivo.';
-    if (AUTH.isSyncing) {
-      syncDetail = 'Aggiornamento automatico in corso.';
-    } else if (dirty) {
-      syncDetail = 'Le modifiche verranno salvate automaticamente.';
-    } else if (lastSyncedAt) {
-      syncDetail = `Aggiornato automaticamente: ${authFormatSyncTime(lastSyncedAt)}.`;
-    } else {
-      syncDetail = hasMeaningfulLocal
-        ? 'Account attivo: il primo aggiornamento automatico verra completato appena possibile.'
-        : 'Account attivo: aspettiamo solo il primo dato da salvare.';
-    }
-  } else if (authIsAuthenticated()) {
-    storageLabel = 'Profilo account';
-    storageTone = 'local';
-    scopeLabel = 'Questo dispositivo';
-    statusDetail = 'Questo profilo resta salvato solo su questo dispositivo.';
-    syncDetail = 'Salvataggio locale automatico, mirror e snapshot di recupero attivi.';
-  } else if (AUTH.localRecoveryKey) {
-    storageLabel = 'Cache account locale';
-    storageTone = 'local';
-    scopeLabel = 'Questo dispositivo';
-    statusDetail = 'Stiamo usando il profilo trovato su questo dispositivo.';
-    syncDetail = 'Profilo recuperato da una cache locale di questo dispositivo.';
-  }
+  const lastSyncedAt = meta.updatedAt || AUTH.lastSyncedAt || null;
+  const dirty = false;
+  const standaloneSessionNote = '';
+  const storageLabel = 'Profilo locale';
+  const storageTone = 'local';
+  const statusDetail = 'I dati sono salvati solo su questo dispositivo.';
+  const syncDetail = 'Salvataggio automatico locale con mirror e snapshot di recupero.';
+  const scopeLabel = 'Questo dispositivo';
 
   return {
     isAuthenticated: authIsAuthenticated(),
@@ -580,8 +549,7 @@ function authCurrentBaseStorageKey() {
 }
 
 function authGetAppStorageKey(baseKey = 'piano_federico_v2') {
-  if (!authIsAuthenticated()) return AUTH.localRecoveryKey || baseKey;
-  return `${baseKey}__acct_${AUTH.user.id}`;
+  return baseKey;
 }
 
 function authGetStateMetaKey() {
@@ -675,14 +643,7 @@ function authFormatSyncTime(iso) {
 }
 
 function authStatusMeta() {
-  if (AUTH.needsEmailConfirmation) return { label: 'Controlla email', cls: 'pending' };
-  if (AUTH.isSyncing) return { label: 'Account', cls: 'connected' };
-  if (authIsAuthenticated() && AUTH.provider === 'supabase') {
-    return { label: 'Account', cls: 'connected' };
-  }
-  if (authIsAuthenticated() && AUTH.provider === 'local_mock') return { label: 'Account', cls: 'local' };
-  if (AUTH.localRecoveryKey) return { label: 'Profilo', cls: 'local' };
-  return { label: 'Guest', cls: 'guest' };
+  return { label: 'Locale', cls: 'local' };
 }
 
 function authRefreshUi() {
@@ -1125,110 +1086,17 @@ function authSubscribeSupabaseSession() {
 }
 
 async function authInit() {
-  if (authCanUseLocalProxy()) {
-    const proxySession = authLoadProxySession();
-    if (proxySession?.user?.id) {
-      authApplySupabaseUser(proxySession.user);
-      authSetBootstrapHint('account_connected', 'Profilo pronto.');
-      return AUTH;
-    }
-  }
-  const recoverableLocalCache = authResolveRecoverableLocalCache();
-  if (authCanUseSupabase() && recoverableLocalCache) {
-    try {
-      const client = authGetSupabaseClient();
-      authSubscribeSupabaseSession();
-      const { data, error } = await authRunWithRetry(
-        () => client.auth.getSession(),
-        {
-          attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
-          timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
-          timeoutMessage: 'Il servizio di accesso sta impiegando troppo tempo a rispondere',
-          retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
-        }
-      );
-      if (!error) {
-        const user = data?.session?.user || null;
-        if (user) {
-        authApplySupabaseUser(user);
-        authSeedAccountStateFromGuest(user.id, { markDirty: true });
-        authSetBootstrapHint('account_connected', 'Stiamo preparando il tuo profilo.');
-          return AUTH;
-        }
-      }
-    } catch (_) {}
-    AUTH.status = 'guest';
-    AUTH.provider = 'supabase';
-    AUTH.user = null;
-    AUTH.sessionReady = true;
-    AUTH.isSyncing = false;
-    AUTH.lastSyncedAt = null;
-    AUTH.needsEmailConfirmation = false;
-    authSetLocalRecovery(recoverableLocalCache);
-    authSetBootstrapHint(
-      'local_resume',
-      recoverableLocalCache.name
-        ? `Abbiamo trovato il profilo di ${recoverableLocalCache.name} su questo dispositivo.`
-        : 'Abbiamo trovato un profilo su questo dispositivo.'
-    );
-    return AUTH;
-  }
-  if (authCanUseSupabase()) {
-    try {
-      const client = authGetSupabaseClient();
-      authSubscribeSupabaseSession();
-      const { data, error } = await authRunWithRetry(
-        () => client.auth.getSession(),
-        {
-          attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
-          timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
-          timeoutMessage: 'Il servizio di accesso sta impiegando troppo tempo a rispondere',
-          retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
-        }
-      );
-      if (error) throw error;
-      const user = data?.session?.user || null;
-      if (user) {
-        authApplySupabaseUser(user);
-        authSeedAccountStateFromGuest(user.id, { markDirty: true });
-        authSetBootstrapHint('account_connected', 'Stiamo preparando il tuo profilo.');
-        return AUTH;
-      }
-    } catch (err) {
-      authSetBootstrapHint(
-        'error',
-        err?.message || 'Non siamo riusciti ad aprire il profilo. Proviamo a usare quello presente su questo dispositivo.'
-      );
-    }
-  }
-
-  const session = authLoadSession();
-  const users = authLoadUsers();
-  if (!session?.userId) {
-    authSetGuestState();
-    authMaybeResumeLocalCache();
-    return AUTH;
-  }
-  const user = users.find(entry => entry.id === session.userId);
-  if (!user) {
-    authSaveSession(null);
-    authSetGuestState();
-    return AUTH;
-  }
-  AUTH.status = 'authenticated';
+  authMigrateBestLegacyAccountCacheToBase();
+  AUTH.status = 'guest';
   AUTH.provider = 'local_mock';
-  AUTH.user = {
-    id: user.id,
-    email: user.email,
-    name: user.name || '',
-  };
+  AUTH.user = null;
   AUTH.sessionReady = true;
   AUTH.needsEmailConfirmation = false;
+  AUTH.isSyncing = false;
+  AUTH.lastSyncedAt = null;
   authClearLocalRecovery();
-  authRememberLastActiveAccount(AUTH.user);
   authSetExplicitLogout(false);
-  authSeedAccountStateFromGuest(user.id);
-  authSetBootstrapHint('local', 'Il tuo profilo e pronto.');
+  authSetBootstrapHint('local', 'Profilo locale pronto.');
   return AUTH;
 }
 
@@ -1467,6 +1335,78 @@ function authHasMeaningfulState(state) {
   return false;
 }
 
+function authStateSignificanceScore(state) {
+  if (!state || typeof state !== 'object') return 0;
+  let score = 0;
+  if (state.onboardingCompleted) score += 20;
+  if (String(state.anagrafica?.nome || '').trim()) score += 10;
+  if (Number.isFinite(Number(state.anagrafica?.peso)) && Number(state.anagrafica.peso) > 0) score += 8;
+  if (Array.isArray(state.weightLog)) score += Math.min(30, state.weightLog.length * 3);
+  if (Array.isArray(state.measurements)) score += Math.min(24, state.measurements.length * 3);
+  if (Array.isArray(state.customFoods)) score += Math.min(20, state.customFoods.length * 2);
+  if (Array.isArray(state.favoriteFoods)) score += Math.min(20, state.favoriteFoods.length * 2);
+  ['foodLog', 'doneByDate', 'notes', 'water', 'cheatMealsByDate'].forEach(key => {
+    if (state[key] && typeof state[key] === 'object' && !Array.isArray(state[key])) {
+      score += Math.min(30, Object.keys(state[key]).length * 2);
+    }
+  });
+  return score;
+}
+
+function authReadLegacyAccountCacheEntries() {
+  const baseKey = authCurrentBaseStorageKey();
+  const prefix = `${baseKey}__acct_`;
+  const entries = [];
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(prefix)) continue;
+      const raw = localStorage.getItem(key);
+      const state = authParseRemoteState(raw);
+      if (!authHasMeaningfulState(state)) continue;
+      entries.push({
+        key,
+        raw,
+        state,
+        score: authStateSignificanceScore(state),
+        updatedAt: state?._localSavedAt || null,
+      });
+    }
+  } catch (_) {}
+  entries.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return (Date.parse(b.updatedAt || 0) || 0) - (Date.parse(a.updatedAt || 0) || 0);
+  });
+  return entries;
+}
+
+function authMigrateBestLegacyAccountCacheToBase() {
+  const baseKey = authCurrentBaseStorageKey();
+  try {
+    const baseRaw = localStorage.getItem(baseKey);
+    const baseState = authParseRemoteState(baseRaw);
+    const baseScore = authStateSignificanceScore(baseState);
+    const best = authReadLegacyAccountCacheEntries()[0];
+    if (!best || best.score <= baseScore) return { migrated: false, reason: 'base_preferred' };
+    const raw = JSON.stringify({
+      ...best.state,
+      authEntryCompleted: true,
+      _localMigratedFrom: best.key,
+      _localMigratedAt: new Date().toISOString(),
+    });
+    if (typeof storageCommitRaw === 'function') {
+      storageCommitRaw(baseKey, raw, { source: 'legacy_account_migration' });
+    } else {
+      localStorage.setItem(baseKey, raw);
+    }
+    authSetBootstrapHint('local_resume', 'Profilo locale recuperato da una vecchia cache account.');
+    return { migrated: true, from: best.key, score: best.score };
+  } catch (err) {
+    if (typeof mfWarn === 'function') mfWarn('auth', 'legacy local profile migration failed', { message: err?.message });
+    return { migrated: false, reason: 'failed', message: err?.message || '' };
+  }
+}
+
 function authSeedAccountStateFromGuest(userId, options = {}) {
   const targetUserId = String(userId || '').trim();
   if (!targetUserId) return false;
@@ -1647,120 +1587,7 @@ function authResolvePreferredState({
 }
 
 async function authHydrateLocalCacheFromRemote() {
-  if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !authCanUseSupabase()) {
-    return { ok: false, skipped: true };
-  }
-  authRecordAttemptStage('remote_state', 'pending', 'Recupero stato cloud...');
-  const remote = await authFetchRemoteStateRow();
-  if (!remote.ok) {
-    authSetBootstrapHint('error', remote.message || 'Stiamo avendo un attimo di difficolta a recuperare il tuo profilo.');
-    authRecordAttemptStage('remote_state', 'error', remote.message || 'Stato cloud non disponibile');
-    return remote;
-  }
-  if (!remote.row) {
-    const localRaw = localStorage.getItem(authGetAppStorageKey(authCurrentBaseStorageKey()));
-    const localState = authParseRemoteState(localRaw);
-    if (authHasMeaningfulState(localState)) {
-      authSetBootstrapHint('local', 'Ripartiamo dai dati che hai gia qui.');
-    } else {
-      authSetBootstrapHint('empty', 'Parti da un profilo nuovo.');
-    }
-    authRecordAttemptStage('remote_state', 'success', authHasMeaningfulState(localState) ? 'Cloud vuoto, uso cache locale' : 'Cloud vuoto, nessun profilo remoto');
-    return { ok: true, hydrated: false, source: authHasMeaningfulState(localState) ? 'local' : 'empty' };
-  }
-  const remoteState = authParseRemoteState(remote.row.state_json);
-  if (!remoteState) {
-    authSetBootstrapHint('error', 'La versione trovata non e leggibile.');
-    authRecordAttemptStage('remote_state', 'error', 'Stato cloud non leggibile');
-    return { ok: false, message: 'La versione trovata non e leggibile' };
-  }
-  let normalizedRemoteState = remoteState;
-  if (typeof validateImportedState === 'function') {
-    const validation = validateImportedState(remoteState, { relaxed: true });
-    if (!validation.ok) {
-      authSetBootstrapHint('error', 'La versione trovata non e completa.');
-      authRecordAttemptStage('remote_state', 'error', 'Stato cloud legacy non valido');
-      return { ok: false, message: 'La versione trovata non e completa' };
-    }
-    normalizedRemoteState = validation.normalizedState || remoteState;
-  }
-
-  const localRaw = authReadActiveLocalStateRaw();
-  const localMeta = authReadStateMeta();
-  const localState = authParseRemoteState(localRaw);
-  const remoteAt = Date.parse(remote.row.updated_at || 0) || 0;
-  const localAt = Date.parse(localMeta.updatedAt || localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || 0) || 0;
-  const resetAt = Date.parse(localMeta.resetAt || 0) || 0;
-  const hasMeaningfulLocal = authHasMeaningfulState(localState);
-  const hasMeaningfulRemote = authHasMeaningfulState(normalizedRemoteState) && !!remote.row.updated_at && !!remoteAt;
-  const localDirty = !!localMeta.dirty || !!localMeta.resetPending;
-
-  if (resetAt && resetAt >= remoteAt && !hasMeaningfulLocal) {
-    authWriteStateMeta({
-      ...localMeta,
-      updatedAt: localMeta.updatedAt || localMeta.resetAt || new Date().toISOString(),
-      remoteUpdatedAt: remote.row.updated_at || localMeta.remoteUpdatedAt || null,
-      resetPending: authIsAuthenticated() && AUTH.provider === 'supabase',
-      dirty: authIsAuthenticated() && AUTH.provider === 'supabase',
-    });
-    AUTH.lastSyncedAt = localMeta.lastSyncedAt || null;
-    authSetBootstrapHint('local_reset', 'Ripartiamo da questa versione del profilo.');
-    authRecordAttemptStage('remote_state', 'success', 'Reset locale mantenuto');
-    return { ok: true, hydrated: false, source: 'local_reset' };
-  }
-
-  if (!hasMeaningfulLocal && hasMeaningfulRemote) {
-    authStoreRemoteStateLocally(normalizedRemoteState, remote.row.updated_at);
-    authRecordAttemptStage('remote_state', 'success', 'Stato cloud caricato');
-    return { ok: true, hydrated: true, source: 'remote' };
-  }
-
-  if (hasMeaningfulLocal && !hasMeaningfulRemote) {
-    AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
-    authSetBootstrapHint('local', 'Restiamo sulla versione che hai gia qui.');
-    authRecordAttemptStage('remote_state', 'success', 'Cloud vuoto, cache locale mantenuta');
-    return { ok: true, hydrated: false, source: 'local' };
-  }
-
-  if (hasMeaningfulLocal && hasMeaningfulRemote) {
-    const resolution = authResolvePreferredState({
-      localState,
-      remoteState: normalizedRemoteState,
-      localUpdatedAt: localMeta.updatedAt || localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null,
-      remoteUpdatedAt: remote.row.updated_at || null,
-      localDirty,
-    });
-    if (resolution.choice === 'remote') {
-      if (!resolution.equivalent) {
-        authCreateStateBackup('auto_remote_replace', localState, { updatedAt: localMeta.updatedAt || null });
-      }
-      authStoreRemoteStateLocally(normalizedRemoteState, remote.row.updated_at);
-      authRecordAttemptStage('remote_state', 'success', resolution.reason === 'equivalent_state' ? 'Cloud riallineato senza differenze reali' : 'Versione cloud selezionata automaticamente');
-      return { ok: true, hydrated: true, source: 'remote' };
-    }
-    if (!resolution.equivalent && (localDirty || resolution.reason === 'local_newer' || resolution.reason === 'local_richer' || resolution.reason === 'local_timestamp_only')) {
-      authMarkLocalStatePreferred(remote.row.updated_at);
-    }
-    AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
-    authSetBootstrapHint('local', 'Abbiamo tenuto in automatico la versione locale piu aggiornata.');
-    authRecordAttemptStage('remote_state', 'success', 'Versione locale selezionata automaticamente');
-    return {
-      ok: true,
-      hydrated: false,
-      source: resolution.reason === 'equivalent_state' ? 'local' : 'local_newer',
-    };
-  }
-
-  if (!hasMeaningfulLocal || !localRaw || remoteAt > localAt) {
-    authStoreRemoteStateLocally(normalizedRemoteState, remote.row.updated_at);
-    authRecordAttemptStage('remote_state', 'success', 'Stato cloud sincronizzato in locale');
-    return { ok: true, hydrated: true, source: 'remote' };
-  }
-
-  AUTH.lastSyncedAt = localMeta.lastSyncedAt || localMeta.remoteUpdatedAt || null;
-  authSetBootstrapHint('local', 'Il tuo profilo e gia pronto.');
-  authRecordAttemptStage('remote_state', 'success', 'Stato locale gia pronto');
-  return { ok: true, hydrated: false, source: 'local' };
+  return { ok: true, skipped: true, localOnly: true };
 }
 
 function signUpLocal(email, password) {
@@ -2328,307 +2155,47 @@ async function authChangePassword(newPassword) {
 }
 
 function openAccountPasswordChange() {
-  if (AUTH.provider !== 'supabase' || !authCanUseSupabase()) {
-    toast('Cambio password disponibile solo per account collegati.');
-    return;
-  }
-  if (typeof showDayModal !== 'function') {
-    toast('Cambio password non disponibile in questo momento.');
-    return;
-  }
-  showDayModal({
-    icon: '🔐',
-    eyebrow: 'Account',
-    title: 'Cambia password',
-    noButtons: true,
-    modalClass: 'account-password-modal',
-    body: `
-      <form class="account-password-form" onsubmit="event.preventDefault();submitAccountPasswordChange()">
-        <label class="account-password-field">
-          <span>Nuova password</span>
-          <input id="account-new-password" class="profile-account-input" type="password" autocomplete="new-password" placeholder="Almeno 8 caratteri">
-        </label>
-        <label class="account-password-field">
-          <span>Conferma password</span>
-          <input id="account-confirm-password" class="profile-account-input" type="password" autocomplete="new-password" placeholder="Ripeti la password">
-        </label>
-        <div id="account-password-error" class="account-password-error" aria-live="polite"></div>
-        <div class="account-password-actions">
-          <button class="auth-account-btn" type="button" onclick="closeDayModal()">Annulla</button>
-          <button class="auth-account-btn auth-account-btn-primary" type="button" onclick="submitAccountPasswordChange()">Aggiorna password</button>
-        </div>
-      </form>
-    `,
-  });
-  setTimeout(() => document.getElementById('account-new-password')?.focus(), 60);
+  if (typeof toast === 'function') toast('Profilo locale: non serve nessuna password.');
 }
 
 async function submitAccountPasswordChange() {
-  const passwordEl = document.getElementById('account-new-password');
-  const confirmEl = document.getElementById('account-confirm-password');
-  const errorEl = document.getElementById('account-password-error');
-  const password = String(passwordEl?.value || '');
-  const confirmPassword = String(confirmEl?.value || '');
-  const setError = (message) => {
-    if (errorEl) errorEl.textContent = message || '';
-  };
-  if (!authValidatePassword(password)) {
-    setError('La password deve avere almeno 8 caratteri.');
-    passwordEl?.focus();
-    return;
-  }
-  if (password !== confirmPassword) {
-    setError('Le password non coincidono.');
-    confirmEl?.focus();
-    return;
-  }
-  setError('');
-  const submitBtn = document.querySelector('.account-password-actions .auth-account-btn-primary');
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Aggiorno...';
-  }
-  const result = await authChangePassword(password);
-  if (submitBtn) {
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Aggiorna password';
-  }
-  if (!result.ok) {
-    setError(result.message || 'Password non aggiornata.');
-    return;
-  }
-  if (typeof closeDayModal === 'function') closeDayModal();
-  toast('Password aggiornata');
+  if (typeof toast === 'function') toast('Profilo locale: non serve nessuna password.');
 }
 
 async function signOutUser() {
-  try {
-    sessionStorage.setItem(AUTH_POST_LOGOUT_MODE_KEY, 'login');
-  } catch (_) {}
-  authSetExplicitLogout(true);
-  if (window.S) {
-    window.S.authEntryCompleted = false;
-  }
-  if (AUTH.provider === 'supabase' && authCanUseSupabase()) {
-    try {
-      if (!authCanUseLocalProxy() || !authHasProxySession()) {
-        const client = authGetSupabaseClient();
-        await authWithTimeout(
-          client.auth.signOut(),
-          'L uscita sta impiegando troppo tempo'
-        );
-      }
-    } catch (_) {}
-  } else {
-    authSaveSession(null);
-  }
+  authSaveSession(null);
   authSaveProxySession(null);
   authSetGuestState();
   authRefreshUi();
-  const canInlineLogoutTransition =
-    typeof bootstrapAppStateFromCurrentStorage === 'function'
-    && typeof refreshAppAfterBootstrap === 'function'
-    && typeof openAuthEntry === 'function'
-    && typeof openAuthMode === 'function';
-  if (canInlineLogoutTransition) {
-    try {
-      bootstrapAppStateFromCurrentStorage({ resetState: true });
-      if (typeof S !== 'undefined') {
-        S.authEntryCompleted = false;
-      }
-      if (typeof save === 'function') save({ skipCloudSync: true });
-      if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
-      refreshAppAfterBootstrap({ closeAuthOverlay: true, preferredView: 'today' });
-      openAuthEntry(true);
-      openAuthMode('login');
-      return;
-    } catch (_) {}
-  }
-  const logoutHandler = typeof handleMarciFitAccountLogoutTransition === 'function'
-    ? handleMarciFitAccountLogoutTransition
-    : window.handleMarciFitAccountLogoutTransition;
-  if (typeof logoutHandler === 'function') {
-    try {
-      await logoutHandler({ preferredMode: 'login' });
-      return;
-    } catch (_) {}
-  }
-  if (typeof location !== 'undefined') location.reload();
+  if (typeof toast === 'function') toast('Profilo locale gia attivo su questo dispositivo.');
 }
 
 function confirmSignOutUser() {
-  if (typeof showDayModal !== 'function') {
-    signOutUser();
-    return;
-  }
-  showDayModal({
-    icon: '↩️',
-    eyebrow: 'Account',
-    title: 'Vuoi uscire?',
-    body: 'Potrai rientrare con la tua email quando vuoi.',
-    confirmText: 'Esci',
-    cancelText: 'Resta dentro',
-    danger: true,
-    onConfirm: () => { signOutUser(); },
-  });
+  if (typeof toast === 'function') toast('Profilo locale: non c e un account da cui uscire.');
 }
 
 function authOnLocalStateSaved(raw, options = {}) {
   const now = new Date().toISOString();
   const meta = authReadStateMeta();
-  const shouldSync = authIsAuthenticated() && AUTH.provider === 'supabase';
-  const dirty = shouldSync
-    ? (meta.resetPending ? true : (options.skipCloudSync ? !!meta.dirty : true))
-    : false;
   const updatedAt = options.preserveMetaTimestamp
     ? (meta.updatedAt || now)
     : now;
   const nextMeta = {
     ...meta,
     updatedAt,
-    dirty,
+    dirty: false,
+    localOnly: true,
   };
   authWriteStateMeta(nextMeta);
-  if (!options.skipCloudSync && AUTH.bootstrapReady) authQueueStateSync();
 }
 
 async function authSyncStateToCloud(force = false) {
-  if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !authCanUseSupabase()) {
-    return { ok: false, skipped: true };
-  }
-  if (!AUTH.bootstrapReady) {
-    return { ok: false, skipped: true, reason: 'bootstrap_pending' };
-  }
-  const meta = authReadStateMeta();
-  if (!force && meta.dirty === false) {
-    return { ok: true, skipped: true };
-  }
-  try {
-    AUTH.isSyncing = true;
-    const raw = localStorage.getItem(authGetAppStorageKey(authCurrentBaseStorageKey())) || JSON.stringify(window.S || {});
-    const parsed = JSON.parse(raw);
-    authCreateStateBackup('pre_cloud_sync', parsed, { updatedAt: meta.updatedAt || null });
-    const remote = await authFetchRemoteStateRow();
-    const remoteState = remote?.row ? authParseRemoteState(remote.row.state_json) : null;
-    const remoteAt = Date.parse(remote?.row?.updated_at || 0) || 0;
-    const localAt = Date.parse(meta.updatedAt || 0) || 0;
-    const hasMeaningfulLocal = authHasMeaningfulState(parsed);
-    const hasMeaningfulRemote = authHasMeaningfulState(remoteState);
-
-    if (!force && hasMeaningfulRemote) {
-      const resolution = authResolvePreferredState({
-        localState: parsed,
-        remoteState,
-        localUpdatedAt: meta.updatedAt || meta.lastSyncedAt || meta.remoteUpdatedAt || null,
-        remoteUpdatedAt: remote?.row?.updated_at || null,
-        localDirty: !!meta.dirty || !!meta.resetPending,
-      });
-      if (resolution.choice === 'remote') {
-        if (hasMeaningfulLocal && !resolution.equivalent) {
-          authCreateStateBackup('auto_remote_replace', parsed, { updatedAt: meta.updatedAt || null });
-        }
-        authStoreRemoteStateLocally(remoteState, remote?.row?.updated_at || null);
-        AUTH.isSyncing = false;
-        authRefreshUi();
-        return { ok: true, hydrated: true, source: 'remote' };
-      }
-    }
-
-    await authEnsureRemoteProfile();
-    const updatedAt = meta.updatedAt || new Date().toISOString();
-    if (authCanUseLocalProxy() && authHasProxySession()) {
-      const proxyResult = await authWithTimeout(
-        authProxyJson('/__supabase_proxy/app_state', {
-          method: 'POST',
-          token: authGetProxyAccessToken(),
-          body: {
-            user_id: AUTH.user.id,
-            state_json: parsed,
-            state_version: 1,
-            updated_at: updatedAt,
-          },
-        }),
-        'Il profilo sta impiegando troppo tempo ad aggiornarsi',
-        AUTH_ASYNC_TIMEOUT_MS
-      );
-      if (!proxyResult.ok) {
-        AUTH.isSyncing = false;
-        authRefreshUi();
-        return { ok: false, message: proxyResult.payload?.message || proxyResult.payload?.error || 'Non siamo riusciti ad aggiornare il profilo' };
-      }
-      AUTH.isSyncing = false;
-      AUTH.lastSyncedAt = updatedAt;
-      authSetBootstrapHint('cloud_push', 'Abbiamo aggiornato il tuo profilo.');
-      authWriteStateMeta({
-        ...meta,
-        updatedAt,
-        lastSyncedAt: updatedAt,
-        remoteUpdatedAt: updatedAt,
-        resetPending: false,
-        dirty: false,
-      });
-      authRefreshUi();
-      return { ok: true, syncedAt: updatedAt };
-    }
-    const client = authGetSupabaseClient();
-    const payload = {
-      user_id: AUTH.user.id,
-      state_json: parsed,
-      state_version: 1,
-      updated_at: updatedAt,
-    };
-    const { error } = await authRunWithRetry(
-      () => client.from('app_state').upsert(payload, { onConflict: 'user_id' }),
-      {
-        attempts: AUTH_REMOTE_RETRY_ATTEMPTS,
-        timeoutMs: AUTH_ASYNC_TIMEOUT_MS,
-        timeoutMessage: 'Il profilo sta impiegando troppo tempo ad aggiornarsi',
-        retryDelayMs: AUTH_REMOTE_RETRY_DELAY_MS,
-      }
-    );
-    if (error) {
-      AUTH.isSyncing = false;
-      authRefreshUi();
-      return { ok: false, message: error.message || 'Non siamo riusciti ad aggiornare il profilo' };
-    }
-    AUTH.isSyncing = false;
-    AUTH.lastSyncedAt = updatedAt;
-    authSetBootstrapHint('cloud_push', 'Abbiamo aggiornato il tuo profilo.');
-    authWriteStateMeta({
-      ...meta,
-      updatedAt,
-      lastSyncedAt: updatedAt,
-      remoteUpdatedAt: updatedAt,
-      resetPending: false,
-      dirty: false,
-    });
-    authRefreshUi();
-    return { ok: true, syncedAt: updatedAt };
-  } catch (err) {
-    AUTH.isSyncing = false;
-    authRefreshUi();
-    return { ok: false, message: err?.message || 'Non siamo riusciti ad aggiornare il profilo' };
-  }
+  return { ok: true, skipped: true, localOnly: true };
 }
 
 function authQueueStateSync(delay = AUTH_SYNC_DELAY_MS) {
-  if (!authIsAuthenticated() || AUTH.provider !== 'supabase' || !AUTH.bootstrapReady) return;
-  AUTH.isSyncing = true;
-  authRefreshUi();
   clearTimeout(_authSyncTimer);
-  _authSyncTimer = setTimeout(() => {
-    const conflictHandler = typeof handleMarciFitCloudConflict === 'function'
-      ? handleMarciFitCloudConflict
-      : window.handleMarciFitCloudConflict;
-    authSyncStateToCloud()
-      .then(result => {
-        if (result?.conflict && typeof conflictHandler === 'function') {
-          return conflictHandler(result, { pushLocalOnChoice: true, source: 'queued_sync' });
-        }
-        return null;
-      })
-      .catch(() => {});
-  }, delay);
+  AUTH.isSyncing = false;
 }
 
 function authSubmitSupabaseConfig() {
@@ -2654,59 +2221,28 @@ function authRemoveSupabaseConfig() {
 function authClearLocalAccounts() {
   localStorage.removeItem(AUTH_USERS_KEY);
   localStorage.removeItem(AUTH_SESSION_KEY);
-  if (!authIsAuthenticated()) authSetGuestState();
+  authSetGuestState();
   authRefreshUi();
-  if (typeof toast === 'function') toast('🧹 Account rimossi');
+  if (typeof toast === 'function') toast('🧹 Vecchie credenziali locali rimosse');
 }
 
 async function authSyncNow() {
-  const result = await authSyncStateToCloud();
-  const conflictHandler = typeof handleMarciFitCloudConflict === 'function'
-    ? handleMarciFitCloudConflict
-    : window.handleMarciFitCloudConflict;
-  if (result?.conflict && typeof conflictHandler === 'function') {
-    const resolution = await conflictHandler(result, { pushLocalOnChoice: true, source: 'manual_sync' });
-    if (typeof toast === 'function') {
-      toast(
-        resolution?.choice === 'remote'
-          ? '✅ Abbiamo aperto la versione account'
-          : resolution?.choice === 'local'
-            ? '✅ Abbiamo tenuto e aggiornato questa versione'
-            : 'ℹ️ Aggiornamento da confermare'
-      );
-    }
-    return;
-  }
-  if (typeof toast === 'function') {
-    toast(result.ok ? '✅ Profilo aggiornato' : `⚠️ ${result.message || 'Aggiornamento non riuscito'}`);
-  }
+  if (typeof toast === 'function') toast('✅ Dati salvati su questo dispositivo');
 }
 
 function renderAuthNav() {
   const slot = document.getElementById('nav-auth-slot');
   if (!slot) return;
   const status = authStatusMeta();
-  if (authIsAuthenticated() || AUTH.localRecoveryKey) {
-    const title = authIsAuthenticated()
-      ? AUTH.user.email
-      : (AUTH.localRecoveryMeta?.email || AUTH.localRecoveryMeta?.name || 'Profilo locale');
-    const label = authIsAuthenticated()
-      ? (AUTH.user.name || 'Account')
-      : (AUTH.localRecoveryMeta?.name || 'Profilo locale');
-    slot.innerHTML = `
-      <button class="btn btn-ghost auth-nav-btn" onclick="goView('profilo')" title="${htmlEsc(title)}">
-        <i data-lucide="badge-check" class="nav-action-icon"></i>
+  const label = String(window.S?.anagrafica?.nome || '').trim() || 'Profilo locale';
+  slot.innerHTML = `
+    <button class="local-profile-nav-chip" onclick="goView('profilo')" title="Apri profilo locale">
+      <span class="local-profile-nav-icon"><i data-lucide="user-check"></i></span>
+      <span class="local-profile-nav-copy">
         <span class="auth-nav-copy">${htmlEsc(label)}</span>
         <span class="auth-nav-state ${status.cls}">${htmlEsc(status.label)}</span>
-      </button>`;
-  } else {
-    slot.innerHTML = `
-      <button class="btn btn-ghost auth-nav-btn" onclick="openAuthEntry()">
-        <i data-lucide="log-in" class="nav-action-icon"></i>
-        <span class="auth-nav-copy">Accedi</span>
-        <span class="auth-nav-state ${status.cls}">${htmlEsc(status.label)}</span>
-      </button>`;
-  }
+      </span>
+    </button>`;
   if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
     lucide.createIcons();
   }
@@ -2715,27 +2251,25 @@ function renderAuthNav() {
 function renderProfileAccountCard() {
   const el = document.getElementById('profile-account-slot');
   if (!el) return;
-  const cfg = authResolveSupabaseConfig();
-  const hasEmbeddedConfig = authHasEmbeddedSupabaseConfig();
   const accountDiag = authGetAccountDiagnostics();
   const showDevUi = authShowDevelopmentUi();
   const factGrid = showDevUi ? `
-    <div class="profile-account-facts">
-      <div class="profile-account-fact">
-        <span class="profile-account-fact-label">Dati</span>
-        <strong class="profile-account-fact-value">${htmlEsc(accountDiag.storageLabel)}</strong>
+    <div class="local-profile-debug-grid">
+      <div class="local-profile-debug-item">
+        <span>Dati</span>
+        <strong>${htmlEsc(accountDiag.storageLabel)}</strong>
       </div>
-      <div class="profile-account-fact">
-        <span class="profile-account-fact-label">Contesto</span>
-        <strong class="profile-account-fact-value">${htmlEsc(accountDiag.contextLabel)}</strong>
+      <div class="local-profile-debug-item">
+        <span>Contesto</span>
+        <strong>${htmlEsc(accountDiag.contextLabel)}</strong>
       </div>
-      <div class="profile-account-fact">
-        <span class="profile-account-fact-label">Ingresso</span>
-        <strong class="profile-account-fact-value">${htmlEsc(accountDiag.sourceLabel)}</strong>
+      <div class="local-profile-debug-item">
+        <span>Ingresso</span>
+        <strong>${htmlEsc(accountDiag.sourceLabel)}</strong>
       </div>
-      <div class="profile-account-fact">
-        <span class="profile-account-fact-label">Salvataggio</span>
-        <strong class="profile-account-fact-value">${htmlEsc(accountDiag.scopeLabel)}</strong>
+      <div class="local-profile-debug-item">
+        <span>Salvataggio</span>
+        <strong>${htmlEsc(accountDiag.scopeLabel)}</strong>
       </div>
     </div>` : '';
   const backupMeta = showDevUi ? authGetLatestBackupMeta() : null;
@@ -2745,18 +2279,13 @@ function renderProfileAccountCard() {
   const notes = [
     accountDiag.syncDetail,
     accountDiag.sourceDetail,
-    accountDiag.standaloneSessionNote && accountDiag.standaloneSessionNote !== accountDiag.syncDetail
-      ? accountDiag.standaloneSessionNote
-      : '',
     backupMeta
       ? `Copia di sicurezza locale: ${backupLabel}.`
-      : authIsAuthenticated()
-        ? 'La prossima copia di sicurezza verra preparata automaticamente.'
-        : 'La prima copia di sicurezza parte automaticamente appena inizi a salvare dati.',
+      : 'La prima copia di sicurezza parte automaticamente appena inizi a salvare dati.',
   ].filter(Boolean);
   const notesHtml = showDevUi ? `
-    <div class="profile-account-notes">
-      ${notes.map(note => `<div class="profile-account-note">${htmlEsc(note)}</div>`).join('')}
+    <div class="local-profile-debug-notes">
+      ${notes.map(note => `<div class="local-profile-debug-note">${htmlEsc(note)}</div>`).join('')}
     </div>` : '';
   const attemptDiagHtml = showDevUi && accountDiag.lastAttempt ? `
     <div class="auth-attempt-box auth-attempt-box-inline">
@@ -2770,94 +2299,48 @@ function renderProfileAccountCard() {
       `).join('')}
     </div>` : '';
   const devPanel = showDevUi ? `
-    <div class="profile-account-config">
-      <div class="profile-account-config-title">Strumenti sviluppo</div>
-      <div class="profile-account-config-sub">Diagnostica e controlli interni restano qui fuori dalla UI prodotto.</div>
-      <div class="profile-account-note">Contesto: ${htmlEsc(accountDiag.contextLabel)} · ingresso: ${htmlEsc(accountDiag.sourceLabel)}</div>
-      ${accountDiag.sourceDetail ? `<div class="profile-account-note">${htmlEsc(accountDiag.sourceDetail)}</div>` : ''}
-      <div class="profile-account-note">Modalita locale: nessun servizio cloud viene usato per salvare il profilo.</div>
-      <div class="profile-account-actions">
-        <button class="auth-account-btn" onclick="authClearLocalAccounts()">Pulisci account locali</button>
+    <div class="local-profile-debug-panel">
+      <div class="local-profile-debug-title">Strumenti sviluppo</div>
+      <div class="local-profile-debug-sub">Diagnostica e controlli interni restano fuori dalla UI prodotto.</div>
+      <div class="local-profile-debug-note">Contesto: ${htmlEsc(accountDiag.contextLabel)} · ingresso: ${htmlEsc(accountDiag.sourceLabel)}</div>
+      ${accountDiag.sourceDetail ? `<div class="local-profile-debug-note">${htmlEsc(accountDiag.sourceDetail)}</div>` : ''}
+      <div class="local-profile-actions debug">
+        <button class="local-profile-action compact" onclick="authClearLocalAccounts()">Pulisci vecchie credenziali</button>
       </div>
     </div>` : '';
-  if (authIsAuthenticated()) {
-    const emailLabel = AUTH.user.email || 'Account attivo';
-    const passwordAction = `<button class="auth-account-btn auth-account-btn-primary" onclick="openAccountPasswordChange()">Cambia password</button>`;
-    el.innerHTML = `
-      <div class="profile-inline-card profile-account-card">
-        <div class="profile-card-head support-mini-head">
-          <div class="support-mini-head-copy">
-            <div class="support-mini-kicker">Account</div>
-            <div class="support-mini-title-row">
-              <div class="support-mini-title">Il tuo account</div>
-            </div>
-            <div class="support-mini-sub">Il profilo viene salvato automaticamente.</div>
-          </div>
+  const profileName = String(window.S?.anagrafica?.nome || '').trim() || 'Profilo locale';
+  el.innerHTML = `
+    <div class="profile-inline-card local-profile-panel">
+      <div class="local-profile-hero">
+        <div class="local-profile-mark" aria-hidden="true">
+          <i data-lucide="hard-drive"></i>
         </div>
-        <div class="profile-account-body">
-          <div class="profile-account-identity">
-            <span class="profile-account-avatar" aria-hidden="true">👤</span>
-            <div class="profile-account-identity-copy">
-              <span class="profile-account-label">Email</span>
-              <strong class="profile-account-email">${htmlEsc(emailLabel)}</strong>
-            </div>
-          </div>
-          <div class="profile-account-actions">
-            ${passwordAction}
-            <button class="auth-account-btn auth-account-btn-danger" onclick="confirmSignOutUser()">Esci</button>
-          </div>
+        <div class="local-profile-copy">
+          <div class="local-profile-kicker">Profilo locale</div>
+          <div class="local-profile-title">${htmlEsc(profileName)}</div>
+          <div class="local-profile-sub">Salvato su questo dispositivo.</div>
         </div>
-        ${devPanel}
-      </div>`;
-  } else {
-    const hasRecoveredLocalProfile = !!AUTH.localRecoveryKey;
-    const title = AUTH.needsEmailConfirmation
-      ? 'Controlla la tua email'
-      : hasRecoveredLocalProfile
-        ? 'Profilo trovato'
-        : accountDiag.standaloneSessionNote
-          ? 'Accedi in questa app'
-          : 'Stai usando MarciFit come guest';
-    const summary = AUTH.needsEmailConfirmation
-      ? 'Apri il link che ti abbiamo inviato e poi rientra qui.'
-      : hasRecoveredLocalProfile
-        ? 'Abbiamo trovato un profilo su questo dispositivo.'
-        : 'Crea un profilo locale per separare meglio i dati su questo dispositivo.';
-    const emailLabel = AUTH.needsEmailConfirmation
-      ? 'Conferma in attesa'
-      : hasRecoveredLocalProfile
-        ? (AUTH.localRecoveryMeta?.email || AUTH.localRecoveryMeta?.name || 'Profilo su questo dispositivo')
-        : 'Nessun account collegato';
-    const connectAction = hasRecoveredLocalProfile
-      ? `<button class="auth-account-btn" onclick="openAuthEntry(true); openAuthMode('login');">Accedi</button>`
-      : `<button class="auth-account-btn" onclick="openAuthEntry()">Crea o apri profilo</button>`;
-    el.innerHTML = `
-      <div class="profile-inline-card profile-account-card">
-        <div class="profile-card-head support-mini-head">
-          <div class="support-mini-head-copy">
-            <div class="support-mini-kicker">Account</div>
-            <div class="support-mini-title-row">
-              <div class="support-mini-title">${title}</div>
-            </div>
-            <div class="support-mini-sub">${summary}</div>
-          </div>
-        </div>
-        ${factGrid}
-        ${notesHtml}
-        ${attemptDiagHtml}
-        <div class="profile-account-body">
-          <div class="profile-account-identity">
-            <span class="profile-account-avatar" aria-hidden="true">👤</span>
-            <div class="profile-account-identity-copy">
-              <span class="profile-account-label">Account</span>
-              <strong class="profile-account-email">${htmlEsc(emailLabel)}</strong>
-            </div>
-          </div>
-          <div class="profile-account-actions">
-            ${connectAction}
-          </div>
-        </div>
-        ${devPanel}
-      </div>`;
+      </div>
+      ${factGrid}
+      ${notesHtml}
+      ${attemptDiagHtml}
+      <div class="local-profile-actions">
+        <button class="local-profile-action primary" onclick="openProfileSection('dati')">
+          <span class="local-profile-action-icon"><i data-lucide="database-backup"></i></span>
+          <span>Dati e backup</span>
+        </button>
+        <button class="local-profile-action" onclick="exportJSON()">
+          <span class="local-profile-action-icon"><i data-lucide="download"></i></span>
+          <span>Esporta</span>
+        </button>
+        <button class="local-profile-action" onclick="loadJSON()">
+          <span class="local-profile-action-icon"><i data-lucide="upload"></i></span>
+          <span>Importa</span>
+        </button>
+      </div>
+      ${devPanel}
+    </div>`;
+  if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
+    lucide.createIcons();
   }
 }

@@ -216,6 +216,7 @@ const S = {
     ],
   },
 };
+window.S = S;
 
 const ANAG_RULES = {
   nome: { maxLength: 40 },
@@ -258,9 +259,7 @@ function bootstrapAppStateFromCurrentStorage({ resetState = true } = {}) {
   if (!S.cheatMealsByDate || typeof S.cheatMealsByDate !== 'object' || Array.isArray(S.cheatMealsByDate)) {
     S.cheatMealsByDate = {};
   }
-  if (typeof authIsAuthenticated === 'function' && authIsAuthenticated()) {
-    S.authEntryCompleted = true;
-  }
+  S.authEntryCompleted = true;
   ensureMealPlannerState('on');
   ensureMealPlannerState('off');
   setDay(S.day);
@@ -282,27 +281,6 @@ function refreshAppAfterBootstrap({ closeAuthOverlay = false, preferredView = nu
 }
 
 async function handleMarciFitCloudConflict(conflict, options = {}) {
-  const { pushLocalOnChoice = false, rebootstrap = true } = options;
-  const choice = await askAuthStateConflictChoice(conflict);
-  if (choice === 'remote' && typeof authStoreRemoteStateLocally === 'function') {
-    authStoreRemoteStateLocally(conflict.remoteState, conflict.remoteUpdatedAt);
-    if (rebootstrap) {
-      bootstrapAppStateFromCurrentStorage({ resetState: true });
-      refreshAppAfterBootstrap({ closeAuthOverlay: true });
-    }
-    return { choice: 'remote' };
-  }
-  if (choice === 'local' && typeof authMarkLocalStatePreferred === 'function') {
-    authMarkLocalStatePreferred(conflict.remoteUpdatedAt);
-    let pushResult = null;
-    if (pushLocalOnChoice && typeof authSyncStateToCloud === 'function') {
-      pushResult = await authSyncStateToCloud(true);
-    }
-    if (rebootstrap) {
-      refreshAppAfterBootstrap({ closeAuthOverlay: true });
-    }
-    return { choice: 'local', pushResult };
-  }
   return { choice: null };
 }
 
@@ -311,12 +289,9 @@ async function handleMarciFitAccountLogoutTransition({ preferredMode = 'login' }
     sessionStorage.removeItem('marcifit_post_logout_mode_v1');
   } catch (_) {}
   const { hadSaved } = bootstrapAppStateFromCurrentStorage({ resetState: true });
-  S.authEntryCompleted = false;
+  S.authEntryCompleted = true;
   save({ skipCloudSync: true, preserveMetaTimestamp: hadSaved });
-  if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
   refreshAppAfterBootstrap({ closeAuthOverlay: true, preferredView: 'today' });
-  openAuthEntry(true);
-  if (preferredMode) openAuthMode(preferredMode);
 }
 window.handleMarciFitCloudConflict = handleMarciFitCloudConflict;
 window.handleMarciFitAccountLogoutTransition = handleMarciFitAccountLogoutTransition;
@@ -1062,7 +1037,7 @@ function askTemplateLoadTarget(template, type) {
             </button>
           `).join('')}
         </div>
-        <button class="auth-entry-btn secondary" style="width:100%;margin-top:12px" onclick="cancelTemplateLoadTarget()">Annulla</button>`,
+        <button class="template-modal-cancel" onclick="cancelTemplateLoadTarget()">Annulla</button>`,
     });
   });
 }
@@ -1086,18 +1061,17 @@ function askTemplatePortionMultiplier(templateName = 'questo template') {
       modalClass: 'template-portion-modal',
       body: `
         <div class="sync-choice-lead">Scegli la porzione per <strong>${htmlEsc(templateName)}</strong>.</div>
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px">
+        <div class="template-portion-grid">
           ${options.map(option => `
             <button
-              class="auth-entry-choice secondary"
-              style="padding:14px 12px;text-align:left"
+              class="template-portion-choice"
               onclick="selectTemplatePortion(${option.value})">
-              <div class="auth-entry-choice-title">${htmlEsc(option.label)}</div>
-              <div class="auth-entry-choice-body">${htmlEsc(option.hint)}</div>
+              <div class="template-portion-title">${htmlEsc(option.label)}</div>
+              <div class="template-portion-body">${htmlEsc(option.hint)}</div>
             </button>
           `).join('')}
         </div>
-        <button class="auth-entry-btn secondary" style="width:100%;margin-top:12px" onclick="cancelTemplatePortionSelection()">Annulla</button>`,
+        <button class="template-modal-cancel" onclick="cancelTemplatePortionSelection()">Annulla</button>`,
     });
   });
 }
@@ -3889,140 +3863,15 @@ function renderAuthEntry() {
   const el = document.getElementById('auth-entry');
   if (!el) return;
   const wasVisible = el.style.display !== 'none' && !!el.innerHTML;
-  const forceOpen = !!_authEntryState?.forceOpen;
-  if (!forceOpen && (S.authEntryCompleted || S.onboardingCompleted)) {
-    el.style.display = 'none';
-    el.innerHTML = '';
-    if (wasVisible) unlockUiScroll();
-    return;
-  }
-  if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
-  const mode = _authEntryState.mode || 'gateway';
-  const isPending = !!_authEntryState.pending;
-  const pendingMessage = String(_authEntryState.pendingMessage || '').trim();
-  const pendingLabel = mode === 'signup' ? 'Sto creando il profilo...' : 'Sto aprendo il profilo...';
-  const attemptDiag = typeof authGetLastAttemptDiagnostics === 'function'
-    ? authGetLastAttemptDiagnostics()
-    : null;
-  const showAuthAttemptDebug = typeof authShowDevelopmentUi === 'function' && authShowDevelopmentUi();
-  const attemptHtml = showAuthAttemptDebug && attemptDiag && mode !== 'gateway' ? `
-    <div class="auth-attempt-box">
-      <div class="auth-attempt-head">Diagnostica ultimo tentativo${attemptDiag.email ? ` · ${htmlEsc(attemptDiag.email)}` : ''}</div>
-      ${attemptDiag.lines.map(line => `
-        <div class="auth-attempt-row ${line.status}">
-          <span class="auth-attempt-stage">${htmlEsc(line.label)}</span>
-          <span class="auth-attempt-meta">${htmlEsc(line.elapsedLabel)}</span>
-          <span class="auth-attempt-msg">${htmlEsc(line.message || '')}</span>
-        </div>
-      `).join('')}
-    </div>` : '';
-
-  let body = '';
-  if (mode === 'gateway') {
-    body = `
-      <div class="auth-entry-kicker">Ingresso</div>
-      <div class="auth-entry-title">Scegli come entrare in MarciFit</div>
-      <div class="auth-entry-sub">Entra come preferisci. I dati restano salvati su questo dispositivo.</div>
-      <div class="auth-entry-stack">
-        <div class="auth-entry-hero">
-          <div class="auth-entry-hero-badge">Pronto in meno di 2 minuti</div>
-          <div class="auth-entry-hero-title">Parti bene oggi, ritrovati bene domani</div>
-          <div class="auth-entry-hero-copy">Allenamento, pasti e progressi restano in ordine fin dal primo minuto, con copie locali automatiche per recuperarli meglio.</div>
-        </div>
-        <div class="auth-entry-benefits">
-          <span class="auth-entry-benefit">✨ Partenza rapida</span>
-          <span class="auth-entry-benefit">🔐 Profilo personale</span>
-          <span class="auth-entry-benefit">📈 Progressi ordinati</span>
-        </div>
-        <button class="auth-entry-choice primary" onclick="openAuthMode('signup')" ${isPending ? 'disabled' : ''}>
-          <div class="auth-entry-choice-top">
-            <span class="auth-entry-choice-icon">✨</span>
-            <span class="auth-entry-choice-tag">Consigliato</span>
-          </div>
-          <div class="auth-entry-choice-title">Crea account</div>
-          <div class="auth-entry-choice-body">Per tenere tutto in ordine in un profilo locale separato.</div>
-        </button>
-        <button class="auth-entry-choice secondary" onclick="openAuthMode('login')" ${isPending ? 'disabled' : ''}>
-          <div class="auth-entry-choice-top">
-            <span class="auth-entry-choice-icon">🔐</span>
-            <span class="auth-entry-choice-tag">Rientra</span>
-          </div>
-          <div class="auth-entry-choice-title">Accedi</div>
-          <div class="auth-entry-choice-body">Se hai gia un profilo su questo dispositivo, riparti da dove avevi lasciato.</div>
-        </button>
-        <button class="auth-entry-choice guest" onclick="continueAsGuest()" ${isPending ? 'disabled' : ''}>
-          <div class="auth-entry-choice-top">
-            <span class="auth-entry-choice-icon">🚀</span>
-            <span class="auth-entry-choice-tag">Subito</span>
-          </div>
-          <div class="auth-entry-choice-title">Continua senza account</div>
-          <div class="auth-entry-choice-body">Inizia adesso e sistema il resto con calma piu avanti.</div>
-        </button>
-      </div>`;
-  } else if (mode === 'signup') {
-    body = `
-      <div class="auth-entry-kicker">Crea account</div>
-      <div class="auth-entry-title">Crea il tuo profilo</div>
-      <div class="auth-entry-sub">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Se hai gia iniziato qui come guest, colleghiamo questi dati al nuovo account prima di sincronizzarli.' : 'Se hai gia iniziato qui come guest, colleghiamo questi dati al nuovo profilo.'}</div>
-      <div class="auth-entry-form">
-        <div class="auth-entry-field">
-          <label class="auth-entry-label">Email</label>
-          <input class="auth-entry-input" type="email" value="${htmlEsc(_authEntryState.email)}" oninput="setAuthField('email', this.value)" placeholder="nome@email.com" ${isPending ? 'disabled' : ''}>
-        </div>
-        <div class="auth-entry-field">
-          <label class="auth-entry-label">Password</label>
-          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.password)}" oninput="setAuthField('password', this.value)" placeholder="Almeno 8 caratteri" ${isPending ? 'disabled' : ''}>
-        </div>
-        <div class="auth-entry-field">
-          <label class="auth-entry-label">Conferma password</label>
-          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.confirmPassword)}" oninput="setAuthField('confirmPassword', this.value)" placeholder="Ripeti la password" ${isPending ? 'disabled' : ''}>
-        </div>
-        <div class="auth-entry-callout">${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? 'Controlla la tua email appena finisci: il link ti porta dentro e riprendiamo i dati gia presenti qui.' : 'Tra poco il tuo profilo sara pronto da usare con i dati che hai gia su questo dispositivo.'}</div>
-      </div>`;
-  } else {
-    body = `
-      <div class="auth-entry-kicker">Accedi</div>
-      <div class="auth-entry-title">Rientra nel tuo profilo</div>
-      <div class="auth-entry-sub">Rientra nel profilo locale salvato su questo dispositivo.</div>
-      <div class="auth-entry-form">
-        <div class="auth-entry-field">
-          <label class="auth-entry-label">Email</label>
-          <input class="auth-entry-input" type="email" value="${htmlEsc(_authEntryState.email)}" oninput="setAuthField('email', this.value)" placeholder="nome@email.com" ${isPending ? 'disabled' : ''}>
-        </div>
-        <div class="auth-entry-field">
-          <label class="auth-entry-label">Password</label>
-          <input class="auth-entry-input" type="password" value="${htmlEsc(_authEntryState.password)}" oninput="setAuthField('password', this.value)" placeholder="La tua password" ${isPending ? 'disabled' : ''}>
-        </div>
-        ${typeof authCanUseSupabase === 'function' && authCanUseSupabase() ? `<button class="auth-entry-inline-link" type="button" onclick="requestPasswordReset()" ${isPending ? 'disabled' : ''}>Password dimenticata?</button>` : ''}
-        <div class="auth-entry-callout">Se troviamo dati gia presenti qui, li riapriamo senza usare servizi esterni.</div>
-      </div>`;
-  }
-
-  el.style.display = 'block';
-  el.innerHTML = `
-    <div class="auth-entry-shell">
-      <div class="auth-entry-top">
-        <div class="auth-entry-mark">${mode === 'gateway' ? 'Ingresso' : mode === 'signup' ? 'Registrazione' : 'Accesso'}</div>
-        ${mode !== 'gateway' ? `<button class="auth-entry-back" onclick="openAuthMode('gateway')" ${isPending ? 'disabled' : ''}>Indietro</button>` : ''}
-      </div>
-      <div class="auth-entry-card">
-        ${body}
-      </div>
-      <div class="auth-entry-foot">
-        ${pendingMessage ? `<div class="auth-entry-status">${htmlEsc(pendingMessage || pendingLabel)}</div>` : ''}
-        ${attemptHtml}
-        ${mode === 'gateway' ? '' : `<button class="auth-entry-btn primary" onclick="submitAuthPlaceholder('${mode}')" ${isPending ? 'disabled' : ''}>${isPending ? pendingLabel : mode === 'signup' ? 'Crea account' : 'Accedi'}</button>`}
-        ${mode !== 'gateway' ? `<button class="auth-entry-btn secondary" onclick="continueAsGuest()" ${isPending ? 'disabled' : ''}>Continua senza account</button>` : ''}
-      </div>
-      ${mode === 'gateway' ? `<div class="auth-entry-note">Puoi iniziare subito e completare il resto con calma.</div>` : ''}
-    </div>`;
-  if (!wasVisible) lockUiScroll();
+  el.style.display = 'none';
+  el.innerHTML = '';
+  S.authEntryCompleted = true;
+  if (wasVisible) unlockUiScroll();
 }
 
 function openAuthEntry(forceOpen = true) {
-  if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
-  _authEntryState.forceOpen = !!forceOpen;
-  renderAuthEntry();
+  closeAuthEntry();
+  S.authEntryCompleted = true;
 }
 
 function closeAuthEntry() {
@@ -4036,9 +3885,8 @@ function closeAuthEntry() {
 }
 
 function openAuthMode(mode) {
-  if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
-  _authEntryState.mode = mode;
-  renderAuthEntry();
+  closeAuthEntry();
+  S.authEntryCompleted = true;
 }
 
 function setAuthField(key, value) {
@@ -4052,111 +3900,34 @@ function continueAsGuest() {
   closeAuthEntry();
   if (typeof renderAuthNav === 'function') renderAuthNav();
   if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
-  openWelcomeOnboarding();
+  if (!S.onboardingCompleted) openWelcomeOnboarding();
 }
 
 async function requestPasswordReset() {
-  const email = String(_authEntryState?.email || '').trim();
-  if (!email) {
-    toast('⚠️ Inserisci prima l’email');
-    return;
-  }
-  const result = typeof authSendPasswordReset === 'function'
-    ? await authSendPasswordReset(email)
-    : { ok: false, message: 'Reset password non disponibile in questo momento' };
-  toast(`${result.ok ? '✉️' : '⚠️'} ${result.message}`);
+  toast('Profilo locale: non serve nessuna password.');
 }
 
 async function finalizeAuthEntrySuccess(successMessage, options = {}) {
-  const { syncToCloud = false } = options;
   if (typeof authRecordAttemptStage === 'function') {
-    authRecordAttemptStage('bootstrap', 'pending', 'Apro il profilo su questo dispositivo...');
+    authRecordAttemptStage('bootstrap', 'pending', 'Apro il profilo locale...');
   }
-  let didImmediateBootstrap = false;
-  if (
-    typeof authIsAuthenticated === 'function'
-    && authIsAuthenticated()
-    && typeof authReadActiveLocalState === 'function'
-    && typeof authHasMeaningfulState === 'function'
-  ) {
-    const localAccountState = authReadActiveLocalState();
-    if (authHasMeaningfulState(localAccountState)) {
-      const earlyBootstrap = bootstrapAppStateFromCurrentStorage({ resetState: true });
-      refreshAppAfterBootstrap({ closeAuthOverlay: true });
-      if (_authEntryState) {
-        _authEntryState.password = '';
-        _authEntryState.confirmPassword = '';
-        _authEntryState.mode = 'gateway';
-      }
-      S.authEntryCompleted = true;
-      save({ skipCloudSync: true, preserveMetaTimestamp: earlyBootstrap?.hadSaved });
-      if (typeof renderAuthNav === 'function') renderAuthNav();
-      if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
-      didImmediateBootstrap = true;
-      if (typeof authRecordAttemptStage === 'function') {
-        authRecordAttemptStage('bootstrap', 'success', 'Profilo salvato trovato e aperto subito');
-      }
-    }
-  }
-
-  let hydrateResult = null;
-  let conflictResolution = null;
-  if (typeof authHydrateLocalCacheFromRemote === 'function') {
-    hydrateResult = await authHydrateLocalCacheFromRemote();
-  }
-  if (hydrateResult?.conflict) {
-    conflictResolution = await handleMarciFitCloudConflict(hydrateResult, {
-      pushLocalOnChoice: false,
-      rebootstrap: false,
-    });
-  }
-
   const { hadSaved, storageStatus } = bootstrapAppStateFromCurrentStorage({ resetState: true });
   refreshAppAfterBootstrap({ closeAuthOverlay: true });
 
   if (_authEntryState) {
     _authEntryState.password = '';
-    _authEntryState.confirmPassword = '';
-    _authEntryState.mode = 'gateway';
-  }
-  if (typeof authIsAuthenticated === 'function' && authIsAuthenticated()) {
-    S.authEntryCompleted = true;
-  }
-  save({ skipCloudSync: true });
+      _authEntryState.confirmPassword = '';
+      _authEntryState.mode = 'gateway';
+    }
+  S.authEntryCompleted = true;
+  save({ skipCloudSync: true, preserveMetaTimestamp: hadSaved });
   if (typeof renderAuthNav === 'function') renderAuthNav();
   if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
 
   if (storageStatus?.loadError && storageStatus.hadSavedState) {
     toast('⚠️ Abbiamo aperto il profilo, ma alcuni dati richiedono un controllo');
-  } else if (conflictResolution?.choice === 'remote' || hydrateResult?.source === 'remote') {
-    toast('✅ Profilo aggiornato');
-  } else if (hadSaved && !didImmediateBootstrap) {
+  } else if (hadSaved) {
     toast('✅ Bentornato');
-  }
-
-  if (hydrateResult?.ok === false && !hydrateResult?.skipped) {
-    toast(`⚠️ ${hydrateResult.message || 'Serve un nuovo tentativo per completare l apertura del profilo'}`);
-  }
-
-  let didSyncLocalChoice = false;
-  const shouldSyncPreferredLocal =
-    conflictResolution?.choice === 'local'
-    || hydrateResult?.source === 'local_newer';
-  if (shouldSyncPreferredLocal && typeof authSyncStateToCloud === 'function') {
-    const localSyncResult = await authSyncStateToCloud(true);
-    didSyncLocalChoice = !!localSyncResult?.ok;
-    if (!localSyncResult?.ok && !localSyncResult?.skipped) {
-      toast(`⚠️ ${localSyncResult.message || 'Aggiornamento del profilo non riuscito'}`);
-    } else if (hydrateResult?.source === 'local_newer' && localSyncResult?.ok) {
-      toast('✅ Abbiamo tenuto e riallineato la versione piu recente di questo dispositivo');
-    }
-  }
-
-  if (syncToCloud && !didSyncLocalChoice && typeof authSyncStateToCloud === 'function') {
-    const syncResult = await authSyncStateToCloud(true);
-    if (!syncResult?.ok && !syncResult?.skipped) {
-      toast(`⚠️ ${syncResult.message || 'Aggiornamento del profilo non riuscito'}`);
-    }
   }
 
   if (!S.onboardingCompleted) openWelcomeOnboarding();
@@ -4169,92 +3940,25 @@ async function finalizeAuthEntrySuccess(successMessage, options = {}) {
 }
 
 async function authBootstrapAfterAuth(result, options = {}) {
-  const { syncToCloud = false, successMessage = '✅ Bentornato' } = options;
-  if (result?.code === 'local_recovery') {
-    if (typeof authRecordAttemptStage === 'function') {
-      authRecordAttemptStage('bootstrap', 'success', 'Profilo aperto');
-    }
-    const { hadSaved } = bootstrapAppStateFromCurrentStorage({ resetState: true });
-    S.authEntryCompleted = true;
-    if (typeof authHasMeaningfulState === 'function' && authHasMeaningfulState(S)) {
-      S.onboardingCompleted = true;
-    }
-    save({ skipCloudSync: true, preserveMetaTimestamp: hadSaved });
-    refreshAppAfterBootstrap({ closeAuthOverlay: true });
-    if (typeof renderAuthNav === 'function') renderAuthNav();
-    if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
-    toast(successMessage || '✅ Profilo aperto su questo dispositivo');
-    return { ok: true, source: 'local_cache' };
-  }
-  await finalizeAuthEntrySuccess(successMessage, { syncToCloud });
-  return { ok: true, source: result?.source || 'account' };
+  const { successMessage = '✅ Profilo locale pronto' } = options;
+  await finalizeAuthEntrySuccess(successMessage);
+  return { ok: true, source: 'local_profile' };
 }
 
 async function submitAuthPlaceholder(mode) {
   if (!_authEntryState) _authEntryState = { mode: 'gateway', email: '', password: '', confirmPassword: '' };
   if (_authEntryState.pending) return;
   _authEntryState.pending = true;
-  _authEntryState.pendingMessage = mode === 'signup'
-    ? 'Sto creando il tuo profilo.'
-    : 'Sto aprendo il tuo profilo.';
+  _authEntryState.pendingMessage = 'Sto aprendo il profilo locale.';
   renderAuthEntry();
   try {
-    const email = String(_authEntryState?.email || '').trim();
-    const password = String(_authEntryState?.password || '');
-    if (!email) { toast('⚠️ Inserisci l email'); return; }
-    if (!password) { toast('⚠️ Inserisci la password'); return; }
-    if (mode === 'signup') {
-      const confirmPassword = String(_authEntryState?.confirmPassword || '');
-      if (password !== confirmPassword) {
-        toast('⚠️ Le password non coincidono');
-        return;
-      }
-      const result = typeof authRunSignupFlow === 'function'
-        ? await authRunSignupFlow({ email, password, confirmPassword })
-        : typeof signUpWithEmail === 'function'
-          ? await signUpWithEmail(email, password)
-          : { ok: false, code: 'unknown_error', message: 'Auth non disponibile' };
-      const userMessage = typeof authUserMessage === 'function'
-        ? authUserMessage(result)
-        : (result.message || 'Non riesco a completare l accesso. Riprova tra poco');
-      if (!result.ok) {
-        toast(`⚠️ ${userMessage}`);
-        return;
-      }
-      if (result.pendingConfirmation || result.code === 'pending_confirmation') {
-        if (typeof renderAuthNav === 'function') renderAuthNav();
-        if (typeof renderProfileAccountCard === 'function') renderProfileAccountCard();
-        toast(`✉️ ${userMessage}`);
-        openAuthMode('login');
-        return;
-      }
-      S.authEntryCompleted = true;
-      save();
-      await authBootstrapAfterAuth(result, { syncToCloud: true, successMessage: '✅ Profilo creato' });
-      return;
-    }
-    const result = typeof authRunLoginFlow === 'function'
-      ? await authRunLoginFlow({ email, password })
-      : typeof signInWithEmail === 'function'
-        ? await signInWithEmail(email, password)
-        : { ok: false, message: 'Auth non disponibile' };
-    const userMessage = typeof authUserMessage === 'function'
-      ? authUserMessage(result)
-      : (result.message || 'Non riesco a completare l accesso. Riprova tra poco');
-    if (!result.ok) {
-      toast(`⚠️ ${userMessage}`);
-      return;
-    }
-    await authBootstrapAfterAuth(result, {
-      syncToCloud: false,
-      successMessage: result.code === 'local_recovery' ? '✅ Profilo aperto su questo dispositivo' : '✅ Bentornato',
-    });
+    await authBootstrapAfterAuth({ ok: true }, { successMessage: '✅ Profilo locale pronto' });
   } catch (err) {
     console.error('Auth submit failed', err);
     if (typeof authRecordAttemptStage === 'function') {
       authRecordAttemptStage('bootstrap', 'error', 'Accesso non riuscito');
     }
-    toast('⚠️ Non riesco a completare l accesso. Riprova tra poco');
+    toast('⚠️ Non riesco ad aprire il profilo locale. Riprova tra poco');
   } finally {
     if (_authEntryState) {
       _authEntryState.pending = false;
@@ -4554,7 +4258,6 @@ function renderWelcomeOnboarding() {
     <div class="welcome-shell is-${direction}">
       <div class="welcome-top">
         <div class="welcome-progress">${progress}</div>
-        ${step === 0 ? `<button class="welcome-top-action" type="button" onclick="backToAuthEntry()">Indietro</button>` : ''}
       </div>
       <div class="welcome-card welcome-card-step-${step === 5 ? 'final' : 'form'}">
         ${body}
@@ -4572,7 +4275,8 @@ function renderWelcomeOnboarding() {
 
 function backToAuthEntry() {
   closeWelcomeOnboarding();
-  openAuthEntry(true);
+  S.authEntryCompleted = true;
+  openWelcomeOnboarding();
 }
 
 function openWelcomeOnboarding() {
@@ -4744,8 +4448,6 @@ async function completeWelcomeOnboarding() {
   S.day = todayType;
   S.planTab = todayType;
   save();
-  if (typeof authEnsureRemoteProfile === 'function') await authEnsureRemoteProfile();
-  if (typeof authSyncStateToCloud === 'function') await authSyncStateToCloud(true);
   closeWelcomeOnboarding();
   _welcomeState = null;
   goView('today');
@@ -5269,35 +4971,9 @@ function macroAlerts() {
 async function initAll() {
   if (typeof authSetBootstrapReady === 'function') authSetBootstrapReady(false);
   try {
-    let postLogoutMode = null;
-    let didFastLocalBootstrap = false;
-    try {
-      postLogoutMode = sessionStorage.getItem('marcifit_post_logout_mode_v1');
-    } catch (_) {
-      postLogoutMode = null;
-    }
-    if (postLogoutMode !== 'login' && typeof authMaybeResumeLocalCache === 'function') {
-      const recoveryCandidate = authMaybeResumeLocalCache();
-      if (recoveryCandidate) {
-        bootstrapAppStateFromCurrentStorage({ resetState: true });
-        refreshAppAfterBootstrap();
-        didFastLocalBootstrap = true;
-      }
-    }
     if (typeof authInit === 'function') await authInit();
-    let authConflictResolution = null;
-    let authConflictData = null;
-    if (typeof authHydrateLocalCacheFromRemote === 'function') {
-      const hydrateResult = await authHydrateLocalCacheFromRemote();
-      if (hydrateResult?.conflict) {
-        authConflictData = hydrateResult;
-        authConflictResolution = await handleMarciFitCloudConflict(hydrateResult, {
-          pushLocalOnChoice: false,
-          rebootstrap: false,
-        });
-      }
-    }
     const { hadSaved, storageStatus } = bootstrapAppStateFromCurrentStorage({ resetState: true });
+    S.authEntryCompleted = true;
     if (storageStatus?.loadError && storageStatus.hadSavedState) {
       const debugDetail = typeof window.isMarciFitDebugEnabled === 'function' && window.isMarciFitDebugEnabled()
         ? `<br><br><strong>Dettaglio:</strong> ${htmlEsc(storageStatus.loadError.detail || 'formato non valido')}.`
@@ -5309,39 +4985,13 @@ async function initAll() {
         noButtons: true,
       });
       toast('⚠️ Apertura dati da controllare');
-    } else if (hadSaved && !didFastLocalBootstrap) {
+    } else if (hadSaved) {
       toast('✅ Bentornato');
     }
-    refreshAppAfterBootstrap();
-    if (postLogoutMode === 'login') {
-      try {
-        sessionStorage.removeItem('marcifit_post_logout_mode_v1');
-      } catch (_) {}
-      S.authEntryCompleted = false;
-      if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
-      openAuthEntry(true);
-      openAuthMode('login');
-    } else if (!S.onboardingCompleted) {
-      if (!S.authEntryCompleted) openAuthEntry(false);
-      else openWelcomeOnboarding();
-    }
+    refreshAppAfterBootstrap({ closeAuthOverlay: true });
+    if (!S.onboardingCompleted) openWelcomeOnboarding();
+    else if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
     if (typeof authSetBootstrapReady === 'function') authSetBootstrapReady(true);
-    const shouldSyncPreferredLocal =
-      authConflictResolution?.choice === 'local'
-      || authConflictData?.source === 'local_newer';
-    if (shouldSyncPreferredLocal && typeof authSyncStateToCloud === 'function') {
-      const syncResult = await authSyncStateToCloud(true);
-      if (syncResult?.ok) {
-        toast(
-          authConflictResolution?.choice === 'local'
-            ? '✅ Abbiamo tenuto questa versione'
-            : '✅ Abbiamo tenuto e aggiornato la versione piu recente su questo dispositivo'
-        );
-      }
-      else if (!syncResult?.skipped) toast(`⚠️ ${syncResult.message || 'Aggiornamento del profilo non riuscito'}`);
-    } else if (authConflictResolution?.choice === 'remote') {
-      toast('✅ Abbiamo caricato la versione account');
-    }
   } catch (err) {
     console.error('initAll failed', err);
     if (typeof authSetBootstrapHint === 'function') {
@@ -5349,14 +4999,13 @@ async function initAll() {
     }
     try {
       bootstrapAppStateFromCurrentStorage({ resetState: true });
-      refreshAppAfterBootstrap();
+      S.authEntryCompleted = true;
+      refreshAppAfterBootstrap({ closeAuthOverlay: true });
     } catch (recoveryErr) {
       console.error('Bootstrap recovery failed', recoveryErr);
     }
-    if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
-    S.authEntryCompleted = false;
-    openAuthEntry(true);
-    openAuthMode('login');
+    if (!S.onboardingCompleted) openWelcomeOnboarding();
+    else if (typeof closeWelcomeOnboarding === 'function') closeWelcomeOnboarding();
     toast(`⚠️ ${err?.message || 'Avvio non riuscito'}`);
     if (typeof authSetBootstrapReady === 'function') authSetBootstrapReady(true);
   }

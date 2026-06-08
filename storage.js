@@ -125,7 +125,7 @@ const USER_STATE_KEYS = [
     'lastCheckin','weeklyCheckinWarmupWeek','barcodeCache','foodCache','foodSearchLearn','foodLog','templates','customFoods','water','waterTargetOverrides','condimentConfirmations',
   'cheatMealsByDate','cheatConfig',
   'favoriteFoods','mealPlanner'
-  ,'authEntryCompleted','onboardingCompleted','onboardingVersion'
+    ,'authEntryCompleted','onboardingCompleted','onboardingVersion','_localMigratedFrom','_localMigratedAt'
 ];
 
 function applyValidatedState(saved) {
