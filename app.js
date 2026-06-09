@@ -3828,8 +3828,20 @@ function onboardingFreqFromDays(days) {
   return '7+';
 }
 
+function onboardingDaysFromFreq(freq) {
+  switch (String(freq || '3-4')) {
+    case '0': return [];
+    case '1-2': return [2, 5];
+    case '5-6': return [1, 2, 3, 5, 6];
+    case '7+': return [0, 1, 2, 3, 4, 5, 6];
+    case '3-4':
+    default: return [1, 3, 5];
+  }
+}
+
 function getWelcomeDraft() {
   const days = Array.isArray(S.onDays) && S.onDays.length ? [...S.onDays] : [1, 3, 5];
+  const trainingFreq = S.anagrafica?.allenamentiSett || onboardingFreqFromDays(days);
   return {
     nome: S.anagrafica?.nome || '',
     sesso: S.anagrafica?.sesso || 'm',
@@ -3839,6 +3851,7 @@ function getWelcomeDraft() {
     passiGiornalieri: S.anagrafica?.passiGiornalieri || '',
     grassoCorporeo: S.anagrafica?.grassoCorporeo ?? '',
     professione: S.anagrafica?.professione || 'desk_sedentary',
+    trainingFreq,
     onDays: days,
     phase: S.goal?.phase || 'mantieni',
   };
@@ -3854,7 +3867,7 @@ function getWelcomePreview(data = getWelcomeDraft()) {
     passiGiornalieri: parseInt(data.passiGiornalieri, 10) || null,
     grassoCorporeo: data.grassoCorporeo === '' ? null : (parseFloat(data.grassoCorporeo) || null),
     professione: data.professione || 'desk_sedentary',
-    allenamentiSett: onboardingFreqFromDays(data.onDays || []),
+    allenamentiSett: data.trainingFreq || onboardingFreqFromDays(data.onDays || []),
   };
   return computeNutrition(ana, { phase: data.phase || 'mantieni', calibrationOffsetKcal: 0, calibrationMeta: null });
 }
@@ -4001,21 +4014,24 @@ function renderWelcomeOnboarding() {
   if (step === 0) {
     body = `
       <div class="welcome-step-head">
-        <div class="welcome-kicker">Più di una dieta</div>
-        <div class="welcome-title">MarciFit costruisce la tua giornata fitness, non solo i macro</div>
-        <div class="welcome-sub">Allenamento, pasti, scanner, check-in e supporto quotidiano dentro un unico flusso pensato per farti restare costante.</div>
+        <div class="welcome-kicker">Benvenuto</div>
+        <div class="welcome-title">La tua giornata fitness, più semplice</div>
+        <div class="welcome-sub">Pasti, allenamento e progressi in un posto solo. Tu segni le cose, MarciFit tiene il filo.</div>
       </div>
       <div class="welcome-stack">
         <div class="welcome-hero">
           <div class="welcome-hero-copy">
-            <div class="welcome-hero-badge">Esclusive MarciFit</div>
-            <div class="welcome-hero-title">Tutto quello che ti serve per seguire il piano senza attrito</div>
-            <div class="welcome-hero-text">Ogni giornata si adatta al tuo ritmo: target diversi nei giorni Workout e Rest, supporto pratico quando devi scegliere cosa mangiare e uno storico che ti aiuta a non perdere il filo.</div>
+            <div class="welcome-feature-lines" aria-label="Cosa trovi in MarciFit">
+              <div class="welcome-feature-line"><span>🔥</span><strong>Giorni Workout e Rest con target diversi.</strong></div>
+              <div class="welcome-feature-line"><span>🍽️</span><strong>Pasti rapidi da segnare, salvare e richiamare.</strong></div>
+              <div class="welcome-feature-line"><span>📷</span><strong>Barcode e database per trovare cibi al volo.</strong></div>
+              <div class="welcome-feature-line"><span>📈</span><strong>Progressi leggibili senza fogli sparsi.</strong></div>
+            </div>
           </div>
           <div class="welcome-hero-shot">
             <div class="welcome-hero-card hero-primary">
               <div class="welcome-hero-card-top">
-                <span class="welcome-hero-chip on">Workout Day</span>
+                <span class="welcome-hero-chip on">Workout</span>
                 <span class="welcome-hero-chip soft">live</span>
               </div>
               <div class="welcome-hero-kcal">${preview ? preview.macroOn.k : 2350} kcal</div>
@@ -4025,38 +4041,6 @@ function renderWelcomeOnboarding() {
                 <span style="width:64%"></span>
                 <span style="width:46%"></span>
               </div>
-            </div>
-          </div>
-          <div class="welcome-feature-rail" aria-label="Feature esclusive">
-            <div class="welcome-feature-card">
-              <div class="welcome-feature-icon">🔥</div>
-              <div class="welcome-feature-title">Workout/Rest reali</div>
-              <div class="welcome-feature-text">Target diversi in base a come si muove davvero la tua settimana.</div>
-            </div>
-            <div class="welcome-feature-card">
-              <div class="welcome-feature-icon">🍽️</div>
-              <div class="welcome-feature-title">Planner guidato</div>
-              <div class="welcome-feature-text">Template, preferiti e suggerimenti rapidi per decidere prima.</div>
-            </div>
-            <div class="welcome-feature-card">
-              <div class="welcome-feature-icon">📷</div>
-              <div class="welcome-feature-title">Barcode veloce</div>
-              <div class="welcome-feature-text">Scansioni, confermi e registri senza interrompere la giornata.</div>
-            </div>
-            <div class="welcome-feature-card">
-              <div class="welcome-feature-icon">📈</div>
-              <div class="welcome-feature-title">Check-in smart</div>
-              <div class="welcome-feature-text">Peso, trend e riepilogo settimana sempre leggibili e utili.</div>
-            </div>
-            <div class="welcome-feature-card">
-              <div class="welcome-feature-icon">⚡</div>
-              <div class="welcome-feature-title">Log veloce</div>
-              <div class="welcome-feature-text">Confermi i pasti e tieni il ritmo senza rallentare la giornata.</div>
-            </div>
-            <div class="welcome-feature-card">
-              <div class="welcome-feature-icon">🎯</div>
-              <div class="welcome-feature-title">Routine chiara</div>
-              <div class="welcome-feature-text">Supporto visivo continuo per capire subito cosa fare adesso.</div>
             </div>
           </div>
         </div>
@@ -4123,14 +4107,14 @@ function renderWelcomeOnboarding() {
     body = `
       <div class="welcome-step-head">
         <div class="welcome-kicker">Stile di vita</div>
-        <div class="welcome-title">Quanto ti muovi davvero fuori dalla palestra?</div>
-        <div class="welcome-sub">Bastano tre profili chiari per calibrare meglio consumo calorico, fame e distribuzione dei target.</div>
+        <div class="welcome-title">Quanto ti muovi durante il giorno?</div>
+        <div class="welcome-sub">Scegli il profilo più vicino. Serve solo per partire con target più realistici.</div>
       </div>
       <div class="welcome-stack">
         <div class="welcome-insight-card">
           <div class="welcome-insight-kicker">Perché conta</div>
-          <div class="welcome-insight-title">Una giornata più attiva cambia davvero il tuo fabbisogno</div>
-          <div class="welcome-insight-text">Scegli il profilo che ti somiglia di più: MarciFit aggiusterà il punto di partenza senza farti sovrastimare o sottostimare le calorie.</div>
+          <div class="welcome-insight-title">Più movimento, più fabbisogno</div>
+          <div class="welcome-insight-text">Una stima semplice evita target troppo bassi o troppo alti.</div>
         </div>
       <div class="welcome-grid" style="margin-bottom:14px">
         <div class="welcome-field welcome-validate-field wide" data-welcome-field="passiGiornalieri">
@@ -4159,39 +4143,40 @@ function renderWelcomeOnboarding() {
     body = `
       <div class="welcome-step-head">
         <div class="welcome-kicker">Allenamento</div>
-        <div class="welcome-title">Quali giorni vuoi far contare come Workout?</div>
-        <div class="welcome-sub">Segna la tua settimana tipo: poi potrai sempre correggere al volo dalla dashboard se qualcosa cambia.</div>
+        <div class="welcome-title">Quante volte ti alleni?</div>
+        <div class="welcome-sub">Scegli le sessioni medie a settimana. I giorni precisi li puoi cambiare dopo.</div>
       </div>
       <div class="welcome-stack">
         <div class="welcome-insight-card">
-          <div class="welcome-insight-kicker">Setup calendario</div>
-          <div class="welcome-insight-title">Allenamento e riposo guidano tutta l’app</div>
-          <div class="welcome-insight-text">Da qui partono macro giornalieri, planner e ritmo settimanale. Ti basta disegnare la tua base.</div>
+          <div class="welcome-insight-kicker">Workout / Rest</div>
+          <div class="welcome-insight-title">MarciFit prepara una settimana tipo</div>
+          <div class="welcome-insight-text">Userà target diversi nei giorni di allenamento e riposo.</div>
         </div>
-        <div class="welcome-days-shell">
-        <div class="welcome-days">
-          ${DOW.map((label, idx) => `
-            <button class="welcome-day-btn${data.onDays.includes(idx) ? ' active' : ''}" data-welcome-day="${idx}" onclick="welcomeToggleDay(${idx})">${label}</button>
+        <div class="welcome-session-grid">
+          ${ALLENAMENTI.map(choice => `
+            <button class="welcome-session-choice${(data.trainingFreq || onboardingFreqFromDays(data.onDays)) === choice.key ? ' active' : ''}" data-welcome-choice-field="trainingFreq" data-value="${choice.key}" onclick="welcomeSetTrainingFreq('${choice.key}')">
+              <span class="welcome-session-label">${choice.label}</span>
+              <span class="welcome-session-desc">${choice.desc}</span>
+            </button>
           `).join('')}
         </div>
         <div class="welcome-days-summary">
-          <span class="welcome-days-summary-kicker">Workout stimati</span>
-          <strong id="welcome-days-summary-value">${ALLENAMENTI.find(a => a.key === onboardingFreqFromDays(data.onDays))?.desc || 'Da definire'}</strong>
-        </div>
+          <span class="welcome-days-summary-kicker">Settimana iniziale</span>
+          <strong id="welcome-days-summary-value">${(data.onDays || []).length ? data.onDays.map(d => DOW[d]).join(' · ') : 'Solo Rest'}</strong>
         </div>
       </div>`;
   } else if (step === 4) {
     body = `
       <div class="welcome-step-head">
         <div class="welcome-kicker">Obiettivo</div>
-        <div class="welcome-title">Su cosa vuoi spingere in questa fase?</div>
-        <div class="welcome-sub">Scegli il focus del momento: MarciFit adatterà calorie, macro e tono delle giornate in quella direzione.</div>
+        <div class="welcome-title">Qual è il focus adesso?</div>
+        <div class="welcome-sub">Serve per impostare calorie e macro di partenza. Puoi cambiarlo quando vuoi.</div>
       </div>
       <div class="welcome-stack">
         <div class="welcome-insight-card">
-          <div class="welcome-insight-kicker">Direzione chiara</div>
-          <div class="welcome-insight-title">Un obiettivo netto rende tutto più coerente</div>
-          <div class="welcome-insight-text">Non è una scelta definitiva: è il modo più semplice per far partire l’app con numeri già sensati per te.</div>
+          <div class="welcome-insight-kicker">Direzione</div>
+          <div class="welcome-insight-title">Scegli il punto di partenza</div>
+          <div class="welcome-insight-text">L’app userà questa scelta per rendere più coerenti i target giornalieri.</div>
         </div>
       <div class="welcome-choice-grid">
         ${goalChoices.map(choice => `
@@ -4209,45 +4194,37 @@ function renderWelcomeOnboarding() {
   } else {
     body = `
       <div class="welcome-step-head">
-        <div class="welcome-kicker">Setup iniziale</div>
-        <div class="welcome-title">Pronto: il tuo profilo iniziale è costruito</div>
-        <div class="welcome-sub">Da qui MarciFit inizierà a darti giornate, macro e ritmo settimanale coerenti con quello che hai scelto.</div>
+        <div class="welcome-kicker">Profilo pronto</div>
+        <div class="welcome-title">Hai una base pronta</div>
+        <div class="welcome-sub">Target, ritmo settimanale e primo riepilogo sono già impostati.</div>
       </div>
       <div class="welcome-stack">
-        <div class="welcome-final-banner">
-          <div class="welcome-final-badge">Sblocco iniziale</div>
-          <div class="welcome-final-title">Entri con una base già pronta da usare</div>
-          <div class="welcome-final-copy">Niente setup manuale a freddo: trovi subito giorni Workout/Rest, target iniziali e una struttura più chiara da seguire.</div>
+        <div class="welcome-results-hero">
+          <div class="welcome-results-badge">Risultato onboarding</div>
+          <div class="welcome-results-title">Il piano parte già allineato a te.</div>
+          <div class="welcome-results-grid">
+            <div class="welcome-result-chip"><span>01</span><strong>Obiettivo</strong><em>${htmlEsc(goalChoices.find(g => g.key === data.phase)?.title || '—')}</em></div>
+            <div class="welcome-result-chip"><span>02</span><strong>Allenamento</strong><em>${htmlEsc(ALLENAMENTI.find(a => a.key === (data.trainingFreq || onboardingFreqFromDays(data.onDays)))?.desc || '—')}</em></div>
+            <div class="welcome-result-chip"><span>03</span><strong>Movimento</strong><em>${htmlEsc(PROFESSIONI.find(p => p.key === data.professione)?.label || '—')}</em></div>
+          </div>
         </div>
-        <div class="welcome-summary">
-          <div class="welcome-summary-row">
-            <div class="welcome-summary-label">Nome</div>
-            <div class="welcome-summary-value">${htmlEsc(data.nome || '—')}</div>
-          </div>
-          <div class="welcome-summary-row">
-            <div class="welcome-summary-label">Movimento</div>
-            <div class="welcome-summary-value">${htmlEsc(PROFESSIONI.find(p => p.key === data.professione)?.label || '—')}${data.passiGiornalieri ? ` · ~${htmlEsc(data.passiGiornalieri)} passi` : ''}</div>
-          </div>
-          <div class="welcome-summary-row">
-            <div class="welcome-summary-label">Obiettivo</div>
-            <div class="welcome-summary-value">${htmlEsc(goalChoices.find(g => g.key === data.phase)?.title || '—')}</div>
-          </div>
-          <div class="welcome-summary-row">
-            <div class="welcome-summary-label">Workout</div>
-            <div class="welcome-summary-value">${data.onDays.length ? data.onDays.map(d => DOW[d]).join(' · ') : 'Nessuno'}</div>
-          </div>
+        <div class="welcome-profile-strip">
+          <span>${htmlEsc(data.nome || 'Profilo')}</span>
+          ${data.passiGiornalieri ? `<strong>~${htmlEsc(data.passiGiornalieri)} passi</strong>` : '<strong>profilo locale</strong>'}
         </div>
         ${preview ? `
           <div class="welcome-preview">
             <div class="welcome-preview-card workout">
-              <div class="welcome-preview-kicker">Giorno Workout</div>
+              <div class="welcome-preview-kicker">Target workout</div>
               <div class="welcome-preview-kcal">${preview.macroOn.k} kcal</div>
               <div class="welcome-preview-macros">P ${preview.macroOn.p}g · C ${preview.macroOn.c}g · F ${preview.macroOn.f}g</div>
+              <div class="welcome-preview-bars"><span style="width:88%"></span><span style="width:70%"></span><span style="width:42%"></span></div>
             </div>
             <div class="welcome-preview-card rest">
-              <div class="welcome-preview-kicker">Giorno Rest</div>
+              <div class="welcome-preview-kicker">Target rest</div>
               <div class="welcome-preview-kcal">${preview.macroOff.k} kcal</div>
               <div class="welcome-preview-macros">P ${preview.macroOff.p}g · C ${preview.macroOff.c}g · F ${preview.macroOff.f}g</div>
+              <div class="welcome-preview-bars"><span style="width:76%"></span><span style="width:58%"></span><span style="width:42%"></span></div>
             </div>
           </div>` : ''}
       </div>`;
@@ -4288,10 +4265,26 @@ function openWelcomeOnboarding() {
 function closeWelcomeOnboarding() {
   const el = document.getElementById('welcome-onboarding');
   if (el) {
+    el.classList.remove('is-completing');
     el.style.display = 'none';
     el.innerHTML = '';
   }
   unlockUiScroll();
+}
+
+function finishWelcomeOnboardingTransition() {
+  const el = document.getElementById('welcome-onboarding');
+  if (!el || el.style.display === 'none') {
+    closeWelcomeOnboarding();
+    return Promise.resolve();
+  }
+  el.classList.add('is-completing');
+  return new Promise(resolve => {
+    setTimeout(() => {
+      closeWelcomeOnboarding();
+      resolve();
+    }, 720);
+  });
 }
 
 function welcomeSetField(key, value, rerender = false) {
@@ -4305,6 +4298,8 @@ function welcomeSetField(key, value, rerender = false) {
     welcomeValidateBaseField('passiGiornalieri');
   } else if (_welcomeState.step === 2 && key === 'professione') {
     syncWelcomeChoiceSelection('professione');
+  } else if (_welcomeState.step === 3 && key === 'trainingFreq') {
+    syncWelcomeChoiceSelection('trainingFreq');
   } else if (_welcomeState.step === 4 && key === 'phase') {
     syncWelcomeChoiceSelection('phase');
   }
@@ -4378,6 +4373,22 @@ function welcomeToggleDay(dow) {
   else renderWelcomeOnboarding();
 }
 
+function welcomeSetTrainingFreq(freq) {
+  if (!_welcomeState) _welcomeState = { step: 0, data: getWelcomeDraft() };
+  _welcomeState.data.trainingFreq = String(freq || '3-4');
+  _welcomeState.data.onDays = onboardingDaysFromFreq(_welcomeState.data.trainingFreq);
+  if (_welcomeState.step === 3) {
+    syncWelcomeChoiceSelection('trainingFreq');
+    const DOW = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+    const summary = document.getElementById('welcome-days-summary-value');
+    if (summary) summary.textContent = _welcomeState.data.onDays.length
+      ? _welcomeState.data.onDays.map(d => DOW[d]).join(' · ')
+      : 'Solo Rest';
+  } else {
+    renderWelcomeOnboarding();
+  }
+}
+
 function validateWelcomeStep(step, data) {
   if (step === 1) {
     const validation = validateAnagraficaDraft(data, { requireFields: ['nome', 'eta', 'altezza', 'peso'] });
@@ -4387,8 +4398,8 @@ function validateWelcomeStep(step, data) {
     const validation = validateAnagraficaDraft(data, { requireFields: ['nome', 'eta', 'altezza', 'peso'] });
     if (validation.fieldErrors.passiGiornalieri) return validation.fieldErrors.passiGiornalieri;
   }
-  if (step === 3 && (!Array.isArray(data.onDays) || !data.onDays.length)) {
-    return 'Seleziona almeno un giorno Workout';
+  if (step === 3 && !data.trainingFreq) {
+    return 'Scegli quante sessioni fai di solito';
   }
   return '';
 }
@@ -4432,10 +4443,10 @@ async function completeWelcomeOnboarding() {
   S.anagrafica.passiGiornalieri = profile.passiGiornalieri;
   S.anagrafica.grassoCorporeo = profile.grassoCorporeo;
   S.anagrafica.professione = data.professione || 'desk_sedentary';
-  S.anagrafica.allenamentiSett = onboardingFreqFromDays(data.onDays || []);
+  S.anagrafica.allenamentiSett = data.trainingFreq || onboardingFreqFromDays(data.onDays || []);
   S.goal.phase = data.phase || 'mantieni';
   if (!S.goal.startDate) S.goal.startDate = localDate();
-  S.onDays = [...(data.onDays || [1, 3, 5])].sort((a, b) => a - b);
+  S.onDays = [...(Array.isArray(data.onDays) ? data.onDays : onboardingDaysFromFreq(S.anagrafica.allenamentiSett))].sort((a, b) => a - b);
   if (preview) {
     S.macro.on = preview.macroOn;
     S.macro.off = preview.macroOff;
@@ -4448,10 +4459,11 @@ async function completeWelcomeOnboarding() {
   S.day = todayType;
   S.planTab = todayType;
   save();
-  closeWelcomeOnboarding();
   _welcomeState = null;
   goView('today');
   renderProfile();
+  if (typeof renderToday === 'function') renderToday();
+  await finishWelcomeOnboardingTransition();
   toast('✅ Profilo iniziale creato');
 }
 function updateMealTime(idx) {

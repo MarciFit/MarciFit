@@ -919,14 +919,14 @@
 
 @media (max-width: 430px){
   .welcome-shell{
-    padding:12px 10px calc(14px + env(safe-area-inset-bottom));
+    padding:14px 10px calc(12px + env(safe-area-inset-bottom));
   }
   .welcome-top{
     margin-bottom:10px;
   }
   .welcome-card{
-    padding:12px 11px 10px;
-    border-radius:20px;
+    padding:14px 13px 12px;
+    border-radius:22px;
   }
   .welcome-step-head{
     margin-bottom:2px;
@@ -935,22 +935,24 @@
     margin-bottom:6px;
   }
   .welcome-title{
-    font-size:24px;
-    line-height:1.01;
-    margin-bottom:6px;
+    font-size:28px;
+    line-height:1.06;
+    font-weight:850;
+    margin-bottom:8px;
   }
   .welcome-sub{
-    font-size:11px;
-    line-height:1.48;
+    font-size:13.5px;
+    line-height:1.45;
   }
   .welcome-stack{
-    gap:10px;
+    gap:9px;
     margin-top:12px;
   }
   .welcome-hero{
-    gap:10px;
-    padding:10px;
-    border-radius:20px;
+    grid-template-columns:1fr;
+    gap:11px;
+    padding:2px 0 0;
+    border-radius:0;
   }
   .welcome-hero-copy{
     gap:6px;
@@ -962,58 +964,175 @@
   }
   .welcome-hero-title{
     font-size:18px;
-    line-height:1.04;
+    line-height:1.08;
+    font-weight:850;
   }
   .welcome-hero-text{
     font-size:10.5px;
     line-height:1.48;
   }
   .welcome-hero-card.hero-primary{
-    padding:12px 12px 11px;
+    padding:10px 12px 10px;
+    border-radius:18px;
   }
   .welcome-hero-card-top{
-    margin-bottom:10px;
+    margin-bottom:8px;
   }
   .welcome-hero-kcal{
     font-size:24px;
-    margin-bottom:6px;
+    margin-bottom:5px;
   }
   .welcome-hero-macros{
-    font-size:10px;
-    margin-bottom:10px;
+    font-size:11px;
+    margin-bottom:8px;
   }
   .welcome-hero-bars{
-    gap:5px;
+    gap:4px;
   }
   .welcome-hero-bars span{
-    height:7px;
+    height:6px;
   }
-  .welcome-feature-rail{
-    grid-auto-columns:minmax(132px, 132px);
+  .welcome-feature-line{
+    min-height:42px;
+    grid-template-columns:30px minmax(0,1fr);
+    padding:8px 0;
+  }
+  .welcome-feature-line span{
+    width:28px;
+    height:28px;
+    border-radius:12px;
+    font-size:14px;
+  }
+  .welcome-feature-line strong{
+    font-size:13.5px;
+    line-height:1.24;
+  }
+  .welcome-insight-card{
+    padding:11px 12px 10px;
+    border-radius:16px;
+  }
+  .welcome-insight-kicker{
+    margin-bottom:5px;
+  }
+  .welcome-insight-title{
+    font-size:15px;
+    line-height:1.22;
+    margin-bottom:4px;
+  }
+  .welcome-insight-text{
+    font-size:12px;
+    line-height:1.42;
+  }
+  .welcome-choice{
+    padding:11px 12px 10px;
+    border-radius:17px;
+  }
+  .welcome-choice-top{
+    margin-bottom:8px;
+  }
+  .welcome-choice-title{
+    font-size:15px;
+  }
+  .welcome-choice-body{
+    font-size:12px;
+    line-height:1.38;
+  }
+  .welcome-choice-pill{
+    font-size:8.5px;
+    min-height:21px;
+  }
+  .welcome-session-grid{
     gap:7px;
-    padding-bottom:2px;
   }
-  .welcome-feature-card{
-    min-height:118px;
+  .welcome-session-choice{
+    min-height:54px;
+    grid-template-columns:52px minmax(0,1fr);
+    padding:9px 10px;
+    border-radius:16px;
+  }
+  .welcome-session-label{
+    min-height:32px;
+    font-size:13px;
+  }
+  .welcome-session-desc{
+    font-size:12.5px;
+  }
+  .welcome-days-summary{
+    margin-top:0;
+    padding:9px 10px;
+  }
+  .welcome-results-hero{
+    padding:12px;
+    border-radius:19px;
+  }
+  .welcome-results-badge{
+    min-height:22px;
+    font-size:8.5px;
+    margin-bottom:7px;
+  }
+  .welcome-results-title{
+    font-size:18.5px;
+    margin-bottom:9px;
+  }
+  .welcome-results-grid{
+    gap:6px;
+  }
+  .welcome-result-chip{
+    min-height:43px;
+    grid-template-columns:31px minmax(0,1fr) auto;
+    gap:7px;
+    padding:7px 9px;
+    border-radius:14px;
+  }
+  .welcome-result-chip span{
+    width:28px;
+    height:28px;
+    border-radius:10px;
+    font-size:10px;
+  }
+  .welcome-result-chip strong{
+    font-size:11.5px;
+  }
+  .welcome-result-chip em{
+    max-width:148px;
+    font-size:10.5px;
+  }
+  .welcome-profile-strip{
+    min-height:39px;
+    padding:8px 10px;
+    border-radius:14px;
+  }
+  .welcome-profile-strip span{
+    font-size:13px;
+  }
+  .welcome-profile-strip strong{
+    font-size:10px;
+  }
+  .welcome-preview{
+    gap:7px;
+  }
+  .welcome-preview-card{
     padding:10px 10px 9px;
     border-radius:16px;
   }
-  .welcome-feature-icon{
-    min-width:30px;
-    height:22px;
-    margin-bottom:8px;
-    font-size:12px;
+  .welcome-preview-kicker{
+    font-size:8.5px;
+    margin-bottom:6px;
   }
-  .welcome-feature-title{
-    font-size:11px;
+  .welcome-preview-kcal{
+    font-size:21px;
+    margin-bottom:5px;
   }
-  .welcome-feature-text{
-    font-size:9.5px;
-    line-height:1.42;
-    display:-webkit-box;
-    -webkit-line-clamp:3;
-    -webkit-box-orient:vertical;
-    overflow:hidden;
+  .welcome-preview-macros{
+    font-size:10px;
+    line-height:1.35;
+  }
+  .welcome-preview-bars{
+    margin-top:7px;
+    gap:3px;
+  }
+  .welcome-preview-bars span{
+    height:4px;
   }
   .welcome-foot{
     gap:6px;
