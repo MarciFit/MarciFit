@@ -1,0 +1,583 @@
+/* MarciFit Today final overrides: week toggle, greeting and compact home tuning. */
+
+/* Home optimization pass: one dominant action, compact metrics, secondary routines. */
+.today-week-toggle{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin:0 0 8px;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:inherit;
+  text-align:left;
+  font-family:'Manrope',sans-serif;
+  cursor:pointer;
+}
+.today-week-toggle-icon{
+  width:26px;
+  height:26px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:10px;
+  border:1px solid #e2d8c8;
+  background:rgba(255,255,255,.68);
+  color:#7a7065;
+  font-size:18px;
+  line-height:1;
+  transform:rotate(-90deg);
+  transition:transform .16s ease;
+}
+.today-week-secondary.is-collapsed .today-week-toggle-icon{transform:rotate(90deg)}
+.today-week-secondary.is-collapsed .cal-nav{display:none}
+
+@media(max-width:720px){
+  .current-meal-focus.current,
+  .current-meal-focus.next,
+  .current-meal-focus.empty,
+  .current-meal-focus.todo,
+  .current-meal-focus.selected,
+  .current-meal-focus.done,
+  .current-meal-focus.past{
+    margin-bottom:9px;
+  }
+  .current-meal-primary{
+    gap:10px;
+    padding:14px;
+    border-radius:20px;
+    box-shadow:0 16px 30px rgba(23,20,14,.07), inset 0 1px 0 rgba(255,255,255,.9);
+  }
+  .current-meal-primary::after{width:150px;height:150px;right:-50px;bottom:-60px}
+  .current-meal-eyebrow{
+    font-size:9.5px;
+    letter-spacing:.09em;
+    text-transform:none;
+  }
+  .current-meal-pill{min-height:22px;padding:3px 8px;font-size:9.5px;letter-spacing:.06em}
+  .current-meal-primary-main{
+    grid-template-columns:auto minmax(0,1fr) auto;
+    gap:10px;
+  }
+  .current-meal-icon{
+    width:38px;
+    height:38px;
+    border-radius:14px;
+    font-size:20px;
+  }
+  .current-meal-primary .current-meal-title{
+    font-size:22px;
+    line-height:1.08;
+  }
+  .current-meal-primary .current-meal-meta{
+    font-size:12px;
+    line-height:1.3;
+    margin-top:3px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .current-meal-kcal{
+    min-width:76px;
+    text-align:right;
+    font-family:'Manrope',sans-serif;
+    color:#9a640a;
+  }
+  .current-meal-kcal strong{
+    display:block;
+    font-size:18px;
+    line-height:1;
+    color:#211c16;
+  }
+  .current-meal-kcal span{
+    display:block;
+    margin-top:2px;
+    font-size:9.5px;
+    font-weight:850;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:#9a640a;
+  }
+  .current-meal-meter{
+    padding:0;
+    border:0;
+    background:transparent;
+  }
+  .current-meal-meter-bar{height:5px}
+  .current-meal-meter-foot{
+    margin-top:6px;
+    font-family:'Manrope',sans-serif;
+    font-size:11px;
+    line-height:1.2;
+    font-weight:750;
+    color:#71685d;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .current-meal-macros{display:none}
+  .current-meal-primary .current-meal-actions{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:6px;
+  }
+  .current-meal-primary .current-meal-btn-main{
+    min-height:42px;
+    padding:9px 12px;
+    border-radius:14px;
+    font-size:12.5px;
+    box-shadow:0 10px 18px rgba(26,107,63,.18);
+  }
+  .current-meal-plus{
+    width:20px;
+    height:20px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:999px;
+    background:#fff;
+    color:var(--on);
+    font-size:14px;
+    line-height:1;
+    font-weight:900;
+  }
+  .current-meal-secondary{
+    min-height:42px;
+    padding:0 12px;
+    border-radius:14px;
+    font-size:11.5px;
+  }
+
+  .today-dashboard-card{
+    padding:11px;
+    border-radius:19px;
+    margin-bottom:8px;
+  }
+  .today-dashboard-head{
+    margin-bottom:7px;
+    padding:0;
+  }
+  .today-dashboard-card .today-recap-title{
+    font-size:15px;
+    line-height:1.1;
+  }
+  .today-dashboard-card .today-recap-title::after{content:none}
+  .today-dashboard-card > .macro-strip{gap:5px}
+  .today-dashboard-card > .macro-strip .ms-kcal-card{
+    padding:9px 10px;
+    border-radius:15px;
+  }
+  .today-dashboard-card > .macro-strip .ms-kcal-head{
+    display:flex;
+    margin-bottom:5px;
+  }
+  .today-dashboard-card > .macro-strip .ms-kcal-kicker{font-size:9.5px}
+  .today-dashboard-card > .macro-strip .ms-kcal-target-chip{min-height:18px;padding:2px 7px;font-size:8.8px}
+  .today-dashboard-card > .macro-strip .ms-kcal-top{
+    align-items:center;
+    margin-bottom:6px;
+  }
+  .today-dashboard-card > .macro-strip .ms-kcal-eaten{gap:5px}
+  .today-dashboard-card > .macro-strip .ms-kcal-icon{font-size:17px}
+  .today-dashboard-card > .macro-strip .ms-kcal-val{font-size:23px}
+  .today-dashboard-card > .macro-strip .ms-kcal-unit{font-size:10px}
+  .today-dashboard-card > .macro-strip .ms-kcal-rem{
+    font-size:11px;
+    max-width:18ch;
+  }
+  .today-dashboard-card > .macro-strip .ms-kcal-bar{
+    height:6px;
+  }
+  .today-dashboard-card > .macro-strip .ms-macros-row{
+    gap:5px;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-card{
+    padding:8px 7px 7px;
+    border-radius:13px;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-top{
+    gap:4px;
+    margin-bottom:5px;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-icon{display:block;font-size:13px}
+  .today-dashboard-card > .macro-strip .ms-macro-lbl{
+    font-size:9.5px;
+    letter-spacing:.05em;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-val{
+    font-size:16px;
+    margin-bottom:5px;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-unit{font-size:9px}
+  .today-dashboard-card > .macro-strip .ms-macro-bar{
+    height:4px;
+    margin-bottom:5px;
+  }
+  .today-dashboard-card > .macro-strip .ms-macro-rem{
+    font-size:9.5px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .today-recap-divider{display:none}
+  .today-dashboard-card .dp-compact{
+    grid-template-columns:auto minmax(0,1fr) auto;
+    gap:6px;
+    margin-top:5px;
+    padding:5px 7px;
+    border-radius:12px;
+  }
+  .today-dashboard-card .dp-compact-kicker{display:none}
+  .today-dashboard-card .dp-compact-label{font-size:11px;white-space:nowrap}
+  .today-dashboard-card .dp-bar{height:6px;min-width:70px}
+  .today-dashboard-card .dp-info-btn{width:22px;height:22px;font-size:11px}
+
+  .today-support-panel{
+    margin-top:8px;
+    padding:10px;
+    border-radius:18px;
+  }
+  .today-support-head{
+    margin-bottom:7px;
+    padding-top:0;
+  }
+  .today-support-head::before{content:none}
+  .today-support-head .support-mini-title{font-size:14px}
+  .today-routine-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:7px;
+  }
+  .today-routine-grid > #cheat-widget{
+    grid-column:1 / -1;
+  }
+  .today-routine-grid > #supp-today{grid-column:auto}
+  .today-support-panel .water-widget,
+  .today-support-panel .support-mini-card-supp{
+    min-height:112px;
+    padding:9px;
+    border-radius:14px;
+  }
+  .today-support-panel .support-mini-title,
+  .today-support-panel .supp-today-title{
+    font-size:14px;
+    line-height:1.1;
+  }
+  .today-support-panel .support-mini-state,
+  .today-support-panel .supp-today-state{
+    padding:3px 7px;
+    font-size:9px;
+    min-height:20px;
+  }
+  .today-support-panel .support-mini-sub,
+  .today-support-panel .supp-today-sub{
+    font-size:11px;
+    line-height:1.3;
+    margin-top:3px;
+  }
+  .water-top,
+  .supp-today-head{
+    display:block;
+    margin-bottom:7px;
+  }
+  .water-head-actions{margin-top:7px}
+  .water-btns{justify-content:space-between;width:100%;gap:4px}
+  .water-btn{width:28px;height:28px;font-size:16px}
+  .water-count{font-size:16px}
+  .today-support-panel .water-widget .water-bar-wrap{
+    height:6px;
+    margin:8px 0 0;
+  }
+  .water-glasses,
+  .water-foot{display:none}
+  .today-support-panel .support-mini-card-supp .supp-today-progress{
+    height:5px;
+    margin-bottom:6px;
+  }
+  .today-support-panel .support-mini-card-supp .supp-today-row{
+    max-height:34px;
+  }
+  .supp-today-btn{
+    min-height:32px;
+    padding:6px;
+  }
+  .supp-today-check{width:20px;height:20px}
+  .supp-today-name{
+    font-size:11.5px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .supp-today-meta{display:none}
+  .supp-today-manage{display:none}
+  .today-support-panel .support-mini-card-supp .supp-today-add-card{display:none}
+
+  .today-week-secondary{
+    margin-top:8px;
+    padding:9px;
+    border-radius:18px;
+  }
+  .today-week-toggle{
+    margin-bottom:6px;
+  }
+  .today-week-secondary .support-mini-title{font-size:13px}
+  .today-week-toggle-icon{
+    width:24px;
+    height:24px;
+    border-radius:9px;
+  }
+  .today-week-secondary.is-collapsed .week-cal{
+    padding:3px;
+  }
+  .today-week-secondary.is-collapsed .wc-day{
+    min-height:44px;
+    padding:5px 1px 4px;
+    border-radius:10px;
+  }
+  .today-week-secondary.is-collapsed .wc-name{
+    font-size:7px;
+  }
+  .today-week-secondary.is-collapsed .wc-num-wrap{
+    min-height:20px;
+  }
+  .today-week-secondary.is-collapsed .wc-num{
+    font-size:14px;
+  }
+  .today-week-secondary.is-collapsed .wc-day.today .wc-num{
+    width:21px;
+    height:21px;
+    font-size:11px;
+    border-radius:8px;
+  }
+}
+
+/* Premium editorial greeting */
+.today-greeting{
+  display:block;
+  margin-bottom:12px;
+}
+.today-greeting .tg-hero-copy{
+  position:relative;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  gap:9px;
+  padding:15px 15px 14px 18px;
+  border-radius:22px;
+  border:1px solid #e4d9ca;
+  background:
+    radial-gradient(105% 115% at 0% 0%, rgba(246,240,231,.86) 0%, rgba(246,240,231,0) 44%),
+    linear-gradient(180deg, rgba(255,253,249,.96) 0%, rgba(255,255,255,.92) 100%);
+  box-shadow:0 14px 30px rgba(23,20,14,.06), inset 0 1px 0 rgba(255,255,255,.9);
+}
+.today-greeting.is-on .tg-hero-copy{
+  border-color:#cfe5d7;
+  background:
+    radial-gradient(92% 110% at 0% 0%, rgba(226,246,234,.88) 0%, rgba(226,246,234,0) 45%),
+    radial-gradient(80% 95% at 100% 10%, rgba(248,242,233,.56) 0%, rgba(248,242,233,0) 48%),
+    linear-gradient(180deg, rgba(255,253,249,.96) 0%, rgba(249,252,250,.92) 100%);
+}
+.today-greeting.is-off .tg-hero-copy{
+  border-color:#eadbc7;
+  background:
+    radial-gradient(92% 110% at 0% 0%, rgba(255,240,210,.82) 0%, rgba(255,240,210,0) 45%),
+    radial-gradient(80% 95% at 100% 10%, rgba(246,240,231,.6) 0%, rgba(246,240,231,0) 48%),
+    linear-gradient(180deg, rgba(255,253,249,.96) 0%, rgba(255,250,241,.92) 100%);
+}
+.today-greeting.has-cheat .tg-hero-copy{
+  border-color:#ead4d0;
+}
+.tg-editorial-rail{
+  position:absolute;
+  left:0;
+  top:14px;
+  bottom:14px;
+  width:4px;
+  border-radius:0 999px 999px 0;
+  background:#1a6b3f;
+}
+.today-greeting.is-off .tg-editorial-rail{background:#c98617}
+.today-greeting.has-cheat .tg-editorial-rail{
+  background:linear-gradient(180deg,#1a6b3f 0%,#1a6b3f 54%,#c34a43 54%,#c34a43 100%);
+}
+.today-greeting.is-off.has-cheat .tg-editorial-rail{
+  background:linear-gradient(180deg,#c98617 0%,#c98617 54%,#c34a43 54%,#c34a43 100%);
+}
+.tg-editorial-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.tg-editorial-date{
+  font-family:'Manrope',sans-serif;
+  font-size:11px;
+  line-height:1.2;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:#8a8075;
+}
+.tg-editorial-mode{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-family:'Manrope',sans-serif;
+  font-size:11px;
+  font-weight:850;
+  color:#5d5449;
+  white-space:nowrap;
+}
+.tg-editorial-dot{
+  width:7px;
+  height:7px;
+  border-radius:999px;
+  background:#1a6b3f;
+  box-shadow:0 0 0 4px rgba(26,107,63,.1);
+}
+.tg-editorial-mode.is-off .tg-editorial-dot{
+  background:#c98617;
+  box-shadow:0 0 0 4px rgba(201,134,23,.12);
+}
+.today-greeting .tg-compact-main{
+  display:block;
+}
+.today-greeting .tg-hello{
+  font-size:26px;
+  line-height:1.02;
+  letter-spacing:-.03em;
+  margin:0;
+  color:#1e1a15;
+}
+.today-greeting .tg-hello em{
+  color:var(--on-m);
+}
+.today-greeting.is-off .tg-hello em{
+  color:#a16207;
+}
+.today-greeting .tg-subtext{
+  margin:0;
+  max-width:52ch;
+  font-size:13px;
+  line-height:1.42;
+  font-weight:650;
+  color:#5f574d;
+}
+.tg-editorial-foot{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding-top:8px;
+  border-top:1px solid rgba(226,217,204,.68);
+}
+.today-greeting .tg-streak-row{
+  margin:0;
+  min-width:0;
+}
+.today-greeting .tg-streak{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-height:auto;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  color:#5e554b;
+}
+.today-greeting .tg-streak-icon{
+  font-size:15px;
+  opacity:1;
+}
+.today-greeting .tg-streak-copy{
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+}
+.today-greeting .tg-streak-label{
+  font-size:11px;
+  line-height:1;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:#8b8175;
+}
+.today-greeting .tg-streak-val{
+  font-size:12.5px;
+  line-height:1;
+  font-weight:850;
+  color:#2d271f;
+}
+.tg-editorial-extra{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:0;
+  border:0;
+  background:transparent;
+  font-family:'Manrope',sans-serif;
+  font-size:11.5px;
+  font-weight:850;
+  color:#9a3d38;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.tg-editorial-extra-dot{
+  width:7px;
+  height:7px;
+  border-radius:999px;
+  background:#c34a43;
+  box-shadow:0 0 0 4px rgba(195,74,67,.1);
+}
+
+@media(max-width:720px){
+  .today-greeting{
+    margin-bottom:10px;
+  }
+  .today-greeting .tg-hero-copy{
+    gap:8px;
+    padding:13px 13px 12px 17px;
+    border-radius:19px;
+  }
+  .tg-editorial-rail{
+    top:12px;
+    bottom:12px;
+  }
+  .tg-editorial-date{
+    font-size:10px;
+    letter-spacing:.07em;
+  }
+  .tg-editorial-mode{
+    font-size:10.5px;
+  }
+  .today-greeting .tg-hello{
+    font-size:24px;
+  }
+  .today-greeting .tg-subtext{
+    font-size:13px;
+    line-height:1.36;
+  }
+  .tg-editorial-foot{
+    gap:8px;
+    padding-top:7px;
+  }
+  .today-greeting .tg-streak-icon{
+    font-size:14px;
+  }
+  .today-greeting .tg-streak-copy{
+    gap:5px;
+  }
+  .today-greeting .tg-streak-label{
+    font-size:9.8px;
+    letter-spacing:.035em;
+  }
+  .today-greeting .tg-streak-val{
+    font-size:11.8px;
+  }
+  .tg-editorial-extra{
+    font-size:10.8px;
+  }
+}

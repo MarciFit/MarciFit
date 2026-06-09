@@ -1,0 +1,7388 @@
+{
+  "auditedAt": "2026-03-21T13:23:31.894Z",
+  "totalQueries": 100,
+  "scoring": {
+    "mainMetric": "top1Strict",
+    "top1Strict": 85,
+    "top1Relaxed": 98,
+    "top3Strict": 85,
+    "top3Relaxed": 98
+  },
+  "bySegment": [
+    {
+      "segment": "whole_food",
+      "total": 30,
+      "top1Strict": 96.67,
+      "top1Relaxed": 96.67,
+      "top3Strict": 96.67,
+      "top3Relaxed": 96.67
+    },
+    {
+      "segment": "brand",
+      "total": 35,
+      "top1Strict": 74.29,
+      "top1Relaxed": 97.14,
+      "top3Strict": 74.29,
+      "top3Relaxed": 97.14
+    },
+    {
+      "segment": "store",
+      "total": 35,
+      "top1Strict": 85.71,
+      "top1Relaxed": 100,
+      "top3Strict": 85.71,
+      "top3Relaxed": 100
+    }
+  ],
+  "failures": [
+    {
+      "query": "patata",
+      "segment": "whole_food",
+      "error": null,
+      "top1": null,
+      "totalResults": 0,
+      "required": [
+        "patata"
+      ],
+      "brand": [],
+      "attr": [],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": false
+      }
+    },
+    {
+      "query": "wasa fibra",
+      "segment": "brand",
+      "error": null,
+      "top1": "Bbmix fibra | Ventura",
+      "totalResults": 7,
+      "required": [
+        "fibra"
+      ],
+      "brand": [
+        "wasa"
+      ],
+      "attr": [],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "wasa"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "fibra"
+          ]
+        }
+      }
+    },
+    {
+      "query": "muller yogurt greco",
+      "segment": "brand",
+      "error": null,
+      "top1": "yogurt greco | FAGE",
+      "totalResults": 20,
+      "required": [
+        "yogurt"
+      ],
+      "brand": [
+        "muller"
+      ],
+      "attr": [
+        "greco"
+      ],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "muller"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      }
+    },
+    {
+      "query": "quest barretta proteica",
+      "segment": "brand",
+      "error": null,
+      "top1": "BARRETTA PROTEICA | Eurospin",
+      "totalResults": 20,
+      "required": [
+        "barretta"
+      ],
+      "brand": [
+        "quest"
+      ],
+      "attr": [
+        "proteica"
+      ],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "quest"
+          ],
+          "attrTokens": [
+            "proteica"
+          ],
+          "coreTokens": [
+            "barretta"
+          ]
+        }
+      }
+    },
+    {
+      "query": "arla skyr",
+      "segment": "brand",
+      "error": null,
+      "top1": "Skyr | Mila",
+      "totalResults": 20,
+      "required": [
+        "skyr"
+      ],
+      "brand": [
+        "arla"
+      ],
+      "attr": [],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "arla"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "skyr"
+          ]
+        }
+      }
+    },
+    {
+      "query": "alpro yogurt greco",
+      "segment": "brand",
+      "error": null,
+      "top1": "yogurt greco | FAGE",
+      "totalResults": 20,
+      "required": [
+        "yogurt"
+      ],
+      "brand": [
+        "alpro"
+      ],
+      "attr": [
+        "greco"
+      ],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "alpro"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      }
+    },
+    {
+      "query": "biraghi grana",
+      "segment": "brand",
+      "error": null,
+      "top1": null,
+      "totalResults": 0,
+      "required": [
+        "grana"
+      ],
+      "brand": [
+        "biraghi"
+      ],
+      "attr": [],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": false
+      }
+    },
+    {
+      "query": "fior di latte santa lucia",
+      "segment": "brand",
+      "error": null,
+      "top1": "Fior di Latte | Vallelata",
+      "totalResults": 20,
+      "required": [
+        "fior",
+        "latte"
+      ],
+      "brand": [
+        "santa",
+        "lucia"
+      ],
+      "attr": [],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 0,
+        "brandTotal": 2,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "santa",
+            "lucia"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "fior",
+            "latte"
+          ]
+        }
+      }
+    },
+    {
+      "query": "skyr arla",
+      "segment": "brand",
+      "error": null,
+      "top1": "Skyr | Mila",
+      "totalResults": 20,
+      "required": [
+        "skyr"
+      ],
+      "brand": [
+        "arla"
+      ],
+      "attr": [],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "arla"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "skyr"
+          ]
+        }
+      }
+    },
+    {
+      "query": "coke zero",
+      "segment": "brand",
+      "error": null,
+      "top1": "Coke | Coca-Cola",
+      "totalResults": 1,
+      "required": [],
+      "brand": [
+        "coke"
+      ],
+      "attr": [
+        "zero"
+      ],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 0,
+        "requiredTotal": 0,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "coke"
+          ],
+          "attrTokens": [
+            "zero"
+          ],
+          "coreTokens": []
+        }
+      }
+    },
+    {
+      "query": "yogurt greco prix",
+      "segment": "store",
+      "error": null,
+      "top1": "yogurt greco | FAGE",
+      "totalResults": 20,
+      "required": [
+        "yogurt"
+      ],
+      "brand": [
+        "prix"
+      ],
+      "attr": [
+        "greco"
+      ],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "prix"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      }
+    },
+    {
+      "query": "gallette riso prix",
+      "segment": "store",
+      "error": null,
+      "top1": "Gallette di riso | Certossa",
+      "totalResults": 20,
+      "required": [
+        "gallette",
+        "riso"
+      ],
+      "brand": [
+        "prix"
+      ],
+      "attr": [],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "prix"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "gallette",
+            "riso"
+          ]
+        }
+      }
+    },
+    {
+      "query": "skyr esselunga",
+      "segment": "store",
+      "error": null,
+      "top1": "Skyr | Mila",
+      "totalResults": 20,
+      "required": [
+        "skyr"
+      ],
+      "brand": [
+        "esselunga"
+      ],
+      "attr": [],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "esselunga"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "skyr"
+          ]
+        }
+      }
+    },
+    {
+      "query": "pasta integrale conad",
+      "segment": "store",
+      "error": null,
+      "top1": "Pasta sfoglia integrale | Nestlé",
+      "totalResults": 2,
+      "required": [
+        "pasta"
+      ],
+      "brand": [
+        "conad"
+      ],
+      "attr": [
+        "integrale"
+      ],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "conad"
+          ],
+          "attrTokens": [
+            "integrale"
+          ],
+          "coreTokens": [
+            "pasta"
+          ]
+        }
+      }
+    },
+    {
+      "query": "skyr eurospin",
+      "segment": "store",
+      "error": null,
+      "top1": "Skyr | Mila",
+      "totalResults": 20,
+      "required": [
+        "skyr"
+      ],
+      "brand": [
+        "eurospin"
+      ],
+      "attr": [],
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "eurospin"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "skyr"
+          ]
+        }
+      }
+    }
+  ],
+  "sampleResults": [
+    {
+      "segment": "whole_food",
+      "query": "banana",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "banana"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "pera banana",
+        "brand": "Almaverde Bio",
+        "kcal100": 69,
+        "p100": 0.7,
+        "c100": 15,
+        "f100": 0.2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "banana"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "mela",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "mela"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Mela",
+        "brand": "Parmalat",
+        "kcal100": 47,
+        "p100": 0,
+        "c100": 11,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "mela"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "pera",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "pera"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Pera",
+        "brand": "Zuegg",
+        "kcal100": 34,
+        "p100": 0,
+        "c100": 7.8,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "pera"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "arancia",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "arancia"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Arancia rossa",
+        "brand": "Rauch",
+        "kcal100": 35,
+        "p100": 0.5,
+        "c100": 7.7,
+        "f100": 0.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "arancia"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "fragole",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "fragole"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Marmellata fragole",
+        "brand": "Natù",
+        "kcal100": 85,
+        "p100": 0.5,
+        "c100": 19,
+        "f100": 0.3,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "fragole"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "mirtilli",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "mirtilli"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Soyo mirtilli",
+        "brand": "lidl",
+        "kcal100": 68,
+        "p100": 3.1,
+        "c100": 10,
+        "f100": 1.6,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "mirtilli"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "ananas",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "ananas"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Ananas",
+        "brand": "Conserve Italia",
+        "kcal100": 46,
+        "p100": 0.2,
+        "c100": 10.7,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "ananas"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "avocado",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "avocado"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Avocado",
+        "brand": "Conad",
+        "kcal100": 160,
+        "p100": 2,
+        "c100": 9,
+        "f100": 15,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "avocado"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 13
+    },
+    {
+      "segment": "whole_food",
+      "query": "kiwi",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "kiwi"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Kiwi",
+        "brand": "",
+        "kcal100": 63,
+        "p100": 1.2,
+        "c100": 12.1,
+        "f100": 0.6,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 645,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "kiwi"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "mango",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "mango"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Mango",
+        "brand": "Carrefour",
+        "kcal100": 41,
+        "p100": 0,
+        "c100": 9.5,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "mango"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    }
+  ],
+  "allResults": [
+    {
+      "segment": "whole_food",
+      "query": "banana",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "banana"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "pera banana",
+        "brand": "Almaverde Bio",
+        "kcal100": 69,
+        "p100": 0.7,
+        "c100": 15,
+        "f100": 0.2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "banana"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "mela",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "mela"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Mela",
+        "brand": "Parmalat",
+        "kcal100": 47,
+        "p100": 0,
+        "c100": 11,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "mela"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "pera",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "pera"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Pera",
+        "brand": "Zuegg",
+        "kcal100": 34,
+        "p100": 0,
+        "c100": 7.8,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "pera"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "arancia",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "arancia"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Arancia rossa",
+        "brand": "Rauch",
+        "kcal100": 35,
+        "p100": 0.5,
+        "c100": 7.7,
+        "f100": 0.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "arancia"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "fragole",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "fragole"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Marmellata fragole",
+        "brand": "Natù",
+        "kcal100": 85,
+        "p100": 0.5,
+        "c100": 19,
+        "f100": 0.3,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "fragole"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "mirtilli",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "mirtilli"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Soyo mirtilli",
+        "brand": "lidl",
+        "kcal100": 68,
+        "p100": 3.1,
+        "c100": 10,
+        "f100": 1.6,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "mirtilli"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "ananas",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "ananas"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Ananas",
+        "brand": "Conserve Italia",
+        "kcal100": 46,
+        "p100": 0.2,
+        "c100": 10.7,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "ananas"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "avocado",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "avocado"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Avocado",
+        "brand": "Conad",
+        "kcal100": 160,
+        "p100": 2,
+        "c100": 9,
+        "f100": 15,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "avocado"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 13
+    },
+    {
+      "segment": "whole_food",
+      "query": "kiwi",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "kiwi"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Kiwi",
+        "brand": "",
+        "kcal100": 63,
+        "p100": 1.2,
+        "c100": 12.1,
+        "f100": 0.6,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 645,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "kiwi"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "mango",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "mango"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Mango",
+        "brand": "Carrefour",
+        "kcal100": 41,
+        "p100": 0,
+        "c100": 9.5,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "mango"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "uva",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "uva"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Pesca Uva",
+        "brand": "Carrefour",
+        "kcal100": 32,
+        "p100": 0.5,
+        "c100": 7.7,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "uva"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "anguria",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "anguria"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Anguria",
+        "brand": "",
+        "kcal100": 30,
+        "p100": 0.6,
+        "c100": 7.6,
+        "f100": 0.2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 645,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "anguria"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 11
+    },
+    {
+      "segment": "whole_food",
+      "query": "pesca",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "pesca"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Santàl Pesca",
+        "brand": "Parmalat",
+        "kcal100": 45,
+        "p100": 0,
+        "c100": 11,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "pesca"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 15
+    },
+    {
+      "segment": "whole_food",
+      "query": "pomodoro",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "pomodoro"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Pomodoro in pezzi",
+        "brand": "Mutti",
+        "kcal100": 26,
+        "p100": 1.2,
+        "c100": 3.9,
+        "f100": 0.2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "pomodoro"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 17
+    },
+    {
+      "segment": "whole_food",
+      "query": "carota",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "carota"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "arancia e carota",
+        "brand": "Innocent",
+        "kcal100": 45,
+        "p100": 0.6,
+        "c100": 9.3,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "carota"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "zucchina",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "zucchina"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Vellutata di zucchina",
+        "brand": "",
+        "kcal100": 36,
+        "p100": 1.2,
+        "c100": 3.9,
+        "f100": 1.3,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "zucchina"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 1
+    },
+    {
+      "segment": "whole_food",
+      "query": "broccoli",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "broccoli"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Broccoli",
+        "brand": "Lidl",
+        "kcal100": 20,
+        "p100": 2.2,
+        "c100": 1.1,
+        "f100": 0.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "broccoli"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "spinaci",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "spinaci"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Spätzle Spinaci",
+        "brand": "Bocón",
+        "kcal100": 161,
+        "p100": 6.2,
+        "c100": 22.9,
+        "f100": 4.4,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "spinaci"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "patata",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "patata"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": null,
+      "top1Strict": false,
+      "top1Relaxed": false,
+      "top3Strict": false,
+      "top3Relaxed": false,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": false
+      },
+      "error": null,
+      "totalResults": 0
+    },
+    {
+      "segment": "whole_food",
+      "query": "uova",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "uova"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Uova",
+        "brand": "Lidl",
+        "kcal100": 128,
+        "p100": 12,
+        "c100": 0.5,
+        "f100": 8.7,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 507,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "uova"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "pollo",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "pollo"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Noodles pollo",
+        "brand": "Saikebon",
+        "kcal100": 171,
+        "p100": 3.7,
+        "c100": 23.8,
+        "f100": 6.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "pollo"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "tacchino",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "tacchino"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Arrosto tacchino",
+        "brand": "Eurospin",
+        "kcal100": 98,
+        "p100": 18,
+        "c100": 3,
+        "f100": 1.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "tacchino"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "manzo",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "manzo"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Gulash di manzo",
+        "brand": "Podravka",
+        "kcal100": 91,
+        "p100": 11,
+        "c100": 2.8,
+        "f100": 3.8,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "manzo"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 12
+    },
+    {
+      "segment": "whole_food",
+      "query": "salmone",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "salmone"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Salmone",
+        "brand": "Conad",
+        "kcal100": 192,
+        "p100": 21,
+        "c100": 0,
+        "f100": 12,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "salmone"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "tonno",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "tonno"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Tonno",
+        "brand": "Nostromo",
+        "kcal100": 282,
+        "p100": 19,
+        "c100": 0,
+        "f100": 22,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 515,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "tonno"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "merluzzo",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "merluzzo"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Merluzzo",
+        "brand": "ocean sea",
+        "kcal100": 82,
+        "p100": 18,
+        "c100": 0,
+        "f100": 1.1,
+        "_offHasItLabel": false,
+        "src": "off",
+        "_searchScore": 511,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "merluzzo"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "riso basmati",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "riso"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [
+          "basmati"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Riso basmati",
+        "brand": "fiorfiore coop",
+        "kcal100": 350,
+        "p100": 8.8,
+        "c100": 77,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 423,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [
+            "basmati"
+          ],
+          "coreTokens": [
+            "riso"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "riso integrale",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "riso"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [
+          "integrale"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Riso integrale",
+        "brand": "",
+        "kcal100": 354,
+        "p100": 7.8,
+        "c100": 73,
+        "f100": 2.7,
+        "_offHasItLabel": false,
+        "src": "off",
+        "_searchScore": 549,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [
+            "integrale"
+          ],
+          "coreTokens": [
+            "riso"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "avena",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "avena"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Fiocchi di avena",
+        "brand": "Conad",
+        "kcal100": 372,
+        "p100": 13,
+        "c100": 59,
+        "f100": 7,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 305,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [],
+          "coreTokens": [
+            "avena"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "whole_food",
+      "query": "yogurt greco",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Yogurt greco",
+        "brand": "",
+        "kcal100": 56,
+        "p100": 9,
+        "c100": 5,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 571,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "coca zero",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "coca"
+        ],
+        "brandHintTokens": [],
+        "attributeTokens": [
+          "zero"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Coca Zero",
+        "brand": "Todis",
+        "kcal100": 1,
+        "p100": 0,
+        "c100": 0.1,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 423,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 0,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [],
+          "attrTokens": [
+            "zero"
+          ],
+          "coreTokens": [
+            "coca"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 6
+    },
+    {
+      "segment": "brand",
+      "query": "coca cola zero",
+      "queryCtx": {
+        "requiredNameTokens": [],
+        "brandHintTokens": [
+          "coca",
+          "cola"
+        ],
+        "attributeTokens": [
+          "zero"
+        ],
+        "isBrandFocusedQuery": true
+      },
+      "top1": {
+        "name": "Coca cola zero",
+        "brand": "",
+        "kcal100": 1,
+        "p100": 0,
+        "c100": 0,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 545,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 3,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 3,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 0,
+        "requiredTotal": 0,
+        "brandMatches": 2,
+        "brandTotal": 2,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "coca",
+            "cola"
+          ],
+          "attrTokens": [
+            "zero"
+          ],
+          "coreTokens": []
+        }
+      },
+      "error": null,
+      "totalResults": 6
+    },
+    {
+      "segment": "brand",
+      "query": "fage yogurt greco",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "fage"
+        ],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "yogurt greco",
+        "brand": "FAGE",
+        "kcal100": 70,
+        "p100": 9.9,
+        "c100": 3,
+        "f100": 2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 171,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "fage"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "fage total 2",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "total"
+        ],
+        "brandHintTokens": [
+          "fage"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "FAGE TOTAL",
+        "brand": "Fage",
+        "kcal100": 93,
+        "p100": 9,
+        "c100": 3,
+        "f100": 5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 321,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "fage"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "total"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 9
+    },
+    {
+      "segment": "brand",
+      "query": "activia yogurt bianco",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt",
+          "bianco"
+        ],
+        "brandHintTokens": [
+          "activia"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Yogurt 0 % grassi bianco naturale",
+        "brand": "Activia",
+        "kcal100": 47,
+        "p100": 5,
+        "c100": 6.6,
+        "f100": 0.1,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 125,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "activia"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "yogurt",
+            "bianco"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 16
+    },
+    {
+      "segment": "brand",
+      "query": "barilla spaghetti",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "spaghetti"
+        ],
+        "brandHintTokens": [
+          "barilla"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Barilla spaghetti",
+        "brand": "Barilla",
+        "kcal100": 359,
+        "p100": 1,
+        "c100": 70.9,
+        "f100": 1.7,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 441,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "barilla"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "spaghetti"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 13
+    },
+    {
+      "segment": "brand",
+      "query": "barilla penne integrali",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "penne"
+        ],
+        "brandHintTokens": [
+          "barilla"
+        ],
+        "attributeTokens": [
+          "integrali"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Penne Rigate Integrale",
+        "brand": "Barilla",
+        "kcal100": 347,
+        "p100": 13,
+        "c100": 64,
+        "f100": 2.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 153,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "barilla"
+          ],
+          "attrTokens": [
+            "integrali"
+          ],
+          "coreTokens": [
+            "penne"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "kelloggs corn flakes",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "corn",
+          "flakes"
+        ],
+        "brandHintTokens": [
+          "kelloggs"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Kelloggs Corn Flakes",
+        "brand": "Kellogg's",
+        "kcal100": 370,
+        "p100": 7,
+        "c100": 84,
+        "f100": 0.7,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 431,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 3,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 3,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "kelloggs"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "corn",
+            "flakes"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "mulino bianco fette biscottate",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "fette",
+          "biscottate"
+        ],
+        "brandHintTokens": [
+          "mulino",
+          "bianco"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Mulino Bianco. Fette biscottate integrali",
+        "brand": "",
+        "kcal100": 387,
+        "p100": 14,
+        "c100": 60,
+        "f100": 7.4,
+        "_offHasItLabel": false,
+        "src": "off",
+        "_searchScore": 361,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 4,
+          "matchedName": 4,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 4,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 2,
+        "brandTotal": 2,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "mulino",
+            "bianco"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "fette",
+            "biscottate"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 15
+    },
+    {
+      "segment": "brand",
+      "query": "wasa fibra",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "fibra"
+        ],
+        "brandHintTokens": [
+          "wasa"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Bbmix fibra",
+        "brand": "Ventura",
+        "kcal100": 434,
+        "p100": 9.1,
+        "c100": 42,
+        "f100": 24,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 37,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "wasa"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "fibra"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 7
+    },
+    {
+      "segment": "brand",
+      "query": "danone yogurt bianco 0",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt",
+          "bianco"
+        ],
+        "brandHintTokens": [
+          "danone"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Mars Duo Yogurt Bianco Cremoso Con Palline Al Gusto Mars",
+        "brand": "Danone",
+        "kcal100": 158,
+        "p100": 3.2,
+        "c100": 18,
+        "f100": 8,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 171,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "danone"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "yogurt",
+            "bianco"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 18
+    },
+    {
+      "segment": "brand",
+      "query": "muller yogurt greco",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "muller"
+        ],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "yogurt greco",
+        "brand": "FAGE",
+        "kcal100": 70,
+        "p100": 9.9,
+        "c100": 3,
+        "f100": 2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 109,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "muller"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "philadelphia light",
+      "queryCtx": {
+        "requiredNameTokens": [],
+        "brandHintTokens": [
+          "philadelphia"
+        ],
+        "attributeTokens": [
+          "light"
+        ],
+        "isBrandFocusedQuery": true
+      },
+      "top1": {
+        "name": "Philadelphia Light",
+        "brand": "Philadelphia",
+        "kcal100": 159,
+        "p100": 6.2,
+        "c100": 4.4,
+        "f100": 13,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 441,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 0,
+        "requiredTotal": 0,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "philadelphia"
+          ],
+          "attrTokens": [
+            "light"
+          ],
+          "coreTokens": []
+        }
+      },
+      "error": null,
+      "totalResults": 19
+    },
+    {
+      "segment": "brand",
+      "query": "galbani ricotta",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "ricotta"
+        ],
+        "brandHintTokens": [
+          "galbani"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Tortellini Ricotta e Spinaci ~ Galbani",
+        "brand": "Galbani",
+        "kcal100": 314,
+        "p100": 10,
+        "c100": 49,
+        "f100": 8,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 117,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "galbani"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "ricotta"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 15
+    },
+    {
+      "segment": "brand",
+      "query": "rio mare tonno naturale",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "tonno"
+        ],
+        "brandHintTokens": [
+          "rio",
+          "mare"
+        ],
+        "attributeTokens": [
+          "naturale"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Tonno al naturale",
+        "brand": "Rio Mare",
+        "kcal100": 101,
+        "p100": 24,
+        "c100": 0,
+        "f100": 0.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 197,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 4,
+          "matchedName": 2,
+          "matchedBrand": 2,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 2,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 2,
+        "brandTotal": 2,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "rio",
+            "mare"
+          ],
+          "attrTokens": [
+            "naturale"
+          ],
+          "coreTokens": [
+            "tonno"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "rummo spaghetti",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "spaghetti"
+        ],
+        "brandHintTokens": [
+          "rummo"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Rummo Lenta Lavorazione Spaghetti N° 3",
+        "brand": "Rummo",
+        "kcal100": 356,
+        "p100": 14.5,
+        "c100": 69.5,
+        "f100": 1.6,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 117,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "rummo"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "spaghetti"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 11
+    },
+    {
+      "segment": "brand",
+      "query": "de cecco penne",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "penne"
+        ],
+        "brandHintTokens": [
+          "de",
+          "cecco"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Penne",
+        "brand": "De Cecco",
+        "kcal100": 351,
+        "p100": 14,
+        "c100": 69,
+        "f100": 1.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 103,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 2,
+        "brandTotal": 2,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "de",
+            "cecco"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "penne"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 10
+    },
+    {
+      "segment": "brand",
+      "query": "nutella",
+      "queryCtx": {
+        "requiredNameTokens": [],
+        "brandHintTokens": [
+          "nutella"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": true
+      },
+      "top1": {
+        "name": "Nutella",
+        "brand": "Ferrero",
+        "kcal100": 539,
+        "p100": 6.3,
+        "c100": 57.5,
+        "f100": 30.9,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 428,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 1,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 0,
+        "requiredTotal": 0,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "nutella"
+          ],
+          "attrTokens": [],
+          "coreTokens": []
+        }
+      },
+      "error": null,
+      "totalResults": 16
+    },
+    {
+      "segment": "brand",
+      "query": "misura biscotti integrali",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "biscotti"
+        ],
+        "brandHintTokens": [
+          "misura"
+        ],
+        "attributeTokens": [
+          "integrali"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Misura Fibre Extra Biscotti Integrale Muesli",
+        "brand": "Misura",
+        "kcal100": 468,
+        "p100": 8.7,
+        "c100": 61,
+        "f100": 19,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 185,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 3,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 3,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "misura"
+          ],
+          "attrTokens": [
+            "integrali"
+          ],
+          "coreTokens": [
+            "biscotti"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 19
+    },
+    {
+      "segment": "brand",
+      "query": "quest barretta proteica",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "barretta"
+        ],
+        "brandHintTokens": [
+          "quest"
+        ],
+        "attributeTokens": [
+          "proteica"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "BARRETTA PROTEICA",
+        "brand": "Eurospin",
+        "kcal100": 432,
+        "p100": 31,
+        "c100": 46,
+        "f100": 13,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 101,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "quest"
+          ],
+          "attrTokens": [
+            "proteica"
+          ],
+          "coreTokens": [
+            "barretta"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "myprotein protein bar",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "protein",
+          "bar"
+        ],
+        "brandHintTokens": [
+          "myprotein"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Myprotein High Protein Bar, Chocolate 12 X",
+        "brand": "Myprotein",
+        "kcal100": 324,
+        "p100": 38,
+        "c100": 30,
+        "f100": 7.4,
+        "_offHasItLabel": false,
+        "src": "off",
+        "_searchScore": 183,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 3,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 3,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "myprotein"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "protein",
+            "bar"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 18
+    },
+    {
+      "segment": "brand",
+      "query": "myprotein whey",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "whey"
+        ],
+        "brandHintTokens": [
+          "myprotein"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Whey protein",
+        "brand": "Myprotein",
+        "kcal100": 387,
+        "p100": 71,
+        "c100": 9.7,
+        "f100": 6.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 103,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "myprotein"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "whey"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "arla skyr",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "skyr"
+        ],
+        "brandHintTokens": [
+          "arla"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Skyr",
+        "brand": "Mila",
+        "kcal100": 80,
+        "p100": 7.5,
+        "c100": 12,
+        "f100": 0.2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 37,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "arla"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "skyr"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "valsoia yogurt",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "valsoia"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "yogurt valsoia zero zuccheri gusto ananas",
+        "brand": "Valsoia",
+        "kcal100": 58,
+        "p100": 3.3,
+        "c100": 7.4,
+        "f100": 1.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 117,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "valsoia"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 7
+    },
+    {
+      "segment": "brand",
+      "query": "alpro yogurt greco",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "alpro"
+        ],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "yogurt greco",
+        "brand": "FAGE",
+        "kcal100": 70,
+        "p100": 9.9,
+        "c100": 3,
+        "f100": 2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 109,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "alpro"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "pavesi cracker",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "cracker"
+        ],
+        "brandHintTokens": [
+          "pavesi"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Gran Pavesi Cracker Salato",
+        "brand": "Pavesi",
+        "kcal100": 441,
+        "p100": 10,
+        "c100": 66.2,
+        "f100": 14,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 271,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "pavesi"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "cracker"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 10
+    },
+    {
+      "segment": "brand",
+      "query": "grana padano",
+      "queryCtx": {
+        "requiredNameTokens": [],
+        "brandHintTokens": [
+          "grana",
+          "padano"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": true
+      },
+      "top1": {
+        "name": "Grana Padano",
+        "brand": "",
+        "kcal100": 398,
+        "p100": 33,
+        "c100": 0,
+        "f100": 29,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 561,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 0,
+        "requiredTotal": 0,
+        "brandMatches": 2,
+        "brandTotal": 2,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "grana",
+            "padano"
+          ],
+          "attrTokens": [],
+          "coreTokens": []
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "parmigiano reggiano",
+      "queryCtx": {
+        "requiredNameTokens": [],
+        "brandHintTokens": [
+          "parmigiano",
+          "reggiano"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": true
+      },
+      "top1": {
+        "name": "Parmigiano reggiano",
+        "brand": "Extra Sapori d'Italia",
+        "kcal100": 402,
+        "p100": 32,
+        "c100": 0,
+        "f100": 30,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 431,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 0,
+        "requiredTotal": 0,
+        "brandMatches": 2,
+        "brandTotal": 2,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "parmigiano",
+            "reggiano"
+          ],
+          "attrTokens": [],
+          "coreTokens": []
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "biraghi grana",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "grana"
+        ],
+        "brandHintTokens": [
+          "biraghi"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": null,
+      "top1Strict": false,
+      "top1Relaxed": false,
+      "top3Strict": false,
+      "top3Relaxed": false,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": false
+      },
+      "error": null,
+      "totalResults": 0
+    },
+    {
+      "segment": "brand",
+      "query": "santa lucia mozzarella",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "mozzarella"
+        ],
+        "brandHintTokens": [
+          "santa",
+          "lucia"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Santa Lucia mozzarella",
+        "brand": "Galbani",
+        "kcal100": 238,
+        "p100": 17,
+        "c100": 2,
+        "f100": 18,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 449,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 3,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 3,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 2,
+        "brandTotal": 2,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "santa",
+            "lucia"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "mozzarella"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 11
+    },
+    {
+      "segment": "brand",
+      "query": "fior di latte santa lucia",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "fior",
+          "latte"
+        ],
+        "brandHintTokens": [
+          "santa",
+          "lucia"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Fior di Latte",
+        "brand": "Vallelata",
+        "kcal100": 216,
+        "p100": 17,
+        "c100": 1,
+        "f100": 16,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 103,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 4,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 2,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 0,
+        "brandTotal": 2,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "santa",
+            "lucia"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "fior",
+            "latte"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "corn flakes kelloggs",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "corn",
+          "flakes"
+        ],
+        "brandHintTokens": [
+          "kelloggs"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Kelloggs Corn Flakes",
+        "brand": "Kellogg's",
+        "kcal100": 370,
+        "p100": 7,
+        "c100": 84,
+        "f100": 0.7,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 157,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 3,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 3,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "kelloggs"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "corn",
+            "flakes"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "skyr arla",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "skyr"
+        ],
+        "brandHintTokens": [
+          "arla"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Skyr",
+        "brand": "Mila",
+        "kcal100": 80,
+        "p100": 7.5,
+        "c100": 12,
+        "f100": 0.2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 37,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "arla"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "skyr"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "yogurt greco fage",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "fage"
+        ],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "yogurt greco",
+        "brand": "FAGE",
+        "kcal100": 70,
+        "p100": 9.9,
+        "c100": 3,
+        "f100": 2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 365,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "fage"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "brand",
+      "query": "coke zero",
+      "queryCtx": {
+        "requiredNameTokens": [],
+        "brandHintTokens": [
+          "coke"
+        ],
+        "attributeTokens": [
+          "zero"
+        ],
+        "isBrandFocusedQuery": true
+      },
+      "top1": {
+        "name": "Coke",
+        "brand": "Coca-Cola",
+        "kcal100": 42,
+        "p100": 0,
+        "c100": 10.6,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 41,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 0,
+        "requiredTotal": 0,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "coke"
+          ],
+          "attrTokens": [
+            "zero"
+          ],
+          "coreTokens": []
+        }
+      },
+      "error": null,
+      "totalResults": 1
+    },
+    {
+      "segment": "store",
+      "query": "yogurt greco lidl",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "lidl"
+        ],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Yogurt greco",
+        "brand": "Lidl",
+        "kcal100": 58,
+        "p100": 10,
+        "c100": 4.5,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 365,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "lidl"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "skyr lidl",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "skyr"
+        ],
+        "brandHintTokens": [
+          "lidl"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Skyr bianco",
+        "brand": "Lidl",
+        "kcal100": 62,
+        "p100": 11,
+        "c100": 4,
+        "f100": 0.2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 103,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "lidl"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "skyr"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "riso basmati lidl",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "riso"
+        ],
+        "brandHintTokens": [
+          "lidl"
+        ],
+        "attributeTokens": [
+          "basmati"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Riso basmati Golden Sun",
+        "brand": "Lidl",
+        "kcal100": 358,
+        "p100": 8.6,
+        "c100": 78,
+        "f100": 1.1,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 171,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "lidl"
+          ],
+          "attrTokens": [
+            "basmati"
+          ],
+          "coreTokens": [
+            "riso"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "petto di pollo lidl",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "petto",
+          "pollo"
+        ],
+        "brandHintTokens": [
+          "lidl"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Petto di pollo",
+        "brand": "Lidl",
+        "kcal100": 99,
+        "p100": 23,
+        "c100": 0,
+        "f100": 0.8,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 323,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "lidl"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "petto",
+            "pollo"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 7
+    },
+    {
+      "segment": "store",
+      "query": "tonno naturale lidl",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "tonno"
+        ],
+        "brandHintTokens": [
+          "lidl"
+        ],
+        "attributeTokens": [
+          "naturale"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Filetti Di Tonno Al Naturale",
+        "brand": "Lidl",
+        "kcal100": 113,
+        "p100": 27,
+        "c100": 0,
+        "f100": 0.6,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 203,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "lidl"
+          ],
+          "attrTokens": [
+            "naturale"
+          ],
+          "coreTokens": [
+            "tonno"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "yogurt greco carrefour",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "carrefour"
+        ],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Yogurt greco magro",
+        "brand": "Carrefour",
+        "kcal100": 59,
+        "p100": 10,
+        "c100": 4.8,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 171,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "carrefour"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "riso basmati carrefour",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "riso"
+        ],
+        "brandHintTokens": [
+          "carrefour"
+        ],
+        "attributeTokens": [
+          "basmati"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Riso Basmati",
+        "brand": "Carrefour",
+        "kcal100": 356,
+        "p100": 8.4,
+        "c100": 77,
+        "f100": 1.3,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 365,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "carrefour"
+          ],
+          "attrTokens": [
+            "basmati"
+          ],
+          "coreTokens": [
+            "riso"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "fette biscottate carrefour",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "fette",
+          "biscottate"
+        ],
+        "brandHintTokens": [
+          "carrefour"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Fette Biscottate",
+        "brand": "Carrefour BIO",
+        "kcal100": 406,
+        "p100": 12,
+        "c100": 72,
+        "f100": 6.8,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 225,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "carrefour"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "fette",
+            "biscottate"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "tonno carrefour",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "tonno"
+        ],
+        "brandHintTokens": [
+          "carrefour"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Tonno",
+        "brand": "Carrefour",
+        "kcal100": 98,
+        "p100": 23,
+        "c100": 0,
+        "f100": 0.7,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 297,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "carrefour"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "tonno"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "fiocchi avena carrefour",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "fiocchi",
+          "avena"
+        ],
+        "brandHintTokens": [
+          "carrefour"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Frollini con fiocchi d’avena",
+        "brand": "Carrefour",
+        "kcal100": 419,
+        "p100": 8.5,
+        "c100": 67,
+        "f100": 16,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 193,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "carrefour"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "fiocchi",
+            "avena"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "yogurt greco prix",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "prix"
+        ],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "yogurt greco",
+        "brand": "FAGE",
+        "kcal100": 70,
+        "p100": 9.9,
+        "c100": 3,
+        "f100": 2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 109,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "prix"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "riso basmati prix",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "riso"
+        ],
+        "brandHintTokens": [
+          "prix"
+        ],
+        "attributeTokens": [
+          "basmati"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Riso basmati",
+        "brand": "Prix",
+        "kcal100": 358,
+        "p100": 8.6,
+        "c100": 78,
+        "f100": 1.1,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 365,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "prix"
+          ],
+          "attrTokens": [
+            "basmati"
+          ],
+          "coreTokens": [
+            "riso"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "tonno prix",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "tonno"
+        ],
+        "brandHintTokens": [
+          "prix"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Sugo al tonno",
+        "brand": "Prix",
+        "kcal100": 86,
+        "p100": 2.8,
+        "c100": 5.9,
+        "f100": 5.7,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 167,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "prix"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "tonno"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "fette biscottate prix",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "fette",
+          "biscottate"
+        ],
+        "brandHintTokens": [
+          "prix"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Fette biscottate",
+        "brand": "Prix",
+        "kcal100": 418,
+        "p100": 11,
+        "c100": 75,
+        "f100": 7.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 355,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "prix"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "fette",
+            "biscottate"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "gallette riso prix",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "gallette",
+          "riso"
+        ],
+        "brandHintTokens": [
+          "prix"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Gallette di riso",
+        "brand": "Certossa",
+        "kcal100": 379,
+        "p100": 8.4,
+        "c100": 80,
+        "f100": 2.2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 85,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "prix"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "gallette",
+            "riso"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "yogurt greco esselunga",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "esselunga"
+        ],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Yogurt greco Esselunga",
+        "brand": "Esselunga",
+        "kcal100": 85,
+        "p100": 8,
+        "c100": 11.8,
+        "f100": 0.1,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 469,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 3,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 3,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "esselunga"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 18
+    },
+    {
+      "segment": "store",
+      "query": "skyr esselunga",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "skyr"
+        ],
+        "brandHintTokens": [
+          "esselunga"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Skyr",
+        "brand": "Mila",
+        "kcal100": 80,
+        "p100": 7.5,
+        "c100": 12,
+        "f100": 0.2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 37,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "esselunga"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "skyr"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "riso basmati esselunga",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "riso"
+        ],
+        "brandHintTokens": [
+          "esselunga"
+        ],
+        "attributeTokens": [
+          "basmati"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Riso basmati",
+        "brand": "Esselunga",
+        "kcal100": 358,
+        "p100": 8.6,
+        "c100": 78,
+        "f100": 1.1,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 365,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "esselunga"
+          ],
+          "attrTokens": [
+            "basmati"
+          ],
+          "coreTokens": [
+            "riso"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "tonno esselunga",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "tonno"
+        ],
+        "brandHintTokens": [
+          "esselunga"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Tonno esselunga",
+        "brand": "Esselunga",
+        "kcal100": 369,
+        "p100": 18.1,
+        "c100": 0,
+        "f100": 33,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 441,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "esselunga"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "tonno"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "pasta integrale esselunga",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "pasta"
+        ],
+        "brandHintTokens": [
+          "esselunga"
+        ],
+        "attributeTokens": [
+          "integrale"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Pasta per pizza farro integrale biologico",
+        "brand": "Esselunga",
+        "kcal100": 240,
+        "p100": 8.2,
+        "c100": 38.6,
+        "f100": 4.9,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 153,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "esselunga"
+          ],
+          "attrTokens": [
+            "integrale"
+          ],
+          "coreTokens": [
+            "pasta"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 3
+    },
+    {
+      "segment": "store",
+      "query": "yogurt greco coop",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "coop"
+        ],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Coop Yogurt magro Greco all'ananas",
+        "brand": "Coop",
+        "kcal100": 391,
+        "p100": 7.6,
+        "c100": 14,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 177,
+        "_searchConfidence": "high",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 3,
+          "matchedBrand": 0,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 3,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "coop"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "tonno naturale coop",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "tonno"
+        ],
+        "brandHintTokens": [
+          "coop"
+        ],
+        "attributeTokens": [
+          "naturale"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Tonno Al Naturale Spesotti",
+        "brand": "Coop",
+        "kcal100": 98,
+        "p100": 23,
+        "c100": 0,
+        "f100": 0.7,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 171,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "coop"
+          ],
+          "attrTokens": [
+            "naturale"
+          ],
+          "coreTokens": [
+            "tonno"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "fiocchi avena coop",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "fiocchi",
+          "avena"
+        ],
+        "brandHintTokens": [
+          "coop"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Fiocchi d'avena integrale",
+        "brand": "Coop",
+        "kcal100": 385,
+        "p100": 12,
+        "c100": 60,
+        "f100": 8.5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 161,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "coop"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "fiocchi",
+            "avena"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "riso basmati coop",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "riso"
+        ],
+        "brandHintTokens": [
+          "coop"
+        ],
+        "attributeTokens": [
+          "basmati"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Riso basmati",
+        "brand": "Coop",
+        "kcal100": 350,
+        "p100": 7.4,
+        "c100": 78,
+        "f100": 0.6,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 365,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "coop"
+          ],
+          "attrTokens": [
+            "basmati"
+          ],
+          "coreTokens": [
+            "riso"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "crackers integrali coop",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "crackers"
+        ],
+        "brandHintTokens": [
+          "coop"
+        ],
+        "attributeTokens": [
+          "integrali"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Crackers integrali",
+        "brand": "Coop",
+        "kcal100": 422,
+        "p100": 13,
+        "c100": 59,
+        "f100": 13,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 357,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "coop"
+          ],
+          "attrTokens": [
+            "integrali"
+          ],
+          "coreTokens": [
+            "crackers"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 6
+    },
+    {
+      "segment": "store",
+      "query": "yogurt greco conad",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "conad"
+        ],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "YOGURT GRECO",
+        "brand": "Conad",
+        "kcal100": 95,
+        "p100": 8.5,
+        "c100": 4,
+        "f100": 5,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 365,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "conad"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "tonno conad",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "tonno"
+        ],
+        "brandHintTokens": [
+          "conad"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "tonno",
+        "brand": "conad",
+        "kcal100": 264,
+        "p100": 21,
+        "c100": 0,
+        "f100": 20,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 297,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "conad"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "tonno"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "fette biscottate conad",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "fette",
+          "biscottate"
+        ],
+        "brandHintTokens": [
+          "conad"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Fette biscottate",
+        "brand": "Conad",
+        "kcal100": 394,
+        "p100": 13,
+        "c100": 68,
+        "f100": 5.8,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 355,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 0,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 2,
+        "requiredTotal": 2,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "conad"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "fette",
+            "biscottate"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "pasta integrale conad",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "pasta"
+        ],
+        "brandHintTokens": [
+          "conad"
+        ],
+        "attributeTokens": [
+          "integrale"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Pasta sfoglia integrale",
+        "brand": "Nestlé",
+        "kcal100": 386,
+        "p100": 7.8,
+        "c100": 35,
+        "f100": 22.3,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 91,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "conad"
+          ],
+          "attrTokens": [
+            "integrale"
+          ],
+          "coreTokens": [
+            "pasta"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 2
+    },
+    {
+      "segment": "store",
+      "query": "riso basmati conad",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "riso"
+        ],
+        "brandHintTokens": [
+          "conad"
+        ],
+        "attributeTokens": [
+          "basmati"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Riso Basmati",
+        "brand": "Conad",
+        "kcal100": 354,
+        "p100": 6.7,
+        "c100": 80,
+        "f100": 0.4,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 365,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "conad"
+          ],
+          "attrTokens": [
+            "basmati"
+          ],
+          "coreTokens": [
+            "riso"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "yogurt greco eurospin",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "yogurt"
+        ],
+        "brandHintTokens": [
+          "eurospin"
+        ],
+        "attributeTokens": [
+          "greco"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Pathos yogurt greco",
+        "brand": "Eurospin",
+        "kcal100": 87,
+        "p100": 8,
+        "c100": 13.9,
+        "f100": 0,
+        "_offHasItLabel": false,
+        "src": "off",
+        "_searchScore": 231,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "eurospin"
+          ],
+          "attrTokens": [
+            "greco"
+          ],
+          "coreTokens": [
+            "yogurt"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "skyr eurospin",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "skyr"
+        ],
+        "brandHintTokens": [
+          "eurospin"
+        ],
+        "attributeTokens": [],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Skyr",
+        "brand": "Mila",
+        "kcal100": 80,
+        "p100": 7.5,
+        "c100": 12,
+        "f100": 0.2,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 37,
+        "_searchConfidence": "low",
+        "_searchMeta": {
+          "tokenCount": 2,
+          "matchedName": 1,
+          "matchedBrand": 0,
+          "missingStrong": 1,
+          "exactNameTokenMatches": 1,
+          "attributeHits": 0,
+          "brandHits": 0,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": false,
+      "top1Relaxed": true,
+      "top3Strict": false,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": false,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 0,
+        "brandTotal": 1,
+        "attrMatches": 0,
+        "attrTotal": 0,
+        "expectations": {
+          "brandTokens": [
+            "eurospin"
+          ],
+          "attrTokens": [],
+          "coreTokens": [
+            "skyr"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "tonno naturale eurospin",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "tonno"
+        ],
+        "brandHintTokens": [
+          "eurospin"
+        ],
+        "attributeTokens": [
+          "naturale"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Tonno al naturale",
+        "brand": "Eurospin",
+        "kcal100": 97,
+        "p100": 23,
+        "c100": 0,
+        "f100": 0,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 203,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": true,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "eurospin"
+          ],
+          "attrTokens": [
+            "naturale"
+          ],
+          "coreTokens": [
+            "tonno"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "riso basmati eurospin",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "riso"
+        ],
+        "brandHintTokens": [
+          "eurospin"
+        ],
+        "attributeTokens": [
+          "basmati"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Salmone riso basmati e spinaci",
+        "brand": "Eurospin",
+        "kcal100": 138,
+        "p100": 11,
+        "c100": 8.3,
+        "f100": 6.7,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 171,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "eurospin"
+          ],
+          "attrTokens": [
+            "basmati"
+          ],
+          "coreTokens": [
+            "riso"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 20
+    },
+    {
+      "segment": "store",
+      "query": "cracker integrali eurospin",
+      "queryCtx": {
+        "requiredNameTokens": [
+          "cracker"
+        ],
+        "brandHintTokens": [
+          "eurospin"
+        ],
+        "attributeTokens": [
+          "integrali"
+        ],
+        "isBrandFocusedQuery": false
+      },
+      "top1": {
+        "name": "Cracker leggeri integrali",
+        "brand": "Eurospin",
+        "kcal100": 409,
+        "p100": 10,
+        "c100": 71,
+        "f100": 8,
+        "_offHasItLabel": true,
+        "src": "off",
+        "_searchScore": 155,
+        "_searchConfidence": "medium",
+        "_searchMeta": {
+          "tokenCount": 3,
+          "matchedName": 2,
+          "matchedBrand": 1,
+          "missingStrong": 0,
+          "exactNameTokenMatches": 2,
+          "attributeHits": 1,
+          "brandHits": 1,
+          "aliasHits": 0,
+          "fullCanonicalMatch": false,
+          "verifiedBoost": 0
+        }
+      },
+      "top1Strict": true,
+      "top1Relaxed": true,
+      "top3Strict": true,
+      "top3Relaxed": true,
+      "eval": {
+        "strictOk": true,
+        "relaxedOk": true,
+        "requiredMatches": 1,
+        "requiredTotal": 1,
+        "brandMatches": 1,
+        "brandTotal": 1,
+        "attrMatches": 1,
+        "attrTotal": 1,
+        "expectations": {
+          "brandTokens": [
+            "eurospin"
+          ],
+          "attrTokens": [
+            "integrali"
+          ],
+          "coreTokens": [
+            "cracker"
+          ]
+        }
+      },
+      "error": null,
+      "totalResults": 8
+    }
+  ]
+}

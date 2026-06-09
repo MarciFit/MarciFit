@@ -1,0 +1,151 @@
+/* MarciFit Stats: progress, weight, measurements, legacy profile rows. */
+
+/* PROGRESS VIEW */
+.prog-head{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin-bottom:24px;
+  max-width:72ch;
+  padding-inline:4px;
+}
+.prog-title{
+  font-family:'Lora',serif;
+  font-size:clamp(28px,3vw,38px);
+  font-weight:600;
+  line-height:1.02;
+  letter-spacing:-.04em;
+  margin-bottom:0;
+}
+.prog-sub{
+  font-size:13px;
+  line-height:1.6;
+  color:#5f564d;
+  font-weight:500;
+  max-width:60ch;
+}
+
+.weight-entry{
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+}
+.w-input{
+  font-family:'JetBrains Mono',monospace;font-size:14px;
+  padding:9px 12px;border:1.5px solid var(--b1);border-radius:var(--r2);
+  background:var(--surf);outline:none;color:var(--ink);width:110px;
+  transition:border-color .13s;
+}
+.w-input:focus{border-color:var(--on-m)}
+.w-btn{
+  background:var(--on);color:#fff;font-size:12px;font-weight:700;
+  padding:9px 18px;border-radius:var(--r2);transition:all .13s;
+}
+.w-btn:hover{background:#135533;transform:translateY(-1px)}
+
+.w-stats{
+  display:flex;border:1px solid var(--b1);border-radius:var(--r);
+  overflow:hidden;background:var(--surf);margin-bottom:16px;box-shadow:var(--sh);
+}
+.ws{flex:1;text-align:center;padding:12px 8px;border-right:1px solid var(--b1)}
+.ws:last-child{border-right:none}
+.ws-l{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.ws-v{font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:500;margin-top:3px}
+
+.chart-box{
+  background:var(--surf);border:1px solid var(--b1);border-radius:var(--r);
+  padding:18px 18px 10px;box-shadow:var(--sh);margin-bottom:14px;
+}
+.chart-empty{text-align:center;padding:32px;font-size:13px;color:var(--muted)}
+
+.w-log{display:none;margin-top:12px}
+.w-log.open{display:block}
+.w-log-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:8px}
+.w-log-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 0;border-bottom:1px solid var(--b1);
+  flex-wrap:wrap;
+}
+.w-log-item:last-child{border-bottom:none}
+.w-log-date{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);width:96px;flex-shrink:0}
+.w-log-val{flex:1;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500}
+.w-delta{font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px}
+.d-pos{background:var(--on-l);color:var(--on)}.d-neg{background:var(--red-l);color:var(--red)}.d-neu{background:var(--bg);color:var(--muted)}
+.w-del{font-size:11px;color:var(--muted);padding:0 4px;transition:color .12s}.w-del:hover{color:var(--red)}
+.stats-row-actions{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+}
+.stats-icon-btn{
+  width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:10px;border:1px solid #ddd3c7;background:#f8f3ec;color:#5f564c;
+  cursor:pointer;transition:all .12s;font-size:14px;line-height:1;
+}
+.stats-icon-btn:hover{border-color:#cdbca6;color:var(--ink);background:#fffdfa}
+.stats-icon-btn.danger{
+  background:#fff5f5;border-color:#efcfcf;color:#a34b4b;
+}
+.stats-icon-btn.danger:hover{border-color:#e2b2b2;color:#8a2f2f;background:#fff0f0}
+.stats-row-btn{
+  font-family:'Manrope',sans-serif;font-size:10px;font-weight:800;
+  padding:6px 9px;border-radius:999px;border:1px solid #ddd3c7;
+  background:#f8f3ec;color:#5f564c;cursor:pointer;transition:all .12s;
+}
+.stats-row-btn:hover{border-color:#cdbca6;color:var(--ink);background:#fffdfa}
+.stats-row-btn.danger{
+  background:#fff5f5;border-color:#efcfcf;color:#a34b4b;
+}
+.stats-row-btn.danger:hover{border-color:#e2b2b2;color:#8a2f2f;background:#fff0f0}
+.meas-log-item{
+  display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;
+  padding:10px 0;border-bottom:1px solid var(--b1);
+}
+.meas-log-item:last-child{border-bottom:none}
+.stats-measure-log-card{
+  background:var(--surf);border:1px solid var(--b1);border-radius:var(--r);
+  padding:14px 16px;box-shadow:var(--sh);
+}
+.stats-measure-log-scroll{
+  max-height:320px;overflow:auto;padding-right:4px;scrollbar-width:thin;
+}
+.meas-log-date{
+  width:96px;flex:0 0 auto;
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);
+}
+.meas-vals{flex:1;min-width:180px;display:flex;flex-wrap:wrap;gap:6px}
+
+/* Profilo section inside Progress */
+.prof-section{margin-top:28px}
+.prof-title{font-family:'Lora',serif;font-size:18px;font-weight:600;margin-bottom:14px}
+.prof-row{
+  display:grid;grid-template-columns:148px 1fr 36px;
+  align-items:stretch;border-bottom:1px solid var(--b1);transition:background .1s;
+}
+.prof-row:last-child{border-bottom:none}
+.prof-row:hover{background:var(--bg)}
+.prof-lbl{
+  font-size:11px;font-weight:600;color:var(--ink2);
+  padding:11px 12px 11px 16px;
+  display:flex;align-items:center;
+  border-right:1px solid var(--b1);
+}
+.prof-input{
+  font-family:'JetBrains Mono',monospace;font-size:12px;
+  background:transparent;border:none;outline:none;
+  padding:11px 12px;
+  width:100%;color:var(--ink);transition:background .12s;border-radius:0;
+  line-height:1.4;
+}
+.prof-input:focus{background:var(--on-l)}
+.prof-hist{
+  font-size:12px;color:var(--b2);
+  display:flex;align-items:center;justify-content:center;
+  border-left:1px solid var(--b1);
+  opacity:0;transition:opacity .13s;cursor:pointer;
+  background:none;border-top:none;border-right:none;border-bottom:none;
+  border-left:1px solid var(--b1);
+}
+.prof-row:hover .prof-hist{opacity:1}
+.prof-hist:hover{color:var(--on);background:var(--on-l)}
+.ph-count{
+  font-size:8px;font-weight:800;color:var(--surf);
+  background:var(--on);border-radius:20px;
+  padding:1px 4px;margin-left:2px;line-height:1.4;
+}
